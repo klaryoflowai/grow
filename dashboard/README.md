@@ -62,9 +62,8 @@ Use these columns:
 - `date`
 - `company`
 - `activity_type`
-- `channel`
-- `notes`
 - `workers_delta`
+- `notes`
 - `contract_value`
 
 Recommended `activity_type` values:
