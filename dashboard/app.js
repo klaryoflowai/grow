@@ -1,37 +1,47 @@
 const defaultTargets = {
-  leads: 40,
+  contacted: 40,
   meetings: 12,
+  offers: 6,
   contracts: 4,
-  workers: 100,
 };
 
 const statusTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
   contacted: { label: "Contactat", color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
-  meeting: { label: "Intalnire", color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
+  meeting: { label: "Meeting", color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
   offer: { label: "Oferta", color: "#8b5cf6", bg: "rgba(139,92,246,0.16)" },
-  contract_review: { label: "Contract review", color: "#f97316", bg: "rgba(249,115,22,0.16)" },
-  signed: { label: "Semnat", color: "#10b981", bg: "rgba(16,185,129,0.16)" },
+  contract_signed: { label: "Contract", color: "#10b981", bg: "rgba(16,185,129,0.16)" },
   lost: { label: "Pierdut", color: "#ef4444", bg: "rgba(239,68,68,0.16)" },
 };
 
 const activityAliases = {
-  lead_new: "lead_new",
-  new_lead: "lead_new",
-  first_contact: "lead_new",
+  lead_new: "contacted",
+  new_lead: "contacted",
+  first_contact: "contacted",
   contacted: "contacted",
   live_contact: "contacted",
   call: "contacted",
   call_live: "contacted",
+  email: "contacted",
+  whatsapp: "contacted",
   meeting_booked: "meeting",
   meeting_held: "meeting",
   meeting: "meeting",
-  proposal_sent: "proposal",
-  offer_sent: "proposal",
+  proposal_sent: "offer",
+  offer_sent: "offer",
+  offer: "offer",
+  contract_review: "offer",
   contract_signed: "contract_signed",
   signed: "contract_signed",
-  arrival: "arrival",
-  worker_arrived: "arrival",
+};
+
+const stageOrder = {
+  new: 0,
+  contacted: 1,
+  meeting: 2,
+  offer: 3,
+  contract_signed: 4,
+  lost: -1,
 };
 
 const storageKeys = {
@@ -44,12 +54,10 @@ const state = {
   sourceData: {
     accounts: [],
     activities: [],
-    artifacts: [],
   },
   manualData: loadManualData(),
   accounts: [],
   activities: [],
-  artifacts: [],
   search: "",
   sourceMode: "empty",
   targets: loadTargets(),
@@ -58,18 +66,16 @@ const state = {
 const elements = {
   currentDate: document.getElementById("current-date"),
   dataModePill: document.getElementById("data-mode-pill"),
+  summaryChip: document.getElementById("summary-chip"),
   statusMessage: document.getElementById("status-message"),
-  accountsCount: document.getElementById("accounts-count"),
-  activitiesCount: document.getElementById("activities-count"),
-  artifactsCount: document.getElementById("artifacts-count"),
-  kpiGrid: document.getElementById("kpi-grid"),
-  funnelView: document.getElementById("funnel-view"),
-  weeklyChart: document.getElementById("weekly-chart"),
-  insightsList: document.getElementById("insights-list"),
+  todayGrid: document.getElementById("today-grid"),
+  monthGrid: document.getElementById("month-grid"),
+  conversionGrid: document.getElementById("conversion-grid"),
+  dailyTrend: document.getElementById("daily-trend"),
+  pipelineSummary: document.getElementById("pipeline-summary"),
   accountsTableBody: document.getElementById("accounts-table-body"),
   alertsList: document.getElementById("alerts-list"),
   activitiesFeed: document.getElementById("activities-feed"),
-  artifactsGrid: document.getElementById("artifacts-grid"),
   companySearch: document.getElementById("company-search"),
   saveTargets: document.getElementById("save-targets"),
   clearSources: document.getElementById("clear-sources"),
@@ -77,25 +83,22 @@ const elements = {
   exportMemory: document.getElementById("export-memory"),
   clearMemory: document.getElementById("clear-memory"),
   targets: {
-    leads: document.getElementById("target-leads"),
+    contacted: document.getElementById("target-contacted"),
     meetings: document.getElementById("target-meetings"),
+    offers: document.getElementById("target-offers"),
     contracts: document.getElementById("target-contracts"),
-    workers: document.getElementById("target-workers"),
   },
   urls: {
     accounts: document.getElementById("accounts-url"),
     activities: document.getElementById("activities-url"),
-    artifacts: document.getElementById("artifacts-url"),
   },
   files: {
     accounts: document.getElementById("accounts-file"),
     activities: document.getElementById("activities-file"),
-    artifacts: document.getElementById("artifacts-file"),
   },
   forms: {
     activity: document.getElementById("activity-form"),
     account: document.getElementById("account-form"),
-    artifact: document.getElementById("artifact-form"),
   },
 };
 
@@ -120,18 +123,19 @@ function init() {
 function bindEvents() {
   elements.saveTargets.addEventListener("click", () => {
     state.targets = {
-      leads: toNumber(elements.targets.leads.value),
+      contacted: toNumber(elements.targets.contacted.value),
       meetings: toNumber(elements.targets.meetings.value),
+      offers: toNumber(elements.targets.offers.value),
       contracts: toNumber(elements.targets.contracts.value),
-      workers: toNumber(elements.targets.workers.value),
     };
     localStorage.setItem(storageKeys.targets, JSON.stringify(state.targets));
+    updateStatus("Target-urile lunare au fost salvate.");
     render();
   });
 
   elements.companySearch.addEventListener("input", (event) => {
     state.search = event.target.value.trim().toLowerCase();
-    renderAccounts();
+    renderPipeline();
   });
 
   elements.clearSources.addEventListener("click", () => {
@@ -142,16 +146,12 @@ function bindEvents() {
     Object.values(elements.files).forEach((input) => {
       input.value = "";
     });
-    state.sourceData = {
-      accounts: [],
-      activities: [],
-      artifacts: [],
-    };
+    state.sourceData = { accounts: [], activities: [] };
     state.sourceMode = "empty";
     refreshCombinedData();
     updateStatus(
       hasManualData()
-        ? "Sursele externe au fost scoase. Dashboard-ul ruleaza acum doar pe memoria locala."
+        ? "Sursele externe au fost scoase. Dashboard-ul ruleaza acum pe memoria locala."
         : "Sursele externe au fost scoase."
     );
     render();
@@ -161,7 +161,6 @@ function bindEvents() {
     const sources = {
       accounts: elements.urls.accounts.value.trim(),
       activities: elements.urls.activities.value.trim(),
-      artifacts: elements.urls.artifacts.value.trim(),
     };
 
     localStorage.setItem(storageKeys.sources, JSON.stringify(sources));
@@ -192,10 +191,13 @@ function bindEvents() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const record = normalizeRow("activities", Object.fromEntries(formData.entries()));
+    if (!record.company || !record.date) return;
+
     state.manualData.activities.unshift(record);
+    syncManualAccountFromActivity(record);
     persistManualData();
     refreshCombinedData();
-    updateStatus(`Activitatea pentru ${record.company || "companie"} a fost salvata in memoria locala.`);
+    updateStatus(`Salvat: ${record.company} -> ${activityLabel(record.activity_type)}.`);
     event.currentTarget.reset();
     setDefaultFormDates();
     render();
@@ -205,39 +207,12 @@ function bindEvents() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const record = normalizeRow("accounts", Object.fromEntries(formData.entries()));
-    const key = record.company.toLowerCase();
-    const existingIndex = state.manualData.accounts.findIndex((item) => item.company.toLowerCase() === key);
+    if (!record.company) return;
 
-    if (existingIndex >= 0) {
-      state.manualData.accounts[existingIndex] = record;
-    } else {
-      state.manualData.accounts.unshift(record);
-    }
-
+    upsertManualAccount(record);
     persistManualData();
     refreshCombinedData();
-    updateStatus(`Contul ${record.company || "nou"} a fost salvat si memorat local.`);
-    event.currentTarget.reset();
-    setDefaultFormDates();
-    render();
-  });
-
-  elements.forms.artifact.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const record = normalizeRow("artifacts", Object.fromEntries(formData.entries()));
-    const key = record.title.toLowerCase();
-    const existingIndex = state.manualData.artifacts.findIndex((item) => item.title.toLowerCase() === key);
-
-    if (existingIndex >= 0) {
-      state.manualData.artifacts[existingIndex] = record;
-    } else {
-      state.manualData.artifacts.unshift(record);
-    }
-
-    persistManualData();
-    refreshCombinedData();
-    updateStatus(`Artifact-ul ${record.title || "nou"} a fost salvat in memoria locala.`);
+    updateStatus(`Compania ${record.company} a fost actualizata.`);
     event.currentTarget.reset();
     setDefaultFormDates();
     render();
@@ -249,19 +224,15 @@ function bindEvents() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `grow-dashboard-memory-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `grow-scorecard-memory-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    updateStatus("Memoria locala a fost exportata ca fisier JSON.");
+    updateStatus("Memoria locala a fost exportata.");
   });
 
   elements.clearMemory.addEventListener("click", () => {
     localStorage.removeItem(storageKeys.manual);
-    state.manualData = {
-      accounts: [],
-      activities: [],
-      artifacts: [],
-    };
+    state.manualData = { accounts: [], activities: [] };
     refreshCombinedData();
     updateStatus("Memoria locala a fost stearsa.");
     render();
@@ -274,7 +245,7 @@ async function loadSavedSources() {
     updateStatus(
       hasManualData()
         ? "Nu exista surse live salvate. Dashboard-ul foloseste memoria locala."
-        : "Conecteaza surse live, incarca fisiere CSV locale sau foloseste formularele de captura zilnica."
+        : "Poti incepe direct din formularul de sus sau poti conecta doua CSV-uri: accounts si activities."
     );
     render();
     return;
@@ -283,7 +254,6 @@ async function loadSavedSources() {
   const sources = JSON.parse(raw);
   elements.urls.accounts.value = sources.accounts || "";
   elements.urls.activities.value = sources.activities || "";
-  elements.urls.artifacts.value = sources.artifacts || "";
 
   try {
     await loadRemoteSources(sources);
@@ -294,23 +264,23 @@ async function loadSavedSources() {
 }
 
 async function loadRemoteSources(sources) {
-  const loaders = Object.entries(sources)
-    .map(async ([key, url]) => {
-      if (!url) {
-        state.sourceData[key] = [];
-        return;
-      }
+  const loaders = Object.entries(sources).map(async ([key, url]) => {
+    if (!url) {
+      state.sourceData[key] = [];
+      return;
+    }
 
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Sursa ${key} a raspuns cu ${response.status}.`);
-      }
-      const text = await response.text();
-      state.sourceData[key] = parseCsv(text).map((row) => normalizeRow(key, row));
-    });
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Sursa ${key} a raspuns cu ${response.status}.`);
+    }
+
+    const text = await response.text();
+    state.sourceData[key] = parseCsv(text).map((row) => normalizeRow(key, row));
+  });
 
   if (!Object.values(sources).some(Boolean)) {
-    updateStatus("Nu exista URL-uri salvate. Foloseste upload local sau configureaza surse live.");
+    updateStatus("Nu exista URL-uri salvate. Foloseste upload local sau configureaza sursele live.");
     render();
     return;
   }
@@ -318,33 +288,38 @@ async function loadRemoteSources(sources) {
   await Promise.all(loaders);
   state.sourceMode = "remote";
   refreshCombinedData();
-  updateStatus("Datele reale au fost incarcate din surse live si combinate cu memoria locala.");
+  updateStatus("Datele live au fost incarcate si combinate cu memoria locala.");
   render();
 }
 
 function hydrateInputs() {
-  elements.targets.leads.value = state.targets.leads;
+  elements.targets.contacted.value = state.targets.contacted;
   elements.targets.meetings.value = state.targets.meetings;
+  elements.targets.offers.value = state.targets.offers;
   elements.targets.contracts.value = state.targets.contracts;
-  elements.targets.workers.value = state.targets.workers;
 }
 
 function setDefaultFormDates() {
   const today = new Date().toISOString().slice(0, 10);
   const activityDate = elements.forms.activity?.querySelector('input[name="date"]');
   const accountLastContact = elements.forms.account?.querySelector('input[name="last_contact"]');
-  const artifactUpdatedAt = elements.forms.artifact?.querySelector('input[name="updated_at"]');
 
   if (activityDate && !activityDate.value) activityDate.value = today;
-  if (artifactUpdatedAt && !artifactUpdatedAt.value) artifactUpdatedAt.value = today;
   if (accountLastContact && !accountLastContact.value) accountLastContact.value = today;
 }
 
 function loadTargets() {
   const raw = localStorage.getItem(storageKeys.targets);
   if (!raw) return { ...defaultTargets };
+
   try {
-    return { ...defaultTargets, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    return {
+      contacted: parsed.contacted ?? parsed.leads ?? defaultTargets.contacted,
+      meetings: parsed.meetings ?? defaultTargets.meetings,
+      offers: parsed.offers ?? defaultTargets.offers,
+      contracts: parsed.contracts ?? defaultTargets.contracts,
+    };
   } catch {
     return { ...defaultTargets };
   }
@@ -352,19 +327,16 @@ function loadTargets() {
 
 function loadManualData() {
   const raw = localStorage.getItem(storageKeys.manual);
-  if (!raw) {
-    return { accounts: [], activities: [], artifacts: [] };
-  }
+  if (!raw) return { accounts: [], activities: [] };
 
   try {
     const parsed = JSON.parse(raw);
     return {
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts.map((row) => normalizeRow("accounts", row)) : [],
       activities: Array.isArray(parsed.activities) ? parsed.activities.map((row) => normalizeRow("activities", row)) : [],
-      artifacts: Array.isArray(parsed.artifacts) ? parsed.artifacts.map((row) => normalizeRow("artifacts", row)) : [],
     };
   } catch {
-    return { accounts: [], activities: [], artifacts: [] };
+    return { accounts: [], activities: [] };
   }
 }
 
@@ -373,13 +345,10 @@ function persistManualData() {
 }
 
 function hasManualData() {
-  return Boolean(
-    state.manualData.accounts.length || state.manualData.activities.length || state.manualData.artifacts.length
-  );
+  return Boolean(state.manualData.accounts.length || state.manualData.activities.length);
 }
 
 function refreshCombinedData() {
-  state.accounts = mergeAccounts(state.sourceData.accounts, state.manualData.accounts);
   state.activities = [...state.sourceData.activities, ...state.manualData.activities]
     .filter((item) => item.company || item.date)
     .sort((left, right) => {
@@ -387,80 +356,132 @@ function refreshCombinedData() {
       const rightTime = right.date ? right.date.getTime() : 0;
       return rightTime - leftTime;
     });
-  state.artifacts = mergeArtifacts(state.sourceData.artifacts, state.manualData.artifacts);
+
+  state.accounts = mergeAccounts(state.sourceData.accounts, state.manualData.accounts, state.activities);
 }
 
-function mergeAccounts(sourceAccounts, manualAccounts) {
+function mergeAccounts(sourceAccounts, manualAccounts, activities) {
   const merged = new Map();
 
   [...sourceAccounts, ...manualAccounts].forEach((account) => {
     if (!account.company) return;
-    merged.set(account.company.toLowerCase(), account);
+    merged.set(account.company.toLowerCase(), { ...account });
+  });
+
+  activities.forEach((activity) => {
+    if (!activity.company) return;
+    const key = activity.company.toLowerCase();
+    const existing = merged.get(key) || {
+      company: activity.company,
+      status: "contacted",
+      workers: 0,
+      last_contact: null,
+      next_step: "",
+      sector: "",
+      notes: "",
+    };
+
+    if (activity.date && (!existing.last_contact || activity.date > existing.last_contact)) {
+      existing.last_contact = activity.date;
+    }
+
+    if (stageRank(activity.activity_type) > stageRank(existing.status)) {
+      existing.status = activity.activity_type;
+    }
+
+    if (activity.activity_type === "contract_signed" && activity.workers_delta > existing.workers) {
+      existing.workers = activity.workers_delta;
+    }
+
+    merged.set(key, existing);
   });
 
   return [...merged.values()];
 }
 
-function mergeArtifacts(sourceArtifacts, manualArtifacts) {
-  const merged = new Map();
+function syncManualAccountFromActivity(activity) {
+  const key = activity.company.toLowerCase();
+  const existingIndex = state.manualData.accounts.findIndex((item) => item.company.toLowerCase() === key);
+  const current = existingIndex >= 0
+    ? { ...state.manualData.accounts[existingIndex] }
+    : {
+        company: activity.company,
+        status: "contacted",
+        workers: 0,
+        last_contact: null,
+        next_step: "",
+        sector: "",
+        notes: "",
+      };
 
-  [...sourceArtifacts, ...manualArtifacts].forEach((artifact) => {
-    if (!artifact.title) return;
-    merged.set(artifact.title.toLowerCase(), artifact);
-  });
+  if (activity.date && (!current.last_contact || activity.date > current.last_contact)) {
+    current.last_contact = activity.date;
+  }
 
-  return [...merged.values()];
+  if (stageRank(activity.activity_type) > stageRank(current.status)) {
+    current.status = activity.activity_type;
+  }
+
+  if (activity.activity_type === "contract_signed" && activity.workers_delta > current.workers) {
+    current.workers = activity.workers_delta;
+  }
+
+  if (existingIndex >= 0) {
+    state.manualData.accounts[existingIndex] = current;
+  } else {
+    state.manualData.accounts.unshift(current);
+  }
+}
+
+function upsertManualAccount(record) {
+  const key = record.company.toLowerCase();
+  const existingIndex = state.manualData.accounts.findIndex((item) => item.company.toLowerCase() === key);
+
+  if (existingIndex >= 0) {
+    state.manualData.accounts[existingIndex] = {
+      ...state.manualData.accounts[existingIndex],
+      ...record,
+    };
+  } else {
+    state.manualData.accounts.unshift(record);
+  }
 }
 
 function normalizeRow(kind, row) {
   if (kind === "accounts") {
     return {
       company: row.company || row.name || "",
-      sector: row.sector || row.industry || "",
-      priority: toNumber(row.priority || row.tier || 0),
-      status: normalizeStatus(row.status),
+      status: normalizeStatus(row.status || row.stage || row.activity_type),
       workers: toNumber(row.workers || row.potential_volume || row.workers_requested || 0),
-      owner: row.owner || "",
-      last_contact: parseDate(row.last_contact),
+      last_contact: parseDate(row.last_contact || row.date),
       next_step: row.next_step || "",
-      next_step_date: parseDate(row.next_step_date),
-      signed_date: parseDate(row.signed_date),
-      arrival_date: parseDate(row.arrival_date),
+      sector: row.sector || row.industry || "",
       notes: row.notes || "",
     };
   }
 
-  if (kind === "activities") {
-    return {
-      date: parseDate(row.date),
-      company: row.company || row.account || "",
-      activity_type: normalizeActivity(row.activity_type || row.type || ""),
-      channel: row.channel || "",
-      notes: row.notes || row.summary || "",
-      workers_delta: toNumber(row.workers_delta || row.workers || 0),
-      contract_value: toNumber(row.contract_value || row.value || 0),
-    };
-  }
-
   return {
-    title: row.title || row.name || "",
-    category: row.category || "artifact",
-    status: row.status || "draft",
-    owner: row.owner || "",
-    updated_at: parseDate(row.updated_at || row.date),
-    url: row.url || row.link || "",
-    notes: row.notes || "",
+    date: parseDate(row.date),
+    company: row.company || row.account || "",
+    activity_type: normalizeActivity(row.activity_type || row.type || row.status),
+    workers_delta: toNumber(row.workers_delta || row.workers || 0),
+    notes: row.notes || row.summary || "",
   };
 }
 
 function normalizeStatus(value = "") {
   const key = value.toString().trim().toLowerCase().replace(/\s+/g, "_");
-  return statusTheme[key] ? key : "new";
+  if (key === "signed") return "contract_signed";
+  if (key === "proposal" || key === "proposal_sent" || key === "offer_sent" || key === "contract_review") {
+    return "offer";
+  }
+  if (statusTheme[key]) return key;
+  return key ? "contacted" : "new";
 }
 
 function normalizeActivity(value = "") {
   const key = value.toString().trim().toLowerCase().replace(/\s+/g, "_");
-  return activityAliases[key] || key || "unknown";
+  return activityAliases[key] || "contacted";
 }
 
 function parseDate(value) {
@@ -474,31 +495,37 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function stageRank(status = "") {
+  return stageOrder[status] ?? 0;
+}
+
 function updateStatus(message) {
   elements.statusMessage.textContent = message;
 }
 
 function render() {
-  elements.accountsCount.textContent = String(state.accounts.length);
-  elements.activitiesCount.textContent = String(state.activities.length);
-  elements.artifactsCount.textContent = String(state.artifacts.length);
-
   const dataMode = state.sourceMode === "remote"
-    ? "Conectat la date live"
+    ? "Date live + memorie locala"
     : state.sourceMode === "upload"
-      ? "Date incarcate local"
-      : "Fara sursa conectata";
-  const manualSummary = state.manualData.accounts.length + state.manualData.activities.length + state.manualData.artifacts.length;
-  elements.dataModePill.textContent = manualSummary ? `${dataMode} + memorie locala` : dataMode;
+      ? "CSV local + memorie locala"
+      : hasManualData()
+        ? "Memorie locala"
+        : "Fara sursa conectata";
 
-  renderKpis();
-  renderFunnel();
-  renderWeekly();
-  renderInsights();
-  renderAccounts();
+  elements.dataModePill.textContent = dataMode;
+  elements.summaryChip.textContent = `${state.activities.length} activitati · ${state.accounts.length} companii`;
+
+  renderScorecards();
+  renderConversions();
+  renderTrend();
+  renderPipeline();
   renderAlerts();
   renderActivities();
-  renderArtifacts();
+}
+
+function getTodayActivities() {
+  const today = new Date();
+  return state.activities.filter((activity) => isSameDay(activity.date, today));
 }
 
 function getMonthlyActivities() {
@@ -509,220 +536,204 @@ function getMonthlyActivities() {
   });
 }
 
-function computeKpis() {
+function countActivities(activities) {
+  const counts = {
+    contacted: 0,
+    meeting: 0,
+    offer: 0,
+    contract_signed: 0,
+  };
+
+  activities.forEach((activity) => {
+    if (counts[activity.activity_type] !== undefined) {
+      counts[activity.activity_type] += 1;
+    }
+  });
+
+  return counts;
+}
+
+function workersWonThisMonth(monthlyActivities) {
+  return monthlyActivities
+    .filter((activity) => activity.activity_type === "contract_signed")
+    .reduce((sum, activity) => sum + activity.workers_delta, 0);
+}
+
+function renderScorecards() {
+  const todayActivities = getTodayActivities();
   const monthlyActivities = getMonthlyActivities();
-  const monthlyContracts = monthlyActivities.filter((item) => item.activity_type === "contract_signed");
+  const todayCounts = countActivities(todayActivities);
+  const monthCounts = countActivities(monthlyActivities);
+  const workersWon = workersWonThisMonth(monthlyActivities);
 
-  const leads = monthlyActivities.filter((item) => item.activity_type === "lead_new").length;
-  const meetings = monthlyActivities.filter((item) => item.activity_type === "meeting").length;
-  const contracts = monthlyContracts.length;
+  elements.todayGrid.innerHTML = buildStats([
+    { label: "Contactate", value: todayCounts.contacted, meta: "actiuni salvate azi", color: "#38bdf8" },
+    { label: "Meetings", value: todayCounts.meeting, meta: "stabilite sau tinute", color: "#f59e0b" },
+    { label: "Oferte", value: todayCounts.offer, meta: "trimise azi", color: "#8b5cf6" },
+    { label: "Contracte", value: todayCounts.contract_signed, meta: "inchise azi", color: "#10b981" },
+  ]);
 
-  let workers = monthlyContracts.reduce((sum, item) => sum + item.workers_delta, 0);
-  if (!workers) {
-    workers = state.accounts
-      .filter((account) => account.status === "signed")
-      .reduce((sum, account) => sum + account.workers, 0);
-  }
+  elements.monthGrid.innerHTML = buildStats([
+    buildTargetCard("Contactate", monthCounts.contacted, state.targets.contacted, "#38bdf8"),
+    buildTargetCard("Meetings", monthCounts.meeting, state.targets.meetings, "#f59e0b"),
+    buildTargetCard("Oferte", monthCounts.offer, state.targets.offers, "#8b5cf6"),
+    buildTargetCard("Contracte", monthCounts.contract_signed, state.targets.contracts, "#10b981"),
+    { label: "Muncitori", value: workersWon, meta: "castigati luna asta", color: "#10b981" },
+  ]);
+}
 
+function buildTargetCard(label, value, target, color) {
+  const pct = target > 0 ? Math.round((value / target) * 100) : 0;
   return {
-    leads,
-    meetings,
-    contracts,
-    workers,
+    label,
+    value,
+    meta: `target ${target} · ${pct}%`,
+    color,
   };
 }
 
-function renderKpis() {
-  const metrics = computeKpis();
-  const cards = [
-    { key: "leads", label: "Lead-uri noi", icon: "Leads", color: "#38bdf8" },
-    { key: "meetings", label: "Intalniri", icon: "Meet", color: "#f59e0b" },
-    { key: "contracts", label: "Contracte semnate", icon: "Sign", color: "#8b5cf6" },
-    { key: "workers", label: "Muncitori castigati", icon: "Crew", color: "#10b981" },
-  ];
-
-  elements.kpiGrid.innerHTML = cards
-    .map((card) => {
-      const value = metrics[card.key] || 0;
-      const target = state.targets[card.key] || 0;
-      const pct = target > 0 ? Math.min(Math.round((value / target) * 100), 999) : 0;
-      const barPct = Math.min(pct, 100);
-
-      return `
-        <article class="kpi-card">
-          <div class="kpi-head">
-            <span class="kpi-icon">${card.icon}</span>
-            <span class="badge" style="color:${card.color}; border-color:${card.color}33; background:${card.color}1a;">target ${target}</span>
-          </div>
-          <div class="kpi-value">${value}</div>
-          <div class="kpi-label">${card.label}</div>
-          <div class="progress-meta">
-            <span>progres lunar</span>
-            <strong style="color:${card.color};">${pct}%</strong>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill" style="width:${barPct}%; background:linear-gradient(90deg, ${card.color}88, ${card.color});"></div>
-          </div>
-        </article>
-      `;
-    })
-    .join("");
-}
-
-function renderFunnel() {
-  const metrics = computeKpis();
-  const contactedAccounts = state.accounts.filter((account) =>
-    ["contacted", "meeting", "offer", "contract_review", "signed"].includes(account.status)
-  ).length;
-  const meetingAccounts = state.accounts.filter((account) =>
-    ["meeting", "offer", "contract_review", "signed"].includes(account.status)
-  ).length;
-  const offerAccounts = state.accounts.filter((account) =>
-    ["offer", "contract_review", "signed"].includes(account.status)
-  ).length;
-
-  const steps = [
-    { label: "Lead-uri noi", value: metrics.leads, color: "#38bdf8" },
-    { label: "Contacte active", value: contactedAccounts, color: "#0ea5e9" },
-    { label: "Intalniri", value: Math.max(metrics.meetings, meetingAccounts), color: "#f59e0b" },
-    { label: "Oferte", value: offerAccounts, color: "#8b5cf6" },
-    { label: "Contracte", value: metrics.contracts, color: "#10b981" },
-  ];
-
-  const max = Math.max(...steps.map((step) => step.value), 1);
-
-  elements.funnelView.innerHTML = steps
-    .map((step) => {
-      const pct = Math.max((step.value / max) * 100, 8);
-      return `
-        <div class="funnel-step">
-          <div class="funnel-label-row">
-            <span>${step.label}</span>
-            <strong>${step.value}</strong>
-          </div>
-          <div class="funnel-bar">
-            <div class="funnel-fill" style="width:${pct}%; background:linear-gradient(90deg, ${step.color}66, ${step.color});"></div>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function renderWeekly() {
-  const monthlyActivities = getMonthlyActivities();
-  const weeklyBuckets = {};
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const totalWeeks = Math.ceil(daysInMonth / 7);
-
-  for (let index = 0; index < totalWeeks; index += 1) {
-    weeklyBuckets[`S${index + 1}`] = { label: `S${index + 1}`, leads: 0, meetings: 0, contracts: 0 };
-  }
-
-  monthlyActivities.forEach((activity) => {
-    if (!activity.date) return;
-    const weekIndex = Math.floor((activity.date.getDate() - 1) / 7) + 1;
-    const bucket = weeklyBuckets[`S${weekIndex}`];
-    if (!bucket) return;
-
-    if (activity.activity_type === "lead_new") bucket.leads += 1;
-    if (activity.activity_type === "meeting") bucket.meetings += 1;
-    if (activity.activity_type === "contract_signed") bucket.contracts += 1;
-  });
-
-  const series = Object.values(weeklyBuckets);
-  const maxValue = Math.max(...series.flatMap((item) => [item.leads, item.meetings, item.contracts]), 1);
-
-  elements.weeklyChart.innerHTML = series
-    .map((item) => {
-      const leadsHeight = Math.max((item.leads / maxValue) * 160, item.leads ? 12 : 4);
-      const meetingsHeight = Math.max((item.meetings / maxValue) * 160, item.meetings ? 12 : 4);
-      const contractsHeight = Math.max((item.contracts / maxValue) * 160, item.contracts ? 12 : 4);
-
-      return `
-        <div class="weekly-column">
-          <div class="weekly-bars">
-            <div class="weekly-bar" style="height:${leadsHeight}px; background:linear-gradient(180deg, #38bdf8, #2563eb);"></div>
-            <div class="weekly-bar" style="height:${meetingsHeight}px; background:linear-gradient(180deg, #fbbf24, #f59e0b);"></div>
-            <div class="weekly-bar" style="height:${contractsHeight}px; background:linear-gradient(180deg, #34d399, #10b981);"></div>
-          </div>
-          <div class="weekly-meta">
-            <span>${item.label}</span>
-            <span>${item.leads}/${item.meetings}/${item.contracts}</span>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function renderInsights() {
-  const metrics = computeKpis();
-  const convRate = metrics.leads > 0 ? metrics.contracts / metrics.leads : 0;
-  const liveContacts = getMonthlyActivities().filter((activity) =>
-    ["contacted", "meeting"].includes(activity.activity_type)
-  ).length;
-
-  const insights = [
-    {
-      title: "Lead -> Contract",
-      copy: metrics.leads
-        ? `Conversia curenta este ${Math.round(convRate * 100)}%. Daca ramane asa, ai nevoie de aproximativ ${Math.max(Math.ceil(state.targets.contracts / Math.max(convRate, 0.01)), metrics.leads)} lead-uri pentru targetul lunar.`
-        : "Nu exista suficiente activitati de tip lead_new pentru a calcula conversia.",
-    },
-    {
-      title: "Activitate live",
-      copy: `${liveContacts} interactiuni de tip contact sau meeting au fost inregistrate in luna curenta.`,
-    },
-    {
-      title: "Pipeline",
-      copy: `${state.accounts.filter((account) => ["meeting", "offer", "contract_review"].includes(account.status)).length} companii sunt in zona calda a pipeline-ului.`,
-    },
-  ];
-
-  elements.insightsList.innerHTML = insights
+function buildStats(cards) {
+  return cards
     .map(
-      (insight) => `
-        <article class="insight-card">
-          <div class="insight-title">${insight.title}</div>
-          <div class="artifact-copy">${insight.copy}</div>
+      (card) => `
+        <article class="stat-card">
+          <div class="stat-label">${card.label}</div>
+          <div class="stat-value" style="color:${card.color};">${card.value}</div>
+          <div class="card-meta">${card.meta}</div>
         </article>
       `
     )
     .join("");
 }
 
-function renderAccounts() {
-  const filtered = state.accounts
+function renderConversions() {
+  const monthlyActivities = getMonthlyActivities();
+  const counts = countActivities(monthlyActivities);
+
+  const conversions = [
+    buildConversionCard("Contact -> Meeting", counts.meeting, counts.contacted),
+    buildConversionCard("Meeting -> Oferta", counts.offer, counts.meeting),
+    buildConversionCard("Oferta -> Contract", counts.contract_signed, counts.offer),
+    buildConversionCard("Contact -> Contract", counts.contract_signed, counts.contacted),
+  ];
+
+  elements.conversionGrid.innerHTML = conversions
+    .map(
+      (item) => `
+        <article class="conversion-card">
+          <div class="conversion-title">
+            <span>${item.label}</span>
+            <strong>${item.rate}</strong>
+          </div>
+          <div class="card-meta">${item.detail}</div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function buildConversionCard(label, numerator, denominator) {
+  if (!denominator) {
+    return {
+      label,
+      rate: "-",
+      detail: "Nu exista suficienta activitate in etapa anterioara.",
+    };
+  }
+
+  return {
+    label,
+    rate: `${Math.round((numerator / denominator) * 100)}%`,
+    detail: `${numerator} din ${denominator}`,
+  };
+}
+
+function renderTrend() {
+  const series = getLastSevenDays();
+  const maxContacts = Math.max(...series.map((day) => day.contacted), 1);
+
+  elements.dailyTrend.innerHTML = series
+    .map((day) => {
+      const width = Math.max((day.contacted / maxContacts) * 100, day.contacted ? 10 : 3);
+      return `
+        <article class="trend-row">
+          <div class="trend-label">${day.label}</div>
+          <div class="trend-bar">
+            <div class="trend-fill" style="width:${width}%;"></div>
+          </div>
+          <div class="trend-copy">
+            ${day.contacted} contacte · ${day.meeting} meetings · ${day.offer} oferte · ${day.contract_signed} contracte
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function getLastSevenDays() {
+  const rows = [];
+
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - offset);
+    const activities = state.activities.filter((activity) => isSameDay(activity.date, date));
+    const counts = countActivities(activities);
+
+    rows.push({
+      label: new Intl.DateTimeFormat("ro-RO", { day: "2-digit", month: "short" }).format(date),
+      contacted: counts.contacted,
+      meeting: counts.meeting,
+      offer: counts.offer,
+      contract_signed: counts.contract_signed,
+    });
+  }
+
+  return rows;
+}
+
+function renderPipeline() {
+  const activeAccounts = state.accounts
     .filter((account) => !state.search || account.company.toLowerCase().includes(state.search))
     .sort((left, right) => {
-      const leftPriority = left.priority || 99;
-      const rightPriority = right.priority || 99;
-      if (leftPriority !== rightPriority) return leftPriority - rightPriority;
-      return left.company.localeCompare(right.company);
+      const stageDiff = stageRank(right.status) - stageRank(left.status);
+      if (stageDiff !== 0) return stageDiff;
+      const leftTime = left.last_contact ? left.last_contact.getTime() : 0;
+      const rightTime = right.last_contact ? right.last_contact.getTime() : 0;
+      return rightTime - leftTime;
     });
 
-  if (!filtered.length) {
+  const counts = {
+    contacted: state.accounts.filter((account) => account.status === "contacted").length,
+    meeting: state.accounts.filter((account) => account.status === "meeting").length,
+    offer: state.accounts.filter((account) => account.status === "offer").length,
+    contract_signed: state.accounts.filter((account) => account.status === "contract_signed").length,
+  };
+
+  elements.pipelineSummary.innerHTML = `
+    <div class="mini-chip">Contactate: ${counts.contacted}</div>
+    <div class="mini-chip">Meetings: ${counts.meeting}</div>
+    <div class="mini-chip">Oferte: ${counts.offer}</div>
+    <div class="mini-chip">Contracte: ${counts.contract_signed}</div>
+  `;
+
+  if (!activeAccounts.length) {
     elements.accountsTableBody.innerHTML = `
       <tr>
-        <td colspan="6">
-          <div class="empty-card">Nu exista inca linii in accounts.csv. Poti totusi incepe imediat din formularele de captura zilnica.</div>
+        <td colspan="5">
+          <div class="empty-card">Nu exista companii in pipeline inca. Prima activitate salvata va crea automat compania.</div>
         </td>
       </tr>
     `;
     return;
   }
 
-  elements.accountsTableBody.innerHTML = filtered
+  elements.accountsTableBody.innerHTML = activeAccounts
     .map((account) => {
       const status = statusTheme[account.status] || statusTheme.new;
       return `
         <tr>
-          <td>
-            <div class="company-name">${account.company || "-"}</div>
-          </td>
-          <td>${account.sector || "-"}</td>
+          <td><div class="company-name">${account.company}</div></td>
           <td>
             <span class="status-pill" style="color:${status.color}; background:${status.bg}; border-color:${status.color}33;">
               ${status.label}
@@ -739,43 +750,45 @@ function renderAccounts() {
 
 function renderAlerts() {
   const now = new Date();
-  const stale = state.accounts
-    .filter((account) => account.priority === 1)
+  const staleAccounts = state.accounts
+    .filter((account) => !["contract_signed", "lost"].includes(account.status))
     .filter((account) => {
       if (!account.last_contact) return true;
-      const diff = Math.floor((now - account.last_contact) / (1000 * 60 * 60 * 24));
-      return diff > 7;
+      return dayDiff(account.last_contact, now) > 7;
+    })
+    .sort((left, right) => {
+      const leftDays = left.last_contact ? dayDiff(left.last_contact, now) : 999;
+      const rightDays = right.last_contact ? dayDiff(right.last_contact, now) : 999;
+      return rightDays - leftDays;
     })
     .slice(0, 6);
 
-  if (!stale.length) {
-    elements.alertsList.innerHTML = `<div class="empty-card">Nu exista urgente P1 sau nu avem date suficiente inca.</div>`;
+  if (!staleAccounts.length) {
+    elements.alertsList.innerHTML = `<article class="empty-card">Nu exista follow-up-uri vechi de peste 7 zile.</article>`;
     return;
   }
 
-  elements.alertsList.innerHTML = stale
-    .map((account) => {
-      const age = account.last_contact
-        ? `${Math.floor((now - account.last_contact) / (1000 * 60 * 60 * 24))} zile fara contact`
-        : "fara ultim contact";
-      return `
-        <article class="alert-card">
-          <div class="insight-title">${account.company}</div>
-          <div class="artifact-copy">${age}. Next step: ${account.next_step || "nesetat"}.</div>
-        </article>
-      `;
-    })
+  elements.alertsList.innerHTML = staleAccounts
+    .map((account) => `
+      <article class="alert-card">
+        <div class="alert-main">
+          <div class="alert-title">${account.company}</div>
+          <div class="activity-copy">
+            ${account.last_contact ? `${dayDiff(account.last_contact, now)} zile fara touch` : "fara touch salvat"}
+            ${account.next_step ? ` · next: ${account.next_step}` : ""}
+          </div>
+        </div>
+        <div class="alert-date">${statusLabel(account.status)}</div>
+      </article>
+    `)
     .join("");
 }
 
 function renderActivities() {
-  const recent = [...state.activities]
-    .filter((activity) => activity.date)
-    .sort((left, right) => right.date - left.date)
-    .slice(0, 8);
+  const recent = state.activities.slice(0, 8);
 
   if (!recent.length) {
-    elements.activitiesFeed.innerHTML = `<div class="empty-card">Nu exista activitati reale inca. Adauga prima activitate din formularul de sus.</div>`;
+    elements.activitiesFeed.innerHTML = `<article class="empty-card">Nu exista activitate salvata inca.</article>`;
     return;
   }
 
@@ -783,8 +796,12 @@ function renderActivities() {
     .map((activity) => `
       <article class="activity-card">
         <div class="activity-main">
-          <strong>${activity.company || "Companie necunoscuta"}</strong>
-          <span class="activity-subline">${activity.activity_type}${activity.channel ? ` · ${activity.channel}` : ""}${activity.notes ? ` · ${activity.notes}` : ""}</span>
+          <div class="activity-title">${activity.company}</div>
+          <div class="activity-copy">
+            ${activityLabel(activity.activity_type)}
+            ${activity.workers_delta ? ` · ${activity.workers_delta} muncitori` : ""}
+            ${activity.notes ? ` · ${activity.notes}` : ""}
+          </div>
         </div>
         <div class="activity-date">${formatDate(activity.date)}</div>
       </article>
@@ -792,35 +809,19 @@ function renderActivities() {
     .join("");
 }
 
-function renderArtifacts() {
-  if (!state.artifacts.length) {
-    elements.artifactsGrid.innerHTML = `
-      <article class="empty-card">
-        In acest spatiu vom adauga playbook-uri, oferte, SOP-uri, call scripts, scorecard reviews si alte artifacts.
-      </article>
-    `;
-    return;
-  }
+function activityLabel(type) {
+  const labels = {
+    contacted: "Contactat",
+    meeting: "Meeting",
+    offer: "Oferta",
+    contract_signed: "Contract semnat",
+  };
+  return labels[type] || type;
+}
 
-  elements.artifactsGrid.innerHTML = state.artifacts
-    .sort((left, right) => {
-      const leftTime = left.updated_at ? left.updated_at.getTime() : 0;
-      const rightTime = right.updated_at ? right.updated_at.getTime() : 0;
-      return rightTime - leftTime;
-    })
-    .map((artifact) => `
-      <article class="artifact-card">
-        <span class="badge">${artifact.category}</span>
-        <div class="artifact-title">${artifact.title}</div>
-        <div class="artifact-copy">${artifact.notes || "Fara descriere suplimentara."}</div>
-        <div class="artifact-meta">
-          <span>${artifact.status}</span>
-          <span>${formatDate(artifact.updated_at)}</span>
-        </div>
-        ${artifact.url ? `<a class="artifact-link" href="${artifact.url}" target="_blank" rel="noreferrer">Deschide artifact</a>` : ""}
-      </article>
-    `)
-    .join("");
+function statusLabel(type) {
+  const status = statusTheme[type] || statusTheme.new;
+  return status.label;
 }
 
 function formatDate(date) {
@@ -828,8 +829,23 @@ function formatDate(date) {
   return new Intl.DateTimeFormat("ro-RO", {
     day: "2-digit",
     month: "short",
-    year: "numeric",
   }).format(date);
+}
+
+function isSameDay(left, right) {
+  if (!left || !right) return false;
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+function dayDiff(left, right) {
+  const ms = 1000 * 60 * 60 * 24;
+  const leftDate = new Date(left);
+  const rightDate = new Date(right);
+  leftDate.setHours(0, 0, 0, 0);
+  rightDate.setHours(0, 0, 0, 0);
+  return Math.floor((rightDate.getTime() - leftDate.getTime()) / ms);
 }
 
 function parseCsv(text) {

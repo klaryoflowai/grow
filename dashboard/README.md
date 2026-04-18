@@ -1,14 +1,14 @@
-# Grow Activity Dashboard
+# Grow Daily Sales Scorecard
 
 ## Purpose
 
 This is the standalone interactive dashboard for:
 
+- daily contacts
 - monthly scorecard
-- Dream 100 account visibility
+- pipeline visibility
+- clear conversion metrics
 - recent activity feed
-- daily data capture with local memory
-- future artifacts
 
 ## Open It
 
@@ -33,7 +33,7 @@ It publishes the `dashboard` folder directly to GitHub Pages, so the live site u
 
 ## How Real Data Works
 
-This dashboard does not use fake data by default.
+This dashboard is now intentionally simplified.
 
 Use one of these:
 
@@ -48,16 +48,11 @@ Use one of these:
 Use these columns:
 
 - `company`
-- `sector`
-- `priority`
 - `status`
 - `workers`
-- `owner`
 - `last_contact`
 - `next_step`
-- `next_step_date`
-- `signed_date`
-- `arrival_date`
+- `sector`
 - `notes`
 
 ### activities.csv
@@ -74,24 +69,10 @@ Use these columns:
 
 Recommended `activity_type` values:
 
-- `lead_new`
 - `contacted`
 - `meeting`
-- `proposal_sent`
+- `offer`
 - `contract_signed`
-- `arrival`
-
-### artifacts.csv
-
-Use these columns:
-
-- `title`
-- `category`
-- `status`
-- `owner`
-- `updated_at`
-- `url`
-- `notes`
 
 ## Important Limitation
 
@@ -99,10 +80,4 @@ Your current Google Sheet link requires authentication, so I could not hydrate t
 
 ## Daily Memory
 
-The dashboard now has three built-in forms:
-
-- activity capture
-- account updates
-- artifact capture
-
-These entries are stored in browser localStorage and are merged automatically with any live CSV source.
+The dashboard keeps the quick activity form and the quick company update form in browser localStorage. These entries are merged automatically with any live CSV source.
