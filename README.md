@@ -20,7 +20,7 @@ This Vault is designed as a sales operating system for a Director of Sales at Gr
 - `40_MEETINGS` for internal and client meetings
 - `90_ARCHIVE` for closed or inactive material
 - `_Templates` for reusable note templates
-- `dashboard` for the interactive web dashboard fed by CSV or published Google Sheets
+- `dashboard` for the interactive web dashboard, now prepared for Airtable + Vercel
 
 ## Recommended Obsidian Configuration
 
@@ -52,10 +52,12 @@ Optional but useful later:
 4. In `Settings -> Templates`, set the template folder to `_Templates`.
 5. Pin `00_Start_Here.md` and `30_DASHBOARDS/00-Sales Command Center.md`.
 6. Open `dashboard/index.html` when you want a richer visual dashboard outside Obsidian.
+7. For real live data, deploy the repo to Vercel and connect Airtable through environment variables.
 
 ## GitHub Deploy
 
 This repo is prepared for GitHub Pages with a workflow that deploys the `dashboard` folder as the live site.
+That path is still useful for static preview, but the Airtable-backed version needs Vercel because the API token must stay server-side.
 
 Recommended flow:
 
@@ -66,6 +68,16 @@ Recommended flow:
 5. push again if needed and wait for the `Deploy Dashboard to GitHub Pages` workflow
 
 The published site will serve the dashboard directly from `dashboard/index.html`.
+
+## Vercel + Airtable Deploy
+
+For live Grow data, use Vercel instead of GitHub Pages:
+
+1. import this GitHub repository into Vercel
+2. add the environment variables from `.env.example`
+3. keep `AIRTABLE_BASE_ID=appaD7MQAs7Im71m2`
+4. adjust Airtable field names only in env vars if your schema differs
+5. redeploy and open `/dashboard/`
 
 ## Metadata Standards
 

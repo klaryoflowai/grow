@@ -274,7 +274,8 @@ h3 {
 .alert-card,
 .empty-card,
 .config-card,
-.upload-card {
+.upload-card,
+.note-card {
   border-radius: 18px;
   border: 1px solid var(--line);
   background: var(--panel-soft);
@@ -285,8 +286,15 @@ h3 {
 .activity-card,
 .alert-card,
 .empty-card,
-.config-card {
+.config-card,
+.note-card {
   padding: 16px;
+}
+
+.config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .stat-card {
@@ -314,6 +322,12 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .conversion-title {

@@ -2,17 +2,82 @@
 
 ## Purpose
 
-This is the standalone interactive dashboard for:
+This dashboard is now optimized for one thing:
 
-- daily contacts
-- monthly scorecard
-- pipeline visibility
-- clear conversion metrics
-- recent activity feed
+- daily lead activity
+- clear stage conversion
+- simple pipeline visibility
+- Airtable as source of truth
 
-## Open It
+## Data Model
 
-Fastest local option:
+The UI only works with 4 core stages:
+
+- `contacted`
+- `meeting`
+- `offer`
+- `contract_signed`
+
+Everything in the scorecard, trend, and conversion cards is built on top of these 4 values.
+
+## Architecture
+
+The frontend stays in:
+
+- `dashboard/index.html`
+- `dashboard/styles.css`
+- `dashboard/app.js`
+
+The Vercel serverless layer lives in:
+
+- `api/bootstrap.js`
+- `api/activities.js`
+- `api/companies.js`
+- `api/targets.js`
+
+Shared Airtable helpers live in:
+
+- `api/_lib/config.js`
+- `api/_lib/airtable.js`
+- `api/_lib/normalize.js`
+
+## Airtable Tables
+
+Base:
+
+- `Grow`
+
+Tables expected by default:
+
+- `Companies`
+- `Activities`
+- `Targets`
+
+Default field names are documented in:
+
+- `.env.example`
+
+If your Airtable field names differ, you do not need to rewrite code. Just override the environment variables in Vercel.
+
+## Important Airtable Note
+
+For the `Activities` table, the easiest setup is:
+
+- `Company` as plain text
+
+If you already use a linked record field to `Companies`, set:
+
+- `AIRTABLE_ACTIVITY_COMPANY_LINKED=true`
+
+and optionally expose a lookup field like:
+
+- `Company Name`
+
+for cleaner reads in the UI.
+
+## Local Development
+
+Fastest static preview:
 
 ```bash
 cd /Users/yuritimofte/Desktop/Grow
@@ -23,60 +88,22 @@ Then open:
 
 - `http://localhost:4173/dashboard/`
 
-## Deploy to GitHub Pages
+Note: in plain static mode, `/api/*` will not exist, so the dashboard falls back to local memory.
 
-This project already includes a GitHub Actions workflow at:
+## Vercel Setup
 
-- `.github/workflows/deploy-dashboard.yml`
+1. Import this GitHub repository into Vercel.
+2. Add the environment variables from `.env.example`.
+3. Keep `AIRTABLE_BASE_ID=appaD7MQAs7Im71m2`.
+4. Deploy.
+5. Open the production URL and the dashboard will start reading from Airtable through Vercel functions.
 
-It publishes the `dashboard` folder directly to GitHub Pages, so the live site uses this folder as the web root.
+## Fallback Mode
 
-## How Real Data Works
+Until Vercel and Airtable are configured:
 
-This dashboard is now intentionally simplified.
+- activities are stored in browser localStorage
+- company updates are stored in browser localStorage
+- targets are stored in browser localStorage
 
-Use one of these:
-
-1. paste published CSV URLs from Google Sheets
-2. upload local CSV exports
-3. write directly inside the dashboard and save to local memory
-
-## CSV Schemas
-
-### accounts.csv
-
-Use these columns:
-
-- `company`
-- `status`
-- `workers`
-- `last_contact`
-- `next_step`
-- `sector`
-- `notes`
-
-### activities.csv
-
-Use these columns:
-
-- `date`
-- `company`
-- `activity_type`
-- `workers_delta`
-- `notes`
-- `contract_value`
-
-Recommended `activity_type` values:
-
-- `contacted`
-- `meeting`
-- `offer`
-- `contract_signed`
-
-## Important Limitation
-
-Your current Google Sheet link requires authentication, so I could not hydrate the dashboard with the real company list yet. Once the sheet is exported to CSV or published as CSV, this dashboard can use the actual names, current status, and live activity history.
-
-## Daily Memory
-
-The dashboard keeps the quick activity form and the quick company update form in browser localStorage. These entries are merged automatically with any live CSV source.
+You can export or clear the fallback memory from the UI.

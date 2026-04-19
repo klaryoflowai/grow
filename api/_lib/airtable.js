@@ -1,0 +1,428 @@
+const { defaultTargets, getAirtableConfig, isConfigured } = require("./config");
+const {
+  getCurrentPeriod,
+  normalizeActivity,
+  normalizePeriod,
+  normalizeStatus,
+  normalizeString,
+  stageRank,
+  toIsoDate,
+  toNumber,
+} = require("./normalize");
+
+class AirtableError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = "AirtableError";
+    this.status = status;
+  }
+}
+
+async function airtableRequest(config, table, options = {}) {
+  const {
+    method = "GET",
+    params = new URLSearchParams(),
+    body,
+  } = options;
+
+  const url = `https://api.airtable.com/v0/${config.baseId}/${encodeURIComponent(table)}?${params.toString()}`;
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    let message = `Airtable a raspuns cu ${response.status}.`;
+
+    try {
+      const payload = await response.json();
+      message = payload?.error?.message || payload?.message || message;
+    } catch {
+      // keep default message
+    }
+
+    throw new AirtableError(response.status, message);
+  }
+
+  return response.json();
+}
+
+async function listRecords(tableKey) {
+  const config = getRequiredConfig();
+  const table = config.tables[tableKey];
+  const view = config.views[tableKey];
+  const records = [];
+  let offset = "";
+
+  do {
+    const params = new URLSearchParams();
+    params.set("pageSize", "100");
+    if (offset) params.set("offset", offset);
+    if (view) params.set("view", view);
+
+    const payload = await airtableRequest(config, table, { params });
+    records.push(...(payload.records || []));
+    offset = payload.offset || "";
+  } while (offset);
+
+  return records;
+}
+
+async function createRecord(tableKey, fields) {
+  const config = getRequiredConfig();
+  const payload = await airtableRequest(config, config.tables[tableKey], {
+    method: "POST",
+    body: { records: [{ fields }] },
+  });
+
+  return payload.records?.[0];
+}
+
+async function updateRecord(tableKey, recordId, fields) {
+  const config = getRequiredConfig();
+  const payload = await airtableRequest(config, config.tables[tableKey], {
+    method: "PATCH",
+    body: { records: [{ id: recordId, fields }] },
+  });
+
+  return payload.records?.[0];
+}
+
+function getRequiredConfig() {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    throw new AirtableError(503, "Lipsesc AIRTABLE_TOKEN sau AIRTABLE_BASE_ID in mediul Vercel.");
+  }
+  return config;
+}
+
+function normalizeCompanyRecord(record, config) {
+  const fields = record.fields || {};
+  return {
+    id: record.id,
+    company: normalizeString(fields[config.fields.companies.company]),
+    status: normalizeStatus(fields[config.fields.companies.status]),
+    workers: toNumber(fields[config.fields.companies.workers]),
+    last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
+    next_step: normalizeString(fields[config.fields.companies.nextStep]),
+    sector: normalizeString(fields[config.fields.companies.sector]),
+    notes: normalizeString(fields[config.fields.companies.notes]),
+  };
+}
+
+function buildCompanyNameMap(companyRecords, config) {
+  const map = new Map();
+  companyRecords.forEach((record) => {
+    const normalized = normalizeCompanyRecord(record, config);
+    map.set(record.id, normalized.company);
+  });
+  return map;
+}
+
+function resolveActivityCompany(fields, config, companyNameById) {
+  const direct = fields[config.fields.activities.company];
+  if (typeof direct === "string") return normalizeString(direct);
+
+  const lookupField = config.fields.activities.companyLookup;
+  if (lookupField) {
+    const lookupValue = fields[lookupField];
+    const lookupString = normalizeString(Array.isArray(lookupValue) ? lookupValue[0] : lookupValue);
+    if (lookupString) return lookupString;
+  }
+
+  if (Array.isArray(direct)) {
+    const resolved = direct.map((id) => companyNameById.get(id)).find(Boolean);
+    if (resolved) return resolved;
+  }
+
+  return "";
+}
+
+function normalizeActivityRecord(record, config, companyNameById) {
+  const fields = record.fields || {};
+
+  return {
+    id: record.id,
+    date: toIsoDate(fields[config.fields.activities.date]),
+    company: resolveActivityCompany(fields, config, companyNameById),
+    activity_type: normalizeActivity(fields[config.fields.activities.type]),
+    workers_delta: toNumber(fields[config.fields.activities.workers]),
+    notes: normalizeString(fields[config.fields.activities.notes]),
+  };
+}
+
+function normalizeTargetsRecord(record, config) {
+  const fields = record.fields || {};
+  return {
+    id: record.id,
+    period: normalizePeriod(fields[config.fields.targets.period], config.timezone),
+    contacted: toNumber(fields[config.fields.targets.contacted]),
+    meetings: toNumber(fields[config.fields.targets.meetings]),
+    offers: toNumber(fields[config.fields.targets.offers]),
+    contracts: toNumber(fields[config.fields.targets.contracts]),
+  };
+}
+
+function selectTargets(records, config) {
+  const currentPeriod = getCurrentPeriod(config.timezone);
+  const normalized = records.map((record) => normalizeTargetsRecord(record, config));
+  return normalized.find((record) => record.period === currentPeriod)
+    || normalized[0]
+    || { period: currentPeriod, ...defaultTargets };
+}
+
+function findCompanyByName(records, companyName, config) {
+  const wanted = normalizeString(companyName).toLowerCase();
+
+  return records.find((record) => {
+    const name = normalizeString(record.fields?.[config.fields.companies.company]).toLowerCase();
+    return name === wanted;
+  });
+}
+
+async function upsertCompany(payload) {
+  const config = getRequiredConfig();
+  const companyName = normalizeString(payload.company);
+
+  if (!companyName) {
+    throw new AirtableError(400, "Campul company este obligatoriu.");
+  }
+
+  const companyRecords = await listRecords("companies");
+  const existingRecord = findCompanyByName(companyRecords, companyName, config);
+  const existingCompany = existingRecord
+    ? normalizeCompanyRecord(existingRecord, config)
+    : null;
+  const fields = {
+    [config.fields.companies.company]: companyName,
+  };
+
+  if ("status" in payload) {
+    fields[config.fields.companies.status] = normalizeStatus(payload.status || existingCompany?.status || "contacted");
+  } else if (!existingRecord) {
+    fields[config.fields.companies.status] = "contacted";
+  }
+
+  if ("workers" in payload && payload.workers !== "") {
+    fields[config.fields.companies.workers] = toNumber(payload.workers);
+  } else if (!existingRecord) {
+    fields[config.fields.companies.workers] = 0;
+  }
+
+  if ("last_contact" in payload) {
+    fields[config.fields.companies.lastContact] = payload.last_contact ? toIsoDate(payload.last_contact) : null;
+  } else if (!existingRecord) {
+    fields[config.fields.companies.lastContact] = null;
+  }
+
+  if ("next_step" in payload) {
+    fields[config.fields.companies.nextStep] = normalizeString(payload.next_step);
+  } else if (!existingRecord) {
+    fields[config.fields.companies.nextStep] = "";
+  }
+
+  if ("sector" in payload) {
+    fields[config.fields.companies.sector] = normalizeString(payload.sector);
+  } else if (!existingRecord) {
+    fields[config.fields.companies.sector] = "";
+  }
+
+  if ("notes" in payload) {
+    fields[config.fields.companies.notes] = normalizeString(payload.notes);
+  } else if (!existingRecord) {
+    fields[config.fields.companies.notes] = "";
+  }
+
+  const record = existingRecord
+    ? await updateRecord("companies", existingRecord.id, fields)
+    : await createRecord("companies", fields);
+
+  return normalizeCompanyRecord(record, config);
+}
+
+async function touchCompanyFromActivity(activity) {
+  const config = getRequiredConfig();
+  const companyName = normalizeString(activity.company);
+
+  if (!companyName) {
+    throw new AirtableError(400, "Activitatea trebuie sa aiba companie.");
+  }
+
+  const companyRecords = await listRecords("companies");
+  const existingRecord = findCompanyByName(companyRecords, companyName, config);
+  const existingCompany = existingRecord
+    ? normalizeCompanyRecord(existingRecord, config)
+    : null;
+
+  const nextStatus = existingCompany
+    ? stageRank(activity.activity_type) > stageRank(existingCompany.status)
+      ? activity.activity_type
+      : existingCompany.status
+    : normalizeStatus(activity.activity_type);
+
+  const currentWorkers = existingCompany?.workers || 0;
+  const requestedWorkers = toNumber(activity.workers_delta);
+  const nextWorkers = activity.activity_type === "contract_signed"
+    ? Math.max(currentWorkers, requestedWorkers)
+    : currentWorkers;
+
+  const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
+  const lastContact = dateCandidates[dateCandidates.length - 1] || "";
+
+  const fields = {
+    [config.fields.companies.company]: companyName,
+    [config.fields.companies.status]: nextStatus,
+    [config.fields.companies.lastContact]: lastContact || null,
+  };
+
+  if (activity.activity_type === "contract_signed" && nextWorkers) {
+    fields[config.fields.companies.workers] = nextWorkers;
+  } else if (!existingRecord) {
+    fields[config.fields.companies.workers] = requestedWorkers;
+    fields[config.fields.companies.nextStep] = "";
+    fields[config.fields.companies.sector] = "";
+    fields[config.fields.companies.notes] = "";
+  }
+
+  const record = existingRecord
+    ? await updateRecord("companies", existingRecord.id, fields)
+    : await createRecord("companies", fields);
+
+  return {
+    record,
+    normalized: normalizeCompanyRecord(record, config),
+  };
+}
+
+async function createActivity(payload) {
+  const config = getRequiredConfig();
+  const activity = {
+    date: toIsoDate(payload.date),
+    company: normalizeString(payload.company),
+    activity_type: normalizeActivity(payload.activity_type),
+    workers_delta: toNumber(payload.workers_delta),
+    notes: normalizeString(payload.notes),
+  };
+
+  if (!activity.date || !activity.company) {
+    throw new AirtableError(400, "Activitatea are nevoie de data si companie.");
+  }
+
+  const touched = await touchCompanyFromActivity(activity);
+
+  const fields = {
+    [config.fields.activities.date]: activity.date,
+    [config.fields.activities.type]: activity.activity_type,
+    [config.fields.activities.workers]: activity.workers_delta,
+    [config.fields.activities.notes]: activity.notes,
+  };
+
+  if (config.modes.activityCompanyLinked) {
+    fields[config.fields.activities.company] = [touched.record.id];
+  } else {
+    fields[config.fields.activities.company] = activity.company;
+  }
+
+  const createdRecord = await createRecord("activities", fields);
+  const companyNameById = new Map([[touched.record.id, touched.normalized.company]]);
+
+  return {
+    activity: normalizeActivityRecord(createdRecord, config, companyNameById),
+    company: touched.normalized,
+  };
+}
+
+async function upsertTargets(payload) {
+  const config = getRequiredConfig();
+  const currentPeriod = getCurrentPeriod(config.timezone);
+  const targetRecords = await listRecords("targets");
+  const existingRecord = targetRecords.find((record) => {
+    const period = normalizeTargetsRecord(record, config).period;
+    return period === currentPeriod;
+  });
+
+  const fields = {
+    [config.fields.targets.period]: payload.period || currentPeriod,
+    [config.fields.targets.contacted]: toNumber(payload.contacted),
+    [config.fields.targets.meetings]: toNumber(payload.meetings),
+    [config.fields.targets.offers]: toNumber(payload.offers),
+    [config.fields.targets.contracts]: toNumber(payload.contracts),
+  };
+
+  const record = existingRecord
+    ? await updateRecord("targets", existingRecord.id, fields)
+    : await createRecord("targets", fields);
+
+  return normalizeTargetsRecord(record, config);
+}
+
+async function getDashboardData() {
+  const config = getAirtableConfig();
+  const currentPeriod = getCurrentPeriod(config.timezone);
+
+  if (!isConfigured(config)) {
+    return {
+      configured: false,
+      companies: [],
+      activities: [],
+      targets: { period: currentPeriod, ...defaultTargets },
+      connection: {
+        baseId: config.baseId || "",
+        timezone: config.timezone,
+        tables: config.tables,
+        activityCompanyLinked: config.modes.activityCompanyLinked,
+      },
+      warnings: ["Lipsesc AIRTABLE_TOKEN sau AIRTABLE_BASE_ID in Vercel Environment Variables."],
+    };
+  }
+
+  const warnings = [];
+  const companyRecords = await listRecords("companies");
+  const activityRecords = await listRecords("activities");
+  let targetRecords = [];
+
+  try {
+    targetRecords = await listRecords("targets");
+  } catch (error) {
+    if (error.status === 404) {
+      warnings.push("Tabela Targets nu a fost gasita. Dashboard-ul ruleaza cu target-urile implicite.");
+    } else {
+      throw error;
+    }
+  }
+
+  const companyNameById = buildCompanyNameMap(companyRecords, config);
+  const companies = companyRecords
+    .map((record) => normalizeCompanyRecord(record, config))
+    .filter((record) => record.company);
+  const activities = activityRecords
+    .map((record) => normalizeActivityRecord(record, config, companyNameById))
+    .filter((record) => record.company && record.date);
+  const targets = selectTargets(targetRecords, config);
+
+  return {
+    configured: true,
+    companies,
+    activities,
+    targets,
+    connection: {
+      baseId: config.baseId,
+      timezone: config.timezone,
+      tables: config.tables,
+      activityCompanyLinked: config.modes.activityCompanyLinked,
+    },
+    warnings,
+  };
+}
+
+module.exports = {
+  AirtableError,
+  createActivity,
+  getDashboardData,
+  upsertCompany,
+  upsertTargets,
+};

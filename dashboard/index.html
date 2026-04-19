@@ -19,12 +19,12 @@
           <p class="eyebrow">Grow.md Sales Scorecard</p>
           <h1>Dashboard simplu pentru activitate, pipeline si conversie</h1>
           <p class="hero-copy">
-            Un singur loc pentru ce conteaza zilnic: cate lead-uri ai contactat, cate meeting-uri ai mutat mai departe,
-            cate oferte ai trimis si cate contracte ai inchis.
+            Un singur loc pentru ce conteaza zilnic: cate lead-uri ai contactat, cate meeting-uri ai mutat mai
+            departe, cate oferte ai trimis si cate contracte ai inchis.
           </p>
         </div>
         <div class="hero-side">
-          <div class="hero-pill" id="data-mode-pill">Memorie locala</div>
+          <div class="hero-pill" id="data-mode-pill">Asteapta conexiunea</div>
           <div class="hero-pill" id="summary-chip">0 activitati inregistrate</div>
           <div class="hero-date" id="current-date"></div>
         </div>
@@ -36,10 +36,6 @@
             <div>
               <p class="section-label">Captura zilnica</p>
               <h2>Adauga o activitate in 10 secunde</h2>
-            </div>
-            <div class="inline-actions">
-              <button id="export-memory" class="secondary-button" type="button">Export memorie</button>
-              <button id="clear-memory" class="ghost-button" type="button">Sterge memorie</button>
             </div>
           </div>
 
@@ -73,7 +69,7 @@
           </form>
 
           <p class="status-line" id="status-message">
-            Inregistreaza doar 4 tipuri de actiuni: contacted, meeting, offer, contract_signed.
+            Dashboard-ul va incerca mai intai Airtable prin Vercel, apoi va cadea inapoi pe memoria locala.
           </p>
         </section>
 
@@ -201,13 +197,16 @@
           <div class="panel-header">
             <div>
               <p class="section-label">Configurare</p>
-              <h2>Target-uri si surse de date</h2>
+              <h2>Target-uri si conectarea la Airtable</h2>
             </div>
           </div>
 
           <div class="config-grid">
             <div class="config-card">
               <h3>Target-uri lunare</h3>
+              <p class="helper">
+                Daca Airtable este conectat, salvarea merge direct in tabela Targets pentru luna curenta.
+              </p>
               <div class="mini-grid">
                 <label class="field">
                   <span>Contactate</span>
@@ -230,30 +229,15 @@
             </div>
 
             <div class="config-card">
-              <h3>Date live sau upload</h3>
-              <div class="mini-grid">
-                <label class="field">
-                  <span>Accounts CSV URL</span>
-                  <input id="accounts-url" type="url" placeholder="https://docs.google.com/.../pub?output=csv" />
-                </label>
-                <label class="field">
-                  <span>Activities CSV URL</span>
-                  <input id="activities-url" type="url" placeholder="https://docs.google.com/.../pub?output=csv" />
-                </label>
-              </div>
+              <h3>Conectare Vercel + Airtable</h3>
+              <p id="connection-copy" class="helper">
+                Dashboard-ul foloseste endpoint-uri `/api/*` pe Vercel, nu tokenul Airtable direct din browser.
+              </p>
+              <div id="connection-badges" class="stack"></div>
               <div class="inline-actions">
-                <button id="save-sources" class="secondary-button" type="button">Salveaza sursele</button>
-                <button id="clear-sources" class="ghost-button" type="button">Reset surse</button>
-              </div>
-              <div class="upload-row">
-                <label class="upload-card">
-                  <span>Upload accounts.csv</span>
-                  <input id="accounts-file" type="file" accept=".csv" />
-                </label>
-                <label class="upload-card">
-                  <span>Upload activities.csv</span>
-                  <input id="activities-file" type="file" accept=".csv" />
-                </label>
+                <button id="refresh-data" class="secondary-button" type="button">Refresh Airtable</button>
+                <button id="export-memory" class="secondary-button" type="button">Export fallback</button>
+                <button id="clear-memory" class="ghost-button" type="button">Sterge fallback</button>
               </div>
             </div>
           </div>

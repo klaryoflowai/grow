@@ -46,7 +46,6 @@ const stageOrder = {
 
 const storageKeys = {
   targets: "grow_dashboard_targets",
-  sources: "grow_dashboard_sources",
   manual: "grow_dashboard_manual_data",
 };
 
@@ -59,7 +58,10 @@ const state = {
   accounts: [],
   activities: [],
   search: "",
-  sourceMode: "empty",
+  apiEnabled: false,
+  sourceMode: "fallback",
+  connection: null,
+  warnings: [],
   targets: loadTargets(),
 };
 
@@ -77,24 +79,17 @@ const elements = {
   alertsList: document.getElementById("alerts-list"),
   activitiesFeed: document.getElementById("activities-feed"),
   companySearch: document.getElementById("company-search"),
-  saveTargets: document.getElementById("save-targets"),
-  clearSources: document.getElementById("clear-sources"),
-  saveSources: document.getElementById("save-sources"),
+  refreshData: document.getElementById("refresh-data"),
   exportMemory: document.getElementById("export-memory"),
   clearMemory: document.getElementById("clear-memory"),
+  connectionCopy: document.getElementById("connection-copy"),
+  connectionBadges: document.getElementById("connection-badges"),
+  saveTargets: document.getElementById("save-targets"),
   targets: {
     contacted: document.getElementById("target-contacted"),
     meetings: document.getElementById("target-meetings"),
     offers: document.getElementById("target-offers"),
     contracts: document.getElementById("target-contracts"),
-  },
-  urls: {
-    accounts: document.getElementById("accounts-url"),
-    activities: document.getElementById("activities-url"),
-  },
-  files: {
-    accounts: document.getElementById("accounts-file"),
-    activities: document.getElementById("activities-file"),
   },
   forms: {
     activity: document.getElementById("activity-form"),
@@ -104,7 +99,7 @@ const elements = {
 
 init();
 
-function init() {
+async function init() {
   elements.currentDate.textContent = new Date().toLocaleDateString("ro-RO", {
     weekday: "long",
     day: "numeric",
@@ -114,23 +109,46 @@ function init() {
 
   hydrateInputs();
   setDefaultFormDates();
-  refreshCombinedData();
   bindEvents();
-  loadSavedSources();
+  await refreshData({ silent: true });
   render();
 }
 
 function bindEvents() {
-  elements.saveTargets.addEventListener("click", () => {
-    state.targets = {
+  elements.saveTargets.addEventListener("click", async () => {
+    const payload = {
       contacted: toNumber(elements.targets.contacted.value),
       meetings: toNumber(elements.targets.meetings.value),
       offers: toNumber(elements.targets.offers.value),
       contracts: toNumber(elements.targets.contracts.value),
     };
+
+    if (state.apiEnabled) {
+      try {
+        const result = await apiJson("/api/targets", {
+          method: "PUT",
+          body: payload,
+        });
+        state.targets = normalizeTargets(result.targets);
+        refreshCombinedData();
+        updateStatus("Target-urile lunare au fost salvate in Airtable.");
+        render();
+        return;
+      } catch (error) {
+        updateStatus(`Nu am putut salva target-urile in Airtable. ${error.message}`);
+        return;
+      }
+    }
+
+    state.targets = payload;
     localStorage.setItem(storageKeys.targets, JSON.stringify(state.targets));
-    updateStatus("Target-urile lunare au fost salvate.");
+    refreshCombinedData();
+    updateStatus("Target-urile au fost salvate local pana conectam Vercel-ul la Airtable.");
     render();
+  });
+
+  elements.refreshData.addEventListener("click", async () => {
+    await refreshData();
   });
 
   elements.companySearch.addEventListener("input", (event) => {
@@ -138,81 +156,63 @@ function bindEvents() {
     renderPipeline();
   });
 
-  elements.clearSources.addEventListener("click", () => {
-    localStorage.removeItem(storageKeys.sources);
-    Object.values(elements.urls).forEach((input) => {
-      input.value = "";
-    });
-    Object.values(elements.files).forEach((input) => {
-      input.value = "";
-    });
-    state.sourceData = { accounts: [], activities: [] };
-    state.sourceMode = "empty";
-    refreshCombinedData();
-    updateStatus(
-      hasManualData()
-        ? "Sursele externe au fost scoase. Dashboard-ul ruleaza acum pe memoria locala."
-        : "Sursele externe au fost scoase."
-    );
-    render();
-  });
-
-  elements.saveSources.addEventListener("click", async () => {
-    const sources = {
-      accounts: elements.urls.accounts.value.trim(),
-      activities: elements.urls.activities.value.trim(),
-    };
-
-    localStorage.setItem(storageKeys.sources, JSON.stringify(sources));
-
-    try {
-      await loadRemoteSources(sources);
-    } catch (error) {
-      updateStatus(`Nu am putut incarca toate sursele live. ${error.message}`);
-      render();
-    }
-  });
-
-  Object.entries(elements.files).forEach(([key, input]) => {
-    input.addEventListener("change", async (event) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      const text = await file.text();
-      state.sourceData[key] = parseCsv(text).map((row) => normalizeRow(key, row));
-      state.sourceMode = "upload";
-      refreshCombinedData();
-      updateStatus("Datele au fost incarcate din fisiere locale.");
-      render();
-    });
-  });
-
-  elements.forms.activity.addEventListener("submit", (event) => {
+  elements.forms.activity.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const record = normalizeRow("activities", Object.fromEntries(formData.entries()));
     if (!record.company || !record.date) return;
 
-    state.manualData.activities.unshift(record);
-    syncManualAccountFromActivity(record);
-    persistManualData();
-    refreshCombinedData();
-    updateStatus(`Salvat: ${record.company} -> ${activityLabel(record.activity_type)}.`);
+    if (state.apiEnabled) {
+      try {
+        await apiJson("/api/activities", {
+          method: "POST",
+          body: serializeActivityPayload(record),
+        });
+        await refreshData({ silent: true });
+        updateStatus(`Salvat in Airtable: ${record.company} -> ${activityLabel(record.activity_type)}.`);
+      } catch (error) {
+        updateStatus(`Airtable nu a putut salva activitatea. ${error.message}`);
+        return;
+      }
+    } else {
+      state.manualData.activities.unshift(record);
+      syncManualAccountFromActivity(record);
+      persistManualData();
+      refreshCombinedData();
+      updateStatus(`Salvat local: ${record.company} -> ${activityLabel(record.activity_type)}.`);
+    }
+
     event.currentTarget.reset();
     setDefaultFormDates();
     render();
   });
 
-  elements.forms.account.addEventListener("submit", (event) => {
+  elements.forms.account.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const record = normalizeRow("accounts", Object.fromEntries(formData.entries()));
+    const raw = Object.fromEntries(formData.entries());
+    const record = normalizeRow("accounts", raw);
     if (!record.company) return;
 
-    upsertManualAccount(record);
-    persistManualData();
-    refreshCombinedData();
-    updateStatus(`Compania ${record.company} a fost actualizata.`);
+    if (state.apiEnabled) {
+      try {
+        await apiJson("/api/companies", {
+          method: "PATCH",
+          body: serializeCompanyPayload(record, raw),
+        });
+        await refreshData({ silent: true });
+        updateStatus(`Compania ${record.company} a fost actualizata in Airtable.`);
+      } catch (error) {
+        updateStatus(`Airtable nu a putut salva compania. ${error.message}`);
+        return;
+      }
+    } else {
+      upsertManualAccount(record);
+      persistManualData();
+      refreshCombinedData();
+      updateStatus(`Compania ${record.company} a fost actualizata local.`);
+    }
+
     event.currentTarget.reset();
     setDefaultFormDates();
     render();
@@ -227,7 +227,7 @@ function bindEvents() {
     link.download = `grow-scorecard-memory-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    updateStatus("Memoria locala a fost exportata.");
+    updateStatus("Fallback-ul local a fost exportat.");
   });
 
   elements.clearMemory.addEventListener("click", () => {
@@ -239,57 +239,51 @@ function bindEvents() {
   });
 }
 
-async function loadSavedSources() {
-  const raw = localStorage.getItem(storageKeys.sources);
-  if (!raw) {
-    updateStatus(
-      hasManualData()
-        ? "Nu exista surse live salvate. Dashboard-ul foloseste memoria locala."
-        : "Poti incepe direct din formularul de sus sau poti conecta doua CSV-uri: accounts si activities."
-    );
-    render();
-    return;
-  }
-
-  const sources = JSON.parse(raw);
-  elements.urls.accounts.value = sources.accounts || "";
-  elements.urls.activities.value = sources.activities || "";
+async function refreshData(options = {}) {
+  const { silent = false } = options;
 
   try {
-    await loadRemoteSources(sources);
+    const payload = await apiJson("/api/bootstrap");
+    state.connection = payload.connection || null;
+    state.warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+    state.apiEnabled = Boolean(payload.configured);
+    state.sourceMode = state.apiEnabled ? "airtable" : "fallback";
+    state.sourceData.accounts = Array.isArray(payload.companies)
+      ? payload.companies.map((row) => normalizeRow("accounts", row))
+      : [];
+    state.sourceData.activities = Array.isArray(payload.activities)
+      ? payload.activities.map((row) => normalizeRow("activities", row))
+      : [];
+
+    if (payload.targets) {
+      state.targets = normalizeTargets(payload.targets);
+      hydrateInputs();
+    } else if (!state.apiEnabled) {
+      state.targets = loadTargets();
+    }
+
+    refreshCombinedData();
+
+    if (!silent) {
+      updateStatus(
+        state.apiEnabled
+          ? "Dashboard-ul este conectat live la Airtable prin Vercel."
+          : state.warnings[0] || "Airtable nu este configurat inca. Dashboard-ul ruleaza pe memoria locala."
+      );
+    }
   } catch (error) {
-    updateStatus(`Sursele salvate nu au putut fi incarcate. ${error.message}`);
-    render();
-  }
-}
+    state.apiEnabled = false;
+    state.sourceMode = "fallback";
+    state.connection = null;
+    state.warnings = [];
+    state.sourceData = { accounts: [], activities: [] };
+    state.targets = loadTargets();
+    refreshCombinedData();
 
-async function loadRemoteSources(sources) {
-  const loaders = Object.entries(sources).map(async ([key, url]) => {
-    if (!url) {
-      state.sourceData[key] = [];
-      return;
+    if (!silent) {
+      updateStatus(`API-ul Vercel nu raspunde inca. Dashboard-ul ruleaza pe fallback local. ${error.message}`);
     }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Sursa ${key} a raspuns cu ${response.status}.`);
-    }
-
-    const text = await response.text();
-    state.sourceData[key] = parseCsv(text).map((row) => normalizeRow(key, row));
-  });
-
-  if (!Object.values(sources).some(Boolean)) {
-    updateStatus("Nu exista URL-uri salvate. Foloseste upload local sau configureaza sursele live.");
-    render();
-    return;
   }
-
-  await Promise.all(loaders);
-  state.sourceMode = "remote";
-  refreshCombinedData();
-  updateStatus("Datele live au fost incarcate si combinate cu memoria locala.");
-  render();
 }
 
 function hydrateInputs() {
@@ -313,16 +307,19 @@ function loadTargets() {
   if (!raw) return { ...defaultTargets };
 
   try {
-    const parsed = JSON.parse(raw);
-    return {
-      contacted: parsed.contacted ?? parsed.leads ?? defaultTargets.contacted,
-      meetings: parsed.meetings ?? defaultTargets.meetings,
-      offers: parsed.offers ?? defaultTargets.offers,
-      contracts: parsed.contracts ?? defaultTargets.contracts,
-    };
+    return normalizeTargets(JSON.parse(raw));
   } catch {
     return { ...defaultTargets };
   }
+}
+
+function normalizeTargets(value = {}) {
+  return {
+    contacted: toNumber(value.contacted ?? value.leads ?? defaultTargets.contacted),
+    meetings: toNumber(value.meetings ?? defaultTargets.meetings),
+    offers: toNumber(value.offers ?? defaultTargets.offers),
+    contracts: toNumber(value.contracts ?? defaultTargets.contracts),
+  };
 }
 
 function loadManualData() {
@@ -349,7 +346,20 @@ function hasManualData() {
 }
 
 function refreshCombinedData() {
-  state.activities = [...state.sourceData.activities, ...state.manualData.activities]
+  if (state.apiEnabled) {
+    state.activities = [...state.sourceData.activities]
+      .filter((item) => item.company || item.date)
+      .sort((left, right) => {
+        const leftTime = left.date ? left.date.getTime() : 0;
+        const rightTime = right.date ? right.date.getTime() : 0;
+        return rightTime - leftTime;
+      });
+
+    state.accounts = mergeAccounts(state.sourceData.accounts, [], state.activities);
+    return;
+  }
+
+  state.activities = [...state.manualData.activities]
     .filter((item) => item.company || item.date)
     .sort((left, right) => {
       const leftTime = left.date ? left.date.getTime() : 0;
@@ -357,7 +367,7 @@ function refreshCombinedData() {
       return rightTime - leftTime;
     });
 
-  state.accounts = mergeAccounts(state.sourceData.accounts, state.manualData.accounts, state.activities);
+  state.accounts = mergeAccounts([], state.manualData.accounts, state.activities);
 }
 
 function mergeAccounts(sourceAccounts, manualAccounts, activities) {
@@ -504,15 +514,11 @@ function updateStatus(message) {
 }
 
 function render() {
-  const dataMode = state.sourceMode === "remote"
-    ? "Date live + memorie locala"
-    : state.sourceMode === "upload"
-      ? "CSV local + memorie locala"
-      : hasManualData()
-        ? "Memorie locala"
-        : "Fara sursa conectata";
-
-  elements.dataModePill.textContent = dataMode;
+  elements.dataModePill.textContent = state.apiEnabled
+    ? "Airtable live"
+    : hasManualData()
+      ? "Fallback local"
+      : "Asteapta conexiunea";
   elements.summaryChip.textContent = `${state.activities.length} activitati · ${state.accounts.length} companii`;
 
   renderScorecards();
@@ -521,6 +527,53 @@ function render() {
   renderPipeline();
   renderAlerts();
   renderActivities();
+  renderConnection();
+}
+
+function renderConnection() {
+  const tables = state.connection?.tables || {};
+  const chips = [];
+
+  chips.push(
+    `<div class="mini-chip">${state.apiEnabled ? "Scrie direct in Airtable" : "Fallback local activ"}</div>`
+  );
+
+  if (state.connection?.baseId) {
+    chips.push(`<div class="mini-chip">Base: ${escapeHtml(state.connection.baseId)}</div>`);
+  }
+
+  if (tables.companies) {
+    chips.push(`<div class="mini-chip">Companies: ${escapeHtml(tables.companies)}</div>`);
+  }
+
+  if (tables.activities) {
+    chips.push(`<div class="mini-chip">Activities: ${escapeHtml(tables.activities)}</div>`);
+  }
+
+  if (tables.targets) {
+    chips.push(`<div class="mini-chip">Targets: ${escapeHtml(tables.targets)}</div>`);
+  }
+
+  if (state.connection?.activityCompanyLinked !== undefined) {
+    chips.push(
+      `<div class="mini-chip">${
+        state.connection.activityCompanyLinked ? "Activities -> linked company" : "Activities -> text company"
+      }</div>`
+    );
+  }
+
+  const warnings = state.warnings
+    .map((warning) => `<article class="note-card">${escapeHtml(warning)}</article>`)
+    .join("");
+
+  elements.connectionCopy.textContent = state.apiEnabled
+    ? "Baza Grow este conectata. Formularele de mai sus scriu direct in Airtable prin endpoint-urile Vercel."
+    : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile si target-urile.";
+
+  elements.connectionBadges.innerHTML = `
+    <div class="chip-wrap">${chips.join("")}</div>
+    ${warnings}
+  `;
 }
 
 function getTodayActivities() {
@@ -733,7 +786,7 @@ function renderPipeline() {
       const status = statusTheme[account.status] || statusTheme.new;
       return `
         <tr>
-          <td><div class="company-name">${account.company}</div></td>
+          <td><div class="company-name">${escapeHtml(account.company)}</div></td>
           <td>
             <span class="status-pill" style="color:${status.color}; background:${status.bg}; border-color:${status.color}33;">
               ${status.label}
@@ -741,7 +794,7 @@ function renderPipeline() {
           </td>
           <td>${account.workers || 0}</td>
           <td>${formatDate(account.last_contact)}</td>
-          <td>${account.next_step || "-"}</td>
+          <td>${escapeHtml(account.next_step || "-")}</td>
         </tr>
       `;
     })
@@ -772,10 +825,10 @@ function renderAlerts() {
     .map((account) => `
       <article class="alert-card">
         <div class="alert-main">
-          <div class="alert-title">${account.company}</div>
+          <div class="alert-title">${escapeHtml(account.company)}</div>
           <div class="activity-copy">
             ${account.last_contact ? `${dayDiff(account.last_contact, now)} zile fara touch` : "fara touch salvat"}
-            ${account.next_step ? ` · next: ${account.next_step}` : ""}
+            ${account.next_step ? ` · next: ${escapeHtml(account.next_step)}` : ""}
           </div>
         </div>
         <div class="alert-date">${statusLabel(account.status)}</div>
@@ -796,11 +849,11 @@ function renderActivities() {
     .map((activity) => `
       <article class="activity-card">
         <div class="activity-main">
-          <div class="activity-title">${activity.company}</div>
+          <div class="activity-title">${escapeHtml(activity.company)}</div>
           <div class="activity-copy">
             ${activityLabel(activity.activity_type)}
             ${activity.workers_delta ? ` · ${activity.workers_delta} muncitori` : ""}
-            ${activity.notes ? ` · ${activity.notes}` : ""}
+            ${activity.notes ? ` · ${escapeHtml(activity.notes)}` : ""}
           </div>
         </div>
         <div class="activity-date">${formatDate(activity.date)}</div>
@@ -848,62 +901,70 @@ function dayDiff(left, right) {
   return Math.floor((rightDate.getTime() - leftDate.getTime()) / ms);
 }
 
-function parseCsv(text) {
-  const rows = [];
-  let current = "";
-  let row = [];
-  let insideQuotes = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (char === '"' && insideQuotes && next === '"') {
-      current += '"';
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      insideQuotes = !insideQuotes;
-      continue;
-    }
-
-    if (char === "," && !insideQuotes) {
-      row.push(current);
-      current = "";
-      continue;
-    }
-
-    if ((char === "\n" || char === "\r") && !insideQuotes) {
-      if (char === "\r" && next === "\n") {
-        index += 1;
-      }
-      row.push(current);
-      current = "";
-      rows.push(row);
-      row = [];
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.length || row.length) {
-    row.push(current);
-    rows.push(row);
-  }
-
-  if (!rows.length) return [];
-
-  const [headerRow, ...dataRows] = rows.filter((item) => item.some((cell) => cell.trim().length));
-  const headers = headerRow.map((header) => header.trim().toLowerCase().replace(/\s+/g, "_"));
-
-  return dataRows.map((dataRow) => {
-    const record = {};
-    headers.forEach((header, columnIndex) => {
-      record[header] = (dataRow[columnIndex] || "").trim();
-    });
-    return record;
+async function apiJson(url, options = {}) {
+  const { body, headers, ...rest } = options;
+  const response = await fetch(url, {
+    ...rest,
+    headers: {
+      Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(headers || {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
   });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Request failed with ${response.status}.`);
+  }
+
+  return payload;
+}
+
+function serializeActivityPayload(record) {
+  return {
+    date: record.date ? record.date.toISOString().slice(0, 10) : "",
+    company: record.company,
+    activity_type: record.activity_type,
+    workers_delta: record.workers_delta,
+    notes: record.notes,
+  };
+}
+
+function serializeCompanyPayload(record, raw = {}) {
+  const payload = {
+    company: record.company,
+    status: record.status,
+  };
+
+  if (raw.workers !== undefined && raw.workers !== "") {
+    payload.workers = record.workers;
+  }
+
+  if (raw.last_contact !== undefined) {
+    payload.last_contact = record.last_contact ? record.last_contact.toISOString().slice(0, 10) : "";
+  }
+
+  if (raw.next_step !== undefined) {
+    payload.next_step = record.next_step;
+  }
+
+  if (raw.sector !== undefined) {
+    payload.sector = record.sector;
+  }
+
+  if (raw.notes !== undefined) {
+    payload.notes = record.notes;
+  }
+
+  return payload;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
