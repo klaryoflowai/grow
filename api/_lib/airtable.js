@@ -264,12 +264,6 @@ async function touchCompanyFromActivity(activity) {
       : existingCompany.status
     : normalizeStatus(activity.activity_type);
 
-  const currentWorkers = existingCompany?.workers || 0;
-  const requestedWorkers = toNumber(activity.workers_delta);
-  const nextWorkers = activity.activity_type === "contract_signed"
-    ? Math.max(currentWorkers, requestedWorkers)
-    : currentWorkers;
-
   const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
   const lastContact = dateCandidates[dateCandidates.length - 1] || "";
 
@@ -278,15 +272,6 @@ async function touchCompanyFromActivity(activity) {
     [config.fields.companies.status]: nextStatus,
     [config.fields.companies.lastContact]: lastContact || null,
   };
-
-  if (activity.activity_type === "contract_signed" && nextWorkers) {
-    fields[config.fields.companies.workers] = nextWorkers;
-  } else if (!existingRecord) {
-    fields[config.fields.companies.workers] = requestedWorkers;
-    fields[config.fields.companies.nextStep] = "";
-    fields[config.fields.companies.sector] = "";
-    fields[config.fields.companies.notes] = "";
-  }
 
   const record = existingRecord
     ? await updateRecord("companies", existingRecord.id, fields)
