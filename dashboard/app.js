@@ -5,6 +5,8 @@ const defaultTargets = {
   contracts: 4,
 };
 
+const appBuild = "20260419g";
+
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
   contacted: { label: "Contactat", color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
@@ -977,6 +979,9 @@ function renderConnection() {
   if (tables.targets) {
     chips.push(`<div class="mini-chip">Targets: ${escapeHtml(tables.targets)}</div>`);
   }
+
+  chips.push(`<div class="mini-chip">Build: ${appBuild}</div>`);
+  chips.push(`<div class="mini-chip">Host: ${escapeHtml(window.location.host)}</div>`);
 
   if (state.connection?.activityCompanyLinked !== undefined) {
     chips.push(
