@@ -786,6 +786,11 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function normalizeString(value) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
 function stageRank(status = "") {
   return stageOrder[status] ?? 0;
 }
