@@ -38,6 +38,7 @@ function getAirtableConfig() {
         workers: readEnv("AIRTABLE_FIELD_COMPANY_WORKERS", "Potential Workers"),
         lastContact: readEnv("AIRTABLE_FIELD_COMPANY_LAST_CONTACT", "Last Contact"),
         nextStep: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP", "Next Step"),
+        nextStepDate: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP_DATE", "Next Step Date"),
         sector: readEnv("AIRTABLE_FIELD_COMPANY_SECTOR", "Sector"),
         notes: readEnv("AIRTABLE_FIELD_COMPANY_NOTES", "Notes"),
       },
@@ -46,7 +47,10 @@ function getAirtableConfig() {
         company: readEnv("AIRTABLE_FIELD_ACTIVITY_COMPANY", "Company"),
         companyLookup: readEnv("AIRTABLE_FIELD_ACTIVITY_COMPANY_LOOKUP", "Company Name"),
         type: readEnv("AIRTABLE_FIELD_ACTIVITY_TYPE", "Activity Type"),
+        outcome: readEnv("AIRTABLE_FIELD_ACTIVITY_OUTCOME", "Outcome"),
         workers: readEnv("AIRTABLE_FIELD_ACTIVITY_WORKERS", "Workers Delta"),
+        nextStep: readEnv("AIRTABLE_FIELD_ACTIVITY_NEXT_STEP", "Next Step"),
+        nextStepDate: readEnv("AIRTABLE_FIELD_ACTIVITY_NEXT_STEP_DATE", "Next Step Date"),
         notes: readEnv("AIRTABLE_FIELD_ACTIVITY_NOTES", "Notes"),
       },
       targets: {

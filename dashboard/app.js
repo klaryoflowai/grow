@@ -321,10 +321,14 @@ function hydrateInputs() {
 function setDefaultFormDates() {
   const today = new Date().toISOString().slice(0, 10);
   const activityDate = elements.forms.activity?.querySelector('input[name="date"]');
+  const activityNextStepDate = elements.forms.activity?.querySelector('input[name="next_step_date"]');
   const accountLastContact = elements.forms.account?.querySelector('input[name="last_contact"]');
+  const accountNextStepDate = elements.forms.account?.querySelector('input[name="next_step_date"]');
 
   if (activityDate && !activityDate.value) activityDate.value = today;
+  if (activityNextStepDate && !activityNextStepDate.value) activityNextStepDate.value = "";
   if (accountLastContact && !accountLastContact.value) accountLastContact.value = today;
+  if (accountNextStepDate && !accountNextStepDate.value) accountNextStepDate.value = "";
 }
 
 function loadTargets() {
@@ -414,6 +418,7 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       workers: 0,
       last_contact: null,
       next_step: "",
+      next_step_date: null,
       sector: "",
       notes: "",
     };
@@ -428,6 +433,14 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
 
     if (activity.activity_type === "contract_signed" && activity.workers_delta > existing.workers) {
       existing.workers = activity.workers_delta;
+    }
+
+    if (activity.next_step) {
+      existing.next_step = activity.next_step;
+    }
+
+    if (activity.next_step_date) {
+      existing.next_step_date = activity.next_step_date;
     }
 
     merged.set(key, existing);
@@ -447,6 +460,7 @@ function syncManualAccountFromActivity(activity) {
         workers: 0,
         last_contact: null,
         next_step: "",
+        next_step_date: null,
         sector: "",
         notes: "",
       };
@@ -461,6 +475,14 @@ function syncManualAccountFromActivity(activity) {
 
   if (activity.activity_type === "contract_signed" && activity.workers_delta > current.workers) {
     current.workers = activity.workers_delta;
+  }
+
+  if (activity.next_step) {
+    current.next_step = activity.next_step;
+  }
+
+  if (activity.next_step_date) {
+    current.next_step_date = activity.next_step_date;
   }
 
   if (existingIndex >= 0) {
@@ -492,6 +514,7 @@ function normalizeRow(kind, row) {
       workers: toNumber(row.workers || row.potential_volume || row.workers_requested || 0),
       last_contact: parseDate(row.last_contact || row.date),
       next_step: row.next_step || "",
+      next_step_date: parseDate(row.next_step_date),
       sector: row.sector || row.industry || "",
       notes: row.notes || "",
     };
@@ -501,7 +524,10 @@ function normalizeRow(kind, row) {
     date: parseDate(row.date),
     company: row.company || row.account || "",
     activity_type: normalizeActivity(row.activity_type || row.type || row.status),
+    outcome: row.outcome || row.result || "",
     workers_delta: toNumber(row.workers_delta || row.workers || 0),
+    next_step: row.next_step || "",
+    next_step_date: parseDate(row.next_step_date),
     notes: row.notes || row.summary || "",
   };
 }
@@ -907,7 +933,7 @@ function renderPipeline() {
           </td>
           <td>${account.workers || 0}</td>
           <td>${formatDate(account.last_contact)}</td>
-          <td>${escapeHtml(account.next_step || "-")}</td>
+          <td>${escapeHtml(formatNextStep(account))}</td>
         </tr>
       `;
     })
@@ -919,12 +945,17 @@ function renderAlerts() {
   const staleAccounts = state.accounts
     .filter((account) => !["contract_signed", "lost"].includes(account.status))
     .filter((account) => {
+      if (account.next_step_date) return dayDiff(account.next_step_date, now) >= 0;
       if (!account.last_contact) return true;
       return dayDiff(account.last_contact, now) > 7;
     })
     .sort((left, right) => {
-      const leftDays = left.last_contact ? dayDiff(left.last_contact, now) : 999;
-      const rightDays = right.last_contact ? dayDiff(right.last_contact, now) : 999;
+      const leftDays = left.next_step_date
+        ? dayDiff(left.next_step_date, now)
+        : left.last_contact ? dayDiff(left.last_contact, now) : 999;
+      const rightDays = right.next_step_date
+        ? dayDiff(right.next_step_date, now)
+        : right.last_contact ? dayDiff(right.last_contact, now) : 999;
       return rightDays - leftDays;
     })
     .slice(0, 6);
@@ -940,7 +971,7 @@ function renderAlerts() {
         <div class="alert-main">
           <div class="alert-title">${escapeHtml(account.company)}</div>
           <div class="activity-copy">
-            ${account.last_contact ? `${dayDiff(account.last_contact, now)} zile fara touch` : "fara touch salvat"}
+            ${buildAlertCopy(account, now)}
             ${account.next_step ? ` · next: ${escapeHtml(account.next_step)}` : ""}
           </div>
         </div>
@@ -965,7 +996,10 @@ function renderActivities() {
           <div class="activity-title">${escapeHtml(activity.company)}</div>
           <div class="activity-copy">
             ${activityLabel(activity.activity_type)}
+            ${activity.outcome ? ` · ${escapeHtml(activity.outcome)}` : ""}
             ${activity.workers_delta ? ` · ${activity.workers_delta} muncitori` : ""}
+            ${activity.next_step ? ` · next: ${escapeHtml(activity.next_step)}` : ""}
+            ${activity.next_step_date ? ` · ${formatDate(activity.next_step_date)}` : ""}
             ${activity.notes ? ` · ${escapeHtml(activity.notes)}` : ""}
           </div>
         </div>
@@ -988,6 +1022,25 @@ function activityLabel(type) {
 function statusLabel(type) {
   const status = statusTheme[type] || statusTheme.new;
   return status.label;
+}
+
+function buildAlertCopy(account, now) {
+  if (account.next_step_date) {
+    const delta = dayDiff(account.next_step_date, now);
+    if (delta > 0) return `next step intarziat cu ${delta} zile`;
+    if (delta === 0) return "next step azi";
+    return `next step in ${Math.abs(delta)} zile`;
+  }
+
+  return account.last_contact ? `${dayDiff(account.last_contact, now)} zile fara touch` : "fara touch salvat";
+}
+
+function formatNextStep(account) {
+  const parts = [account.next_step];
+  if (account.next_step_date) {
+    parts.push(formatDate(account.next_step_date));
+  }
+  return parts.filter(Boolean).join(" · ") || "-";
 }
 
 function formatDate(date) {
@@ -1039,7 +1092,10 @@ function serializeActivityPayload(record) {
     date: record.date ? record.date.toISOString().slice(0, 10) : "",
     company: record.company,
     activity_type: record.activity_type,
+    outcome: record.outcome,
     workers_delta: record.workers_delta,
+    next_step: record.next_step,
+    next_step_date: record.next_step_date ? record.next_step_date.toISOString().slice(0, 10) : "",
     notes: record.notes,
   };
 }
@@ -1060,6 +1116,10 @@ function serializeCompanyPayload(record, raw = {}) {
 
   if (raw.next_step !== undefined) {
     payload.next_step = record.next_step;
+  }
+
+  if (raw.next_step_date !== undefined) {
+    payload.next_step_date = record.next_step_date ? record.next_step_date.toISOString().slice(0, 10) : "";
   }
 
   if (raw.sector !== undefined) {

@@ -109,6 +109,7 @@ function normalizeCompanyRecord(record, config) {
     workers: toNumber(fields[config.fields.companies.workers]),
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
+    next_step_date: toIsoDate(fields[config.fields.companies.nextStepDate]),
     sector: normalizeString(fields[config.fields.companies.sector]),
     notes: normalizeString(fields[config.fields.companies.notes]),
   };
@@ -150,7 +151,10 @@ function normalizeActivityRecord(record, config, companyNameById) {
     date: toIsoDate(fields[config.fields.activities.date]),
     company: resolveActivityCompany(fields, config, companyNameById),
     activity_type: normalizeActivity(fields[config.fields.activities.type]),
+    outcome: normalizeString(fields[config.fields.activities.outcome]),
     workers_delta: toNumber(fields[config.fields.activities.workers]),
+    next_step: normalizeString(fields[config.fields.activities.nextStep]),
+    next_step_date: toIsoDate(fields[config.fields.activities.nextStepDate]),
     notes: normalizeString(fields[config.fields.activities.notes]),
   };
 }
@@ -225,6 +229,12 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.nextStep] = "";
   }
 
+  if ("next_step_date" in payload) {
+    fields[config.fields.companies.nextStepDate] = payload.next_step_date ? toIsoDate(payload.next_step_date) : null;
+  } else if (!existingRecord) {
+    fields[config.fields.companies.nextStepDate] = null;
+  }
+
   if ("sector" in payload) {
     fields[config.fields.companies.sector] = normalizeString(payload.sector);
   } else if (!existingRecord) {
@@ -273,6 +283,14 @@ async function touchCompanyFromActivity(activity) {
     [config.fields.companies.lastContact]: lastContact || null,
   };
 
+  if (activity.next_step) {
+    fields[config.fields.companies.nextStep] = normalizeString(activity.next_step);
+  }
+
+  if (activity.next_step_date) {
+    fields[config.fields.companies.nextStepDate] = activity.next_step_date ? toIsoDate(activity.next_step_date) : null;
+  }
+
   const record = existingRecord
     ? await updateRecord("companies", existingRecord.id, fields)
     : await createRecord("companies", fields);
@@ -289,7 +307,10 @@ async function createActivity(payload) {
     date: toIsoDate(payload.date),
     company: normalizeString(payload.company),
     activity_type: normalizeActivity(payload.activity_type),
+    outcome: normalizeString(payload.outcome),
     workers_delta: toNumber(payload.workers_delta),
+    next_step: normalizeString(payload.next_step),
+    next_step_date: toIsoDate(payload.next_step_date),
     notes: normalizeString(payload.notes),
   };
 
@@ -305,6 +326,18 @@ async function createActivity(payload) {
     [config.fields.activities.workers]: activity.workers_delta,
     [config.fields.activities.notes]: activity.notes,
   };
+
+  if (activity.outcome) {
+    fields[config.fields.activities.outcome] = activity.outcome;
+  }
+
+  if (activity.next_step) {
+    fields[config.fields.activities.nextStep] = activity.next_step;
+  }
+
+  if (activity.next_step_date) {
+    fields[config.fields.activities.nextStepDate] = activity.next_step_date;
+  }
 
   if (config.modes.activityCompanyLinked) {
     fields[config.fields.activities.company] = [touched.record.id];

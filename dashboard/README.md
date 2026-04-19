@@ -20,6 +20,12 @@ The UI only works with 4 core stages:
 
 Everything in the scorecard, trend, and conversion cards is built on top of these 4 values.
 
+The richer activity log can also store:
+
+- `Outcome`
+- `Next Step`
+- `Next Step Date`
+
 ## Architecture
 
 The frontend stays in:
@@ -58,6 +64,26 @@ Default field names are documented in:
 - `.env.example`
 
 If your Airtable field names differ, you do not need to rewrite code. Just override the environment variables in Vercel.
+
+Recommended extra Airtable fields:
+
+- `Companies -> Next Step Date`
+- `Activities -> Outcome`
+- `Activities -> Next Step`
+- `Activities -> Next Step Date`
+
+Recommended Romanian outcome options:
+
+- `Am vorbit cu decidentul`
+- `Nu am ajuns la decident`
+- `Nu raspunde`
+- `Numar gresit`
+- `Nu au nevoie acum`
+- `Revino mai tarziu`
+- `Interesat`
+- `Asteapta oferta`
+- `Buget blocat`
+- `Pierdut la competitor`
 
 ## Important Airtable Note
 

@@ -58,8 +58,32 @@
               </select>
             </label>
             <label class="field">
+              <span>Rezultat</span>
+              <select name="outcome">
+                <option value="">-</option>
+                <option value="Am vorbit cu decidentul">Am vorbit cu decidentul</option>
+                <option value="Nu am ajuns la decident">Nu am ajuns la decident</option>
+                <option value="Nu raspunde">Nu raspunde</option>
+                <option value="Numar gresit">Numar gresit</option>
+                <option value="Nu au nevoie acum">Nu au nevoie acum</option>
+                <option value="Revino mai tarziu">Revino mai tarziu</option>
+                <option value="Interesat">Interesat</option>
+                <option value="Asteapta oferta">Asteapta oferta</option>
+                <option value="Buget blocat">Buget blocat</option>
+                <option value="Pierdut la competitor">Pierdut la competitor</option>
+              </select>
+            </label>
+            <label class="field">
               <span>Muncitori</span>
               <input name="workers_delta" type="number" min="0" placeholder="0" />
+            </label>
+            <label class="field">
+              <span>Next step</span>
+              <input name="next_step" type="text" placeholder="ex: trimite oferta, suna marti" />
+            </label>
+            <label class="field">
+              <span>Data next step</span>
+              <input name="next_step_date" type="date" />
             </label>
             <label class="field span-2">
               <span>Note</span>
@@ -156,6 +180,10 @@
               <label class="field">
                 <span>Next step</span>
                 <input name="next_step" type="text" placeholder="ex: call luni 10:00" />
+              </label>
+              <label class="field">
+                <span>Data next step</span>
+                <input name="next_step_date" type="date" />
               </label>
               <button class="secondary-button" type="submit">Salveaza compania</button>
             </form>
