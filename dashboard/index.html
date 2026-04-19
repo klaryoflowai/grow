@@ -46,7 +46,7 @@
             </label>
             <label class="field">
               <span>Companie</span>
-              <input name="company" type="text" placeholder="Linella" required />
+              <input name="company" type="text" list="company-options" autocomplete="off" placeholder="Linella" required />
             </label>
             <label class="field">
               <span>Actiune</span>
@@ -126,7 +126,14 @@
               <h3>Update rapid companie</h3>
               <label class="field">
                 <span>Companie</span>
-                <input name="company" type="text" placeholder="Companie" required />
+                <input
+                  name="company"
+                  type="text"
+                  list="company-options"
+                  autocomplete="off"
+                  placeholder="Companie"
+                  required
+                />
               </label>
               <label class="field">
                 <span>Status</span>
@@ -245,6 +252,7 @@
       </main>
     </div>
 
+    <datalist id="company-options"></datalist>
     <script src="./app.js"></script>
   </body>
 </html>

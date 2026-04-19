@@ -84,6 +84,7 @@ const elements = {
   clearMemory: document.getElementById("clear-memory"),
   connectionCopy: document.getElementById("connection-copy"),
   connectionBadges: document.getElementById("connection-badges"),
+  companyOptions: document.getElementById("company-options"),
   saveTargets: document.getElementById("save-targets"),
   targets: {
     contacted: document.getElementById("target-contacted"),
@@ -95,6 +96,7 @@ const elements = {
     activity: document.getElementById("activity-form"),
     account: document.getElementById("account-form"),
   },
+  companyInputs: [...document.querySelectorAll('input[name="company"]')],
 };
 
 init();
@@ -156,10 +158,18 @@ function bindEvents() {
     renderPipeline();
   });
 
+  elements.companyInputs.forEach((input) => {
+    input.addEventListener("blur", () => {
+      input.value = canonicalCompanyName(input.value);
+    });
+  });
+
   elements.forms.activity.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const record = normalizeRow("activities", Object.fromEntries(formData.entries()));
+    const raw = Object.fromEntries(formData.entries());
+    raw.company = canonicalCompanyName(raw.company);
+    const record = normalizeRow("activities", raw);
     if (!record.company || !record.date) return;
 
     if (state.apiEnabled) {
@@ -191,6 +201,7 @@ function bindEvents() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const raw = Object.fromEntries(formData.entries());
+    raw.company = canonicalCompanyName(raw.company);
     const record = normalizeRow("accounts", raw);
     if (!record.company) return;
 
@@ -356,6 +367,7 @@ function refreshCombinedData() {
       });
 
     state.accounts = mergeAccounts(state.sourceData.accounts, [], state.activities);
+    updateCompanyOptions();
     return;
   }
 
@@ -368,6 +380,7 @@ function refreshCombinedData() {
     });
 
   state.accounts = mergeAccounts([], state.manualData.accounts, state.activities);
+  updateCompanyOptions();
 }
 
 function mergeAccounts(sourceAccounts, manualAccounts, activities) {
@@ -507,6 +520,37 @@ function toNumber(value) {
 
 function stageRank(status = "") {
   return stageOrder[status] ?? 0;
+}
+
+function canonicalCompanyName(value = "") {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+
+  const exactMatch = state.accounts.find(
+    (account) => account.company && account.company.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (exactMatch) return exactMatch.company;
+
+  if (trimmed.length < 3) return trimmed;
+
+  const prefixMatches = state.accounts.filter(
+    (account) => account.company && account.company.toLowerCase().startsWith(trimmed.toLowerCase())
+  );
+
+  return prefixMatches.length === 1 ? prefixMatches[0].company : trimmed;
+}
+
+function updateCompanyOptions() {
+  const names = [...new Set(
+    state.accounts
+      .map((account) => account.company)
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right, "ro"))
+  )];
+
+  elements.companyOptions.innerHTML = names
+    .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+    .join("");
 }
 
 function updateStatus(message) {
