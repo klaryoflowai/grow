@@ -177,16 +177,39 @@
                   <option value="Pierdut">Pierdut</option>
                 </select>
               </label>
-              <label class="field">
-                <span>Sanatate cont</span>
-                <select name="account_health">
-                  <option value="">-</option>
-                  <option value="Verde">Verde</option>
-                  <option value="Galben">Galben</option>
-                  <option value="Rosu">Rosu</option>
-                  <option value="Gri">Gri</option>
-                </select>
-              </label>
+              <fieldset class="field fieldset-reset">
+                <legend>Sanatate cont</legend>
+                <div class="health-choice-grid">
+                  <label class="health-choice">
+                    <input type="radio" name="account_health" value="Verde" />
+                    <span class="health-choice-card">
+                      <span class="health-dot health-verde"></span>
+                      <span>Verde</span>
+                    </span>
+                  </label>
+                  <label class="health-choice">
+                    <input type="radio" name="account_health" value="Galben" />
+                    <span class="health-choice-card">
+                      <span class="health-dot health-galben"></span>
+                      <span>Galben</span>
+                    </span>
+                  </label>
+                  <label class="health-choice">
+                    <input type="radio" name="account_health" value="Rosu" />
+                    <span class="health-choice-card">
+                      <span class="health-dot health-rosu"></span>
+                      <span>Rosu</span>
+                    </span>
+                  </label>
+                  <label class="health-choice">
+                    <input type="radio" name="account_health" value="Gri" />
+                    <span class="health-choice-card">
+                      <span class="health-dot health-gri"></span>
+                      <span>Gri</span>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
               <label class="field">
                 <span>Potential muncitori</span>
                 <input name="workers" type="number" min="0" placeholder="0" />

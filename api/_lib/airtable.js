@@ -114,6 +114,8 @@ const pipelineRankMap = {
   Pierdut: -2,
 };
 
+const lockedPipelineStages = new Set(["Contract semnat", "Parcat", "Pierdut"]);
+
 function statusToPipelineStage(status = "") {
   const normalized = normalizeStatus(status);
   const mapping = {
@@ -133,6 +135,18 @@ function activityToPipelineStage(activityType = "") {
 
 function pipelineRank(stage = "") {
   return pipelineRankMap[normalizeString(stage)] ?? -3;
+}
+
+function mergePipelineStage(existingStage = "", activityType = "") {
+  const currentStage = normalizeString(existingStage);
+  if (lockedPipelineStages.has(currentStage)) {
+    return currentStage;
+  }
+
+  const nextStageCandidate = activityToPipelineStage(activityType);
+  return pipelineRank(nextStageCandidate) > pipelineRank(currentStage)
+    ? nextStageCandidate
+    : currentStage;
 }
 
 function normalizeCompanyRecord(record, config) {
@@ -321,10 +335,7 @@ async function touchCompanyFromActivity(activity) {
     ? normalizeCompanyRecord(existingRecord, config)
     : null;
   const existingStage = existingCompany?.pipeline_stage || "";
-  const nextStageCandidate = activityToPipelineStage(activity.activity_type);
-  const nextPipelineStage = pipelineRank(nextStageCandidate) > pipelineRank(existingStage)
-    ? nextStageCandidate
-    : existingStage;
+  const nextPipelineStage = mergePipelineStage(existingStage, activity.activity_type);
 
   const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
   const lastContact = dateCandidates[dateCandidates.length - 1] || "";

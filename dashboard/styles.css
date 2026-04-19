@@ -234,9 +234,22 @@ h3 {
   gap: 8px;
 }
 
-.field span {
+.field span,
+.fieldset-reset legend {
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.fieldset-reset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.fieldset-reset legend {
+  padding: 0;
+  margin-bottom: 8px;
 }
 
 .field input,
@@ -252,6 +265,82 @@ h3 {
 
 .field .flatpickr-input {
   width: 100%;
+}
+
+.health-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.health-choice {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+.health-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.health-choice-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(5, 13, 26, 0.9);
+  padding: 12px 14px;
+  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.health-choice:hover .health-choice-card {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.health-choice input:checked + .health-choice-card {
+  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(14, 31, 56, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.18);
+}
+
+.health-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  flex: 0 0 12px;
+}
+
+.health-verde {
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.16);
+}
+
+.health-galben {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16);
+}
+
+.health-rosu {
+  background: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16);
+}
+
+.health-gri {
+  background: #94a3b8;
+  box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.16);
+}
+
+.health-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 500;
 }
 
 .field.span-2 {

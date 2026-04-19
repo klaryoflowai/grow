@@ -65,6 +65,8 @@ const accountHealthTheme = {
   Gri: { color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
 };
 
+const lockedPipelineStages = new Set(["Contract semnat", "Parcat", "Pierdut"]);
+
 const activityAliases = {
   lead_new: "contacted",
   new_lead: "contacted",
@@ -527,9 +529,7 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       existing.last_outcome = activity.outcome;
     }
 
-    if (pipelineStageValueRank(mapActivityToPipelineStage(activity.activity_type)) > pipelineStageValueRank(existing.pipeline_stage)) {
-      existing.pipeline_stage = mapActivityToPipelineStage(activity.activity_type);
-    }
+    existing.pipeline_stage = mergePipelineStage(existing.pipeline_stage, activity.activity_type);
 
     if (activity.activity_type === "contract_signed" && activity.workers_delta > existing.workers) {
       existing.workers = activity.workers_delta;
@@ -582,9 +582,7 @@ function syncManualAccountFromActivity(activity) {
     current.last_outcome = activity.outcome;
   }
 
-  if (pipelineStageValueRank(mapActivityToPipelineStage(activity.activity_type)) > pipelineStageValueRank(current.pipeline_stage)) {
-    current.pipeline_stage = mapActivityToPipelineStage(activity.activity_type);
-  }
+  current.pipeline_stage = mergePipelineStage(current.pipeline_stage, activity.activity_type);
 
   if (activity.activity_type === "contract_signed" && activity.workers_delta > current.workers) {
     current.workers = activity.workers_delta;
@@ -719,6 +717,18 @@ function stageRank(status = "") {
 
 function pipelineStageValueRank(stage = "") {
   return pipelineStageRank[normalizePipelineStage(stage)] ?? -3;
+}
+
+function mergePipelineStage(existingStage = "", activityType = "") {
+  const currentStage = normalizePipelineStage(existingStage);
+  if (lockedPipelineStages.has(currentStage)) {
+    return currentStage;
+  }
+
+  const candidate = mapActivityToPipelineStage(activityType);
+  return pipelineStageValueRank(candidate) > pipelineStageValueRank(currentStage)
+    ? candidate
+    : currentStage;
 }
 
 function isOfferStage(stage = "") {

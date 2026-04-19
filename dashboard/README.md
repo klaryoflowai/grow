@@ -41,6 +41,11 @@ The company table stores only:
 
 `Ultimul rezultat` is not stored separately in `Companies`. The dashboard computes it from the latest saved activity for that company.
 
+Hybrid pipeline rule:
+
+- new activities can auto-advance an open account to a later pipeline stage
+- manually closed stages such as `Parcat`, `Pierdut`, or `Contract semnat` stay locked until you change them explicitly from the company form
+
 ## Architecture
 
 The frontend stays in:
