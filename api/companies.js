@@ -1,7 +1,8 @@
 const { getDashboardData, upsertCompany } = require("./_lib/airtable");
-const { readJsonBody, sendError } = require("./_lib/http");
+const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
 
 module.exports = async function handler(request, response) {
+  setNoStore(response);
   try {
     if (request.method === "GET") {
       const data = await getDashboardData();

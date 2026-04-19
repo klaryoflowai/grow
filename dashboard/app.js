@@ -113,6 +113,7 @@ const state = {
   search: "",
   apiEnabled: false,
   sourceMode: "fallback",
+  bootstrapReady: false,
   connection: null,
   warnings: [],
   targets: loadTargets(),
@@ -168,6 +169,7 @@ async function init() {
   setDefaultFormDates();
   bindEvents();
   await refreshData({ silent: true });
+  state.bootstrapReady = true;
   render();
 }
 
@@ -225,6 +227,10 @@ function bindEvents() {
 
   elements.forms.activity.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!state.bootstrapReady) {
+      updateStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
+      return;
+    }
     const form = event.currentTarget;
     const formData = new FormData(form);
     const raw = Object.fromEntries(formData.entries());
@@ -264,6 +270,10 @@ function bindEvents() {
 
   elements.forms.account.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!state.bootstrapReady) {
+      updateStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
+      return;
+    }
     const form = event.currentTarget;
     const formData = new FormData(form);
     const raw = Object.fromEntries(formData.entries());
@@ -926,7 +936,9 @@ function updateStatus(message) {
 
 function render() {
   const trackedCount = state.accounts.filter((account) => isTrackedAccount(account)).length;
-  elements.dataModePill.textContent = state.apiEnabled
+  elements.dataModePill.textContent = !state.bootstrapReady
+    ? "Se conecteaza..."
+    : state.apiEnabled
     ? "Airtable live"
     : hasManualData()
       ? "Fallback local"

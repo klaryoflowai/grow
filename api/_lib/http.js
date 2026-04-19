@@ -24,7 +24,14 @@ async function readJsonBody(request) {
   return raw ? JSON.parse(raw) : {};
 }
 
+function setNoStore(response) {
+  response.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
+  response.setHeader("Pragma", "no-cache");
+  response.setHeader("Expires", "0");
+}
+
 function sendError(response, error) {
+  setNoStore(response);
   const status = error.status || 500;
   response.status(status).json({
     error: error.message || "A aparut o eroare necunoscuta.",
@@ -33,5 +40,6 @@ function sendError(response, error) {
 
 module.exports = {
   readJsonBody,
+  setNoStore,
   sendError,
 };

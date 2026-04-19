@@ -1,7 +1,8 @@
 const { getDashboardData } = require("./_lib/airtable");
-const { sendError } = require("./_lib/http");
+const { sendError, setNoStore } = require("./_lib/http");
 
 module.exports = async function handler(request, response) {
+  setNoStore(response);
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
     response.status(405).json({ error: "Method not allowed." });
