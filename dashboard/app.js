@@ -5,7 +5,7 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const appBuild = "20260419g";
+const appBuild = "20260419h";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -141,6 +141,7 @@ const elements = {
   resetAccount: document.getElementById("reset-account"),
   connectionCopy: document.getElementById("connection-copy"),
   connectionBadges: document.getElementById("connection-badges"),
+  companyFormStatus: document.getElementById("company-form-status"),
   companyOptions: document.getElementById("company-options"),
   saveTargets: document.getElementById("save-targets"),
   targets: {
@@ -934,6 +935,9 @@ function updateCompanyOptions() {
 
 function updateStatus(message) {
   elements.statusMessage.textContent = message;
+  if (elements.companyFormStatus) {
+    elements.companyFormStatus.textContent = message;
+  }
 }
 
 function render() {

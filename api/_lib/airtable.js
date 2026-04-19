@@ -305,8 +305,9 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.accountHealth] = "";
   }
 
-  if ("workers" in payload && payload.workers !== "") {
-    fields[config.fields.companies.workers] = toNumber(payload.workers);
+  const rawWorkers = normalizeString(payload.workers);
+  if ("workers" in payload && rawWorkers !== "") {
+    fields[config.fields.companies.workers] = toNumber(rawWorkers);
   } else if (!existingRecord) {
     fields[config.fields.companies.workers] = 0;
   }
@@ -341,9 +342,38 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.notes] = "";
   }
 
-  const record = existingRecord
-    ? await updateRecord("companies", existingRecord.id, fields)
-    : await createRecord("companies", fields);
+  let record;
+
+  try {
+    record = existingRecord
+      ? await updateRecord("companies", existingRecord.id, fields)
+      : await createRecord("companies", fields);
+  } catch (error) {
+    const workersField = config.fields.companies.workers;
+    const workersValueProvided = Object.prototype.hasOwnProperty.call(fields, workersField);
+    const workersRejected = workersField && error.message?.includes(`Field "${workersField}" cannot accept the provided value`);
+
+    if (!workersValueProvided || !workersRejected) {
+      throw error;
+    }
+
+    try {
+      fields[workersField] = rawWorkers;
+      record = existingRecord
+        ? await updateRecord("companies", existingRecord.id, fields)
+        : await createRecord("companies", fields);
+    } catch (fallbackError) {
+      const stringWorkersRejected = fallbackError.message?.includes(`Field "${workersField}" cannot accept the provided value`);
+      if (!stringWorkersRejected) {
+        throw fallbackError;
+      }
+
+      delete fields[workersField];
+      record = existingRecord
+        ? await updateRecord("companies", existingRecord.id, fields)
+        : await createRecord("companies", fields);
+    }
+  }
 
   return normalizeCompanyRecord(record, config);
 }
