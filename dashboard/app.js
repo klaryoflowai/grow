@@ -679,6 +679,14 @@ function normalizePipelineStage(value = "") {
 function normalizeAccountHealth(value = "") {
   const raw = String(value || "").trim();
   if (!raw) return "";
+  const emojiMap = {
+    "🟢": "Verde",
+    "🟡": "Galben",
+    "🔴": "Rosu",
+    "⚪": "Gri",
+    "⚪️": "Gri",
+  };
+  if (emojiMap[raw]) return emojiMap[raw];
   const match = accountHealthOptions.find(
     (option) => option.toLowerCase() === raw.toLowerCase()
   );

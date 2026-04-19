@@ -115,6 +115,25 @@ const pipelineRankMap = {
 };
 
 const lockedPipelineStages = new Set(["Contract semnat", "Parcat", "Pierdut"]);
+const accountHealthToAirtableMap = {
+  Verde: "🟢",
+  Galben: "🟡",
+  Rosu: "🔴",
+  Gri: "⚪️",
+  "🟢": "🟢",
+  "🟡": "🟡",
+  "🔴": "🔴",
+  "⚪": "⚪️",
+  "⚪️": "⚪️",
+};
+
+const accountHealthFromAirtableMap = {
+  "🟢": "Verde",
+  "🟡": "Galben",
+  "🔴": "Rosu",
+  "⚪": "Gri",
+  "⚪️": "Gri",
+};
 
 function statusToPipelineStage(status = "") {
   const normalized = normalizeStatus(status);
@@ -149,6 +168,18 @@ function mergePipelineStage(existingStage = "", activityType = "") {
     : currentStage;
 }
 
+function encodeAccountHealth(value = "") {
+  const raw = normalizeString(value);
+  if (!raw) return "";
+  return accountHealthToAirtableMap[raw] || raw;
+}
+
+function decodeAccountHealth(value = "") {
+  const raw = normalizeString(value);
+  if (!raw) return "";
+  return accountHealthFromAirtableMap[raw] || raw;
+}
+
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
@@ -160,7 +191,7 @@ function normalizeCompanyRecord(record, config) {
     id: record.id,
     company: normalizeString(fields[config.fields.companies.company]),
     pipeline_stage: pipelineStage,
-    account_health: normalizeString(
+    account_health: decodeAccountHealth(
       config.fields.companies.accountHealth ? fields[config.fields.companies.accountHealth] : ""
     ),
     workers: toNumber(fields[config.fields.companies.workers]),
@@ -269,7 +300,7 @@ async function upsertCompany(payload) {
   }
 
   if ("account_health" in payload && config.fields.companies.accountHealth) {
-    fields[config.fields.companies.accountHealth] = normalizeString(payload.account_health);
+    fields[config.fields.companies.accountHealth] = encodeAccountHealth(payload.account_health);
   } else if (!existingRecord && config.fields.companies.accountHealth) {
     fields[config.fields.companies.accountHealth] = "";
   }

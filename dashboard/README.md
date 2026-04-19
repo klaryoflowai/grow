@@ -133,6 +133,15 @@ Recommended Romanian account health options:
 - `Rosu`
 - `Gri`
 
+If you prefer emoji-only Airtable badges for `Sanatate Cont`, the backend also supports:
+
+- `🟢`
+- `🟡`
+- `🔴`
+- `⚪️`
+
+The dashboard still shows the Romanian labels, but it can read and write the emoji values in Airtable.
+
 Recommended Romanian outcome options:
 
 - `Am vorbit cu decidentul`
