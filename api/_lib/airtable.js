@@ -183,9 +183,7 @@ function decodeAccountHealth(value = "") {
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
-  const statusField = config.fields.companies.status;
-  const pipelineStage = normalizeString(pipelineStageField ? fields[pipelineStageField] : "")
-    || statusToPipelineStage(statusField ? fields[statusField] : "");
+  const pipelineStage = normalizeString(pipelineStageField ? fields[pipelineStageField] : "");
 
   return {
     id: record.id,
@@ -307,10 +305,6 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.accountHealth] = "";
   }
 
-  if ("status" in payload && config.fields.companies.status) {
-    fields[config.fields.companies.status] = normalizeStatus(payload.status || "contacted");
-  }
-
   if ("workers" in payload && payload.workers !== "") {
     fields[config.fields.companies.workers] = toNumber(payload.workers);
   } else if (!existingRecord) {
@@ -379,11 +373,7 @@ async function touchCompanyFromActivity(activity) {
   };
 
   if (config.fields.companies.pipelineStage) {
-    fields[config.fields.companies.pipelineStage] = nextPipelineStage;
-  }
-
-  if (config.fields.companies.status) {
-    fields[config.fields.companies.status] = normalizeStatus(activity.activity_type);
+    fields[config.fields.companies.pipelineStage] = nextPipelineStage || null;
   }
 
   if (activity.next_step) {

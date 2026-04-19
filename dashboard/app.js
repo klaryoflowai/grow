@@ -688,7 +688,7 @@ function normalizeRow(kind, row) {
   if (kind === "accounts") {
     return {
       company: row.company || row.name || "",
-      pipeline_stage: normalizePipelineStage(row.pipeline_stage || row.pipelineStage || row.stage || row.status),
+      pipeline_stage: normalizePipelineStage(row.pipeline_stage || row.pipelineStage || row.stage),
       account_health: normalizeAccountHealth(row.account_health || row.accountHealth || row.health),
       last_outcome: row.last_outcome || row.lastOutcome || "",
       workers: toNumber(row.workers || row.potential_volume || row.workers_requested || 0),
@@ -812,7 +812,19 @@ function isOfferStage(stage = "") {
 
 function isPipelineOpen(stage = "") {
   const normalized = normalizePipelineStage(stage);
+  if (!normalized) return false;
   return !["Contract semnat", "Parcat", "Pierdut"].includes(normalized);
+}
+
+function isTrackedAccount(account = {}) {
+  return Boolean(
+    normalizeString(account.pipeline_stage)
+    || normalizeString(account.account_health)
+    || normalizeString(account.last_outcome)
+    || account.last_contact
+    || normalizeString(account.next_step)
+    || account.next_step_date
+  );
 }
 
 function normalizeCompanyKey(value = "") {
@@ -1138,7 +1150,8 @@ function getLastSevenDays() {
 }
 
 function renderPipeline() {
-  const activeAccounts = state.accounts
+  const trackedAccounts = state.accounts.filter((account) => isTrackedAccount(account));
+  const activeAccounts = trackedAccounts
     .filter((account) => !state.search || account.company.toLowerCase().includes(state.search))
     .sort((left, right) => {
       const stageDiff = pipelineStageValueRank(right.pipeline_stage) - pipelineStageValueRank(left.pipeline_stage);
@@ -1149,10 +1162,10 @@ function renderPipeline() {
     });
 
   const counts = {
-    active: state.accounts.filter((account) => isPipelineOpen(account.pipeline_stage)).length,
-    offers: state.accounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
-    signed: state.accounts.filter((account) => account.pipeline_stage === "Contract semnat").length,
-    parked: state.accounts.filter((account) => ["Parcat", "Pierdut"].includes(account.pipeline_stage)).length,
+    active: trackedAccounts.filter((account) => isPipelineOpen(account.pipeline_stage)).length,
+    offers: trackedAccounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
+    signed: trackedAccounts.filter((account) => account.pipeline_stage === "Contract semnat").length,
+    parked: trackedAccounts.filter((account) => ["Parcat", "Pierdut"].includes(account.pipeline_stage)).length,
   };
 
   elements.pipelineSummary.innerHTML = `
@@ -1166,7 +1179,7 @@ function renderPipeline() {
     elements.accountsTableBody.innerHTML = `
       <tr>
         <td colspan="6">
-          <div class="empty-card">Nu exista companii in pipeline inca. Prima activitate salvata va crea automat compania.</div>
+          <div class="empty-card">Nu exista companii cu tracking activ inca. Prima activitate sau primul update de companie le va adauga aici.</div>
         </td>
       </tr>
     `;
@@ -1175,14 +1188,17 @@ function renderPipeline() {
 
   elements.accountsTableBody.innerHTML = activeAccounts
     .map((account) => {
-      const pipelineStage = pipelineStageTheme[account.pipeline_stage] || pipelineStageTheme.Necontactat;
+      const pipelineStage = pipelineStageTheme[account.pipeline_stage] || {
+        color: "#94a3b8",
+        bg: "rgba(148,163,184,0.14)",
+      };
       const health = accountHealthTheme[account.account_health] || null;
       return `
         <tr>
           <td><div class="company-name">${escapeHtml(account.company)}</div></td>
           <td>
             <span class="status-pill" style="color:${pipelineStage.color}; background:${pipelineStage.bg}; border-color:${pipelineStage.color}33;">
-              ${escapeHtml(account.pipeline_stage || "Necontactat")}
+              ${escapeHtml(account.pipeline_stage || "-")}
             </span>
           </td>
           <td>
@@ -1204,6 +1220,7 @@ function renderPipeline() {
 function renderAlerts() {
   const now = new Date();
   const staleAccounts = state.accounts
+    .filter((account) => isTrackedAccount(account))
     .filter((account) => isPipelineOpen(account.pipeline_stage))
     .filter((account) => {
       if (account.next_step_date) return dayDiff(account.next_step_date, now) >= 0;
