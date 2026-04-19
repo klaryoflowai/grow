@@ -160,7 +160,11 @@ function bindEvents() {
 
   elements.companyInputs.forEach((input) => {
     input.addEventListener("blur", () => {
-      input.value = canonicalCompanyName(input.value);
+      const resolution = resolveCompanyInput(input.value);
+      input.value = resolution.company;
+      if (!resolution.ok && resolution.message) {
+        updateStatus(resolution.message);
+      }
     });
   });
 
@@ -168,7 +172,12 @@ function bindEvents() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const raw = Object.fromEntries(formData.entries());
-    raw.company = canonicalCompanyName(raw.company);
+    const resolution = resolveCompanyInput(raw.company);
+    if (!resolution.ok) {
+      updateStatus(resolution.message);
+      return;
+    }
+    raw.company = resolution.company;
     const record = normalizeRow("activities", raw);
     if (!record.company || !record.date) return;
 
@@ -201,7 +210,12 @@ function bindEvents() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const raw = Object.fromEntries(formData.entries());
-    raw.company = canonicalCompanyName(raw.company);
+    const resolution = resolveCompanyInput(raw.company);
+    if (!resolution.ok) {
+      updateStatus(resolution.message);
+      return;
+    }
+    raw.company = resolution.company;
     const record = normalizeRow("accounts", raw);
     if (!record.company) return;
 
@@ -522,12 +536,20 @@ function stageRank(status = "") {
   return stageOrder[status] ?? 0;
 }
 
+function normalizeCompanyKey(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
 function canonicalCompanyName(value = "") {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
 
   const exactMatch = state.accounts.find(
-    (account) => account.company && account.company.toLowerCase() === trimmed.toLowerCase()
+    (account) => account.company && normalizeCompanyKey(account.company) === normalizeCompanyKey(trimmed)
   );
   if (exactMatch) return exactMatch.company;
 
@@ -538,6 +560,53 @@ function canonicalCompanyName(value = "") {
   );
 
   return prefixMatches.length === 1 ? prefixMatches[0].company : trimmed;
+}
+
+function resolveCompanyInput(value = "") {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    return {
+      ok: false,
+      company: "",
+      message: "Alege sau scrie numele companiei.",
+    };
+  }
+
+  const canonical = canonicalCompanyName(trimmed);
+  if (canonical !== trimmed) {
+    return {
+      ok: true,
+      company: canonical,
+    };
+  }
+
+  if (trimmed.length < 3) {
+    return {
+      ok: true,
+      company: trimmed,
+    };
+  }
+
+  const similar = state.accounts.filter((account) => {
+    if (!account.company) return false;
+    const company = account.company.toLowerCase();
+    const query = trimmed.toLowerCase();
+    return company.startsWith(query) || company.includes(query);
+  });
+
+  if (similar.length > 1) {
+    const options = similar.slice(0, 5).map((account) => account.company).join(", ");
+    return {
+      ok: false,
+      company: trimmed,
+      message: `Exista mai multe companii similare: ${options}. Alege una din sugestiile din camp.`,
+    };
+  }
+
+  return {
+    ok: true,
+    company: trimmed,
+  };
 }
 
 function updateCompanyOptions() {
