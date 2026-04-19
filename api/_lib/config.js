@@ -34,7 +34,9 @@ function getAirtableConfig() {
     fields: {
       companies: {
         company: readEnv("AIRTABLE_FIELD_COMPANY_NAME", "Company"),
-        status: readEnv("AIRTABLE_FIELD_COMPANY_STATUS", "Status"),
+        status: readEnv("AIRTABLE_FIELD_COMPANY_STATUS", ""),
+        pipelineStage: readEnv("AIRTABLE_FIELD_COMPANY_PIPELINE_STAGE", "Stadiu Pipeline"),
+        accountHealth: readEnv("AIRTABLE_FIELD_COMPANY_ACCOUNT_HEALTH", "Sanatate Cont"),
         workers: readEnv("AIRTABLE_FIELD_COMPANY_WORKERS", "Potential Workers"),
         lastContact: readEnv("AIRTABLE_FIELD_COMPANY_LAST_CONTACT", "Last Contact"),
         nextStep: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP", "Next Step"),

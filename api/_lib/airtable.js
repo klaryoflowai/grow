@@ -100,12 +100,55 @@ function getRequiredConfig() {
   return config;
 }
 
+const pipelineRankMap = {
+  "Necontactat": 0,
+  "Incercam sa ajungem la decident": 1,
+  "Discutie initiata": 2,
+  "Meeting programat": 3,
+  "Meeting tinut": 4,
+  "Oferta trimisa": 5,
+  Negociere: 6,
+  "Asteapta decizie": 7,
+  "Contract semnat": 8,
+  Parcat: -1,
+  Pierdut: -2,
+};
+
+function statusToPipelineStage(status = "") {
+  const normalized = normalizeStatus(status);
+  const mapping = {
+    new: "Necontactat",
+    contacted: "Discutie initiata",
+    meeting: "Meeting tinut",
+    offer: "Oferta trimisa",
+    contract_signed: "Contract semnat",
+    lost: "Pierdut",
+  };
+  return mapping[normalized] || "";
+}
+
+function activityToPipelineStage(activityType = "") {
+  return statusToPipelineStage(activityType);
+}
+
+function pipelineRank(stage = "") {
+  return pipelineRankMap[normalizeString(stage)] ?? -3;
+}
+
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
+  const pipelineStageField = config.fields.companies.pipelineStage;
+  const statusField = config.fields.companies.status;
+  const pipelineStage = normalizeString(pipelineStageField ? fields[pipelineStageField] : "")
+    || statusToPipelineStage(statusField ? fields[statusField] : "");
+
   return {
     id: record.id,
     company: normalizeString(fields[config.fields.companies.company]),
-    status: normalizeStatus(fields[config.fields.companies.status]),
+    pipeline_stage: pipelineStage,
+    account_health: normalizeString(
+      config.fields.companies.accountHealth ? fields[config.fields.companies.accountHealth] : ""
+    ),
     workers: toNumber(fields[config.fields.companies.workers]),
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
@@ -205,10 +248,20 @@ async function upsertCompany(payload) {
     [config.fields.companies.company]: companyName,
   };
 
-  if ("status" in payload) {
-    fields[config.fields.companies.status] = normalizeStatus(payload.status || existingCompany?.status || "contacted");
-  } else if (!existingRecord) {
-    fields[config.fields.companies.status] = "contacted";
+  if ("pipeline_stage" in payload && config.fields.companies.pipelineStage) {
+    fields[config.fields.companies.pipelineStage] = normalizeString(payload.pipeline_stage);
+  } else if (!existingRecord && config.fields.companies.pipelineStage) {
+    fields[config.fields.companies.pipelineStage] = "";
+  }
+
+  if ("account_health" in payload && config.fields.companies.accountHealth) {
+    fields[config.fields.companies.accountHealth] = normalizeString(payload.account_health);
+  } else if (!existingRecord && config.fields.companies.accountHealth) {
+    fields[config.fields.companies.accountHealth] = "";
+  }
+
+  if ("status" in payload && config.fields.companies.status) {
+    fields[config.fields.companies.status] = normalizeStatus(payload.status || "contacted");
   }
 
   if ("workers" in payload && payload.workers !== "") {
@@ -267,21 +320,27 @@ async function touchCompanyFromActivity(activity) {
   const existingCompany = existingRecord
     ? normalizeCompanyRecord(existingRecord, config)
     : null;
-
-  const nextStatus = existingCompany
-    ? stageRank(activity.activity_type) > stageRank(existingCompany.status)
-      ? activity.activity_type
-      : existingCompany.status
-    : normalizeStatus(activity.activity_type);
+  const existingStage = existingCompany?.pipeline_stage || "";
+  const nextStageCandidate = activityToPipelineStage(activity.activity_type);
+  const nextPipelineStage = pipelineRank(nextStageCandidate) > pipelineRank(existingStage)
+    ? nextStageCandidate
+    : existingStage;
 
   const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
   const lastContact = dateCandidates[dateCandidates.length - 1] || "";
 
   const fields = {
     [config.fields.companies.company]: companyName,
-    [config.fields.companies.status]: nextStatus,
     [config.fields.companies.lastContact]: lastContact || null,
   };
+
+  if (config.fields.companies.pipelineStage) {
+    fields[config.fields.companies.pipelineStage] = nextPipelineStage;
+  }
+
+  if (config.fields.companies.status) {
+    fields[config.fields.companies.status] = normalizeStatus(activity.activity_type);
+  }
 
   if (activity.next_step) {
     fields[config.fields.companies.nextStep] = normalizeString(activity.next_step);

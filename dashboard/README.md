@@ -11,7 +11,12 @@ This dashboard is now optimized for one thing:
 
 ## Data Model
 
-The UI only works with 4 core stages:
+The model is intentionally split in two:
+
+- `Activities` = everything that happened
+- `Companies` = where the account stands now
+
+The scorecard still works with only 4 core activity types:
 
 - `contacted`
 - `meeting`
@@ -20,11 +25,21 @@ The UI only works with 4 core stages:
 
 Everything in the scorecard, trend, and conversion cards is built on top of these 4 values.
 
-The richer activity log can also store:
+The richer activity log stores:
 
 - `Outcome`
 - `Next Step`
 - `Next Step Date`
+
+The company table stores only:
+
+- `Stadiu Pipeline`
+- `Sanatate Cont`
+- `Last Contact`
+- `Next Step`
+- `Next Step Date`
+
+`Ultimul rezultat` is not stored separately in `Companies`. The dashboard computes it from the latest saved activity for that company.
 
 ## Architecture
 
@@ -33,6 +48,8 @@ The frontend stays in:
 - `dashboard/index.html`
 - `dashboard/styles.css`
 - `dashboard/app.js`
+
+The dashboard also uses `flatpickr` from CDN for a consistent visual date picker across browsers.
 
 The Vercel serverless layer lives in:
 
@@ -65,12 +82,51 @@ Default field names are documented in:
 
 If your Airtable field names differ, you do not need to rewrite code. Just override the environment variables in Vercel.
 
-Recommended extra Airtable fields:
+Recommended Airtable fields:
 
+- `Companies -> Company`
+- `Companies -> Stadiu Pipeline`
+- `Companies -> Sanatate Cont`
+- `Companies -> Potential Workers`
+- `Companies -> Last Contact`
+- `Companies -> Next Step`
 - `Companies -> Next Step Date`
+- `Companies -> Sector`
+- `Companies -> Notes`
+- `Activities -> Date`
+- `Activities -> Company`
+- `Activities -> Activity Type`
 - `Activities -> Outcome`
+- `Activities -> Workers Delta`
 - `Activities -> Next Step`
 - `Activities -> Next Step Date`
+- `Activities -> Notes`
+- `Targets -> Month`
+- `Targets -> Contacted Target`
+- `Targets -> Meetings Target`
+- `Targets -> Offers Target`
+- `Targets -> Contracts Target`
+
+Recommended Romanian pipeline options:
+
+- `Necontactat`
+- `Incercam sa ajungem la decident`
+- `Discutie initiata`
+- `Meeting programat`
+- `Meeting tinut`
+- `Oferta trimisa`
+- `Negociere`
+- `Asteapta decizie`
+- `Contract semnat`
+- `Parcat`
+- `Pierdut`
+
+Recommended Romanian account health options:
+
+- `Verde`
+- `Galben`
+- `Rosu`
+- `Gri`
 
 Recommended Romanian outcome options:
 
@@ -84,6 +140,11 @@ Recommended Romanian outcome options:
 - `Asteapta oferta`
 - `Buget blocat`
 - `Pierdut la competitor`
+
+Legacy note:
+
+- `Companies -> Status` is no longer required by the dashboard
+- if you still have it in Airtable, the backend can still read it as fallback
 
 ## Important Airtable Note
 

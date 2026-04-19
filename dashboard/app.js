@@ -5,13 +5,64 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const statusTheme = {
+const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
   contacted: { label: "Contactat", color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
   meeting: { label: "Meeting", color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
   offer: { label: "Oferta", color: "#8b5cf6", bg: "rgba(139,92,246,0.16)" },
   contract_signed: { label: "Contract", color: "#10b981", bg: "rgba(16,185,129,0.16)" },
   lost: { label: "Pierdut", color: "#ef4444", bg: "rgba(239,68,68,0.16)" },
+};
+
+const pipelineStageOptions = [
+  "Necontactat",
+  "Incercam sa ajungem la decident",
+  "Discutie initiata",
+  "Meeting programat",
+  "Meeting tinut",
+  "Oferta trimisa",
+  "Negociere",
+  "Asteapta decizie",
+  "Contract semnat",
+  "Parcat",
+  "Pierdut",
+];
+
+const pipelineStageRank = {
+  Necontactat: 0,
+  "Incercam sa ajungem la decident": 1,
+  "Discutie initiata": 2,
+  "Meeting programat": 3,
+  "Meeting tinut": 4,
+  "Oferta trimisa": 5,
+  Negociere: 6,
+  "Asteapta decizie": 7,
+  "Contract semnat": 8,
+  Parcat: -1,
+  Pierdut: -2,
+};
+
+const pipelineStageTheme = {
+  Necontactat: { color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
+  "Incercam sa ajungem la decident": { color: "#60a5fa", bg: "rgba(96,165,250,0.16)" },
+  "Discutie initiata": { color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
+  "Meeting programat": { color: "#fbbf24", bg: "rgba(251,191,36,0.16)" },
+  "Meeting tinut": { color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
+  "Oferta trimisa": { color: "#8b5cf6", bg: "rgba(139,92,246,0.16)" },
+  Negociere: { color: "#a855f7", bg: "rgba(168,85,247,0.16)" },
+  "Asteapta decizie": { color: "#c084fc", bg: "rgba(192,132,252,0.16)" },
+  "Contract semnat": { color: "#10b981", bg: "rgba(16,185,129,0.16)" },
+  Parcat: { color: "#64748b", bg: "rgba(100,116,139,0.16)" },
+  Pierdut: { color: "#ef4444", bg: "rgba(239,68,68,0.16)" },
+};
+
+const accountHealthOptions = ["Verde", "Galben", "Rosu", "Gri"];
+
+const accountHealthTheme = {
+  Verde: { color: "#10b981", bg: "rgba(16,185,129,0.16)" },
+  Galben: { color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
+  Rosu: { color: "#ef4444", bg: "rgba(239,68,68,0.16)" },
+  Gri: { color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
 };
 
 const activityAliases = {
@@ -110,6 +161,7 @@ async function init() {
   });
 
   hydrateInputs();
+  initDatePickers();
   setDefaultFormDates();
   bindEvents();
   await refreshData({ silent: true });
@@ -325,10 +377,45 @@ function setDefaultFormDates() {
   const accountLastContact = elements.forms.account?.querySelector('input[name="last_contact"]');
   const accountNextStepDate = elements.forms.account?.querySelector('input[name="next_step_date"]');
 
-  if (activityDate && !activityDate.value) activityDate.value = today;
-  if (activityNextStepDate && !activityNextStepDate.value) activityNextStepDate.value = "";
-  if (accountLastContact && !accountLastContact.value) accountLastContact.value = today;
-  if (accountNextStepDate && !accountNextStepDate.value) accountNextStepDate.value = "";
+  if (activityDate && !activityDate.value) setDateFieldValue(activityDate, today);
+  if (activityNextStepDate && !activityNextStepDate.value) setDateFieldValue(activityNextStepDate, "");
+  if (accountLastContact && !accountLastContact.value) setDateFieldValue(accountLastContact, today);
+  if (accountNextStepDate && !accountNextStepDate.value) setDateFieldValue(accountNextStepDate, "");
+}
+
+function initDatePickers() {
+  if (typeof window.flatpickr !== "function") return;
+
+  const locale = window.flatpickr.l10ns?.ro || "default";
+  document.querySelectorAll("[data-date-picker]").forEach((input) => {
+    if (input._flatpickr) return;
+
+    window.flatpickr(input, {
+      locale,
+      altInput: true,
+      altFormat: "j F Y",
+      dateFormat: "Y-m-d",
+      disableMobile: true,
+      monthSelectorType: "static",
+      allowInput: false,
+      altInputClass: "date-picker-input",
+    });
+  });
+}
+
+function setDateFieldValue(input, value) {
+  if (!input) return;
+
+  if (input._flatpickr) {
+    if (value) {
+      input._flatpickr.setDate(value, false, "Y-m-d");
+    } else {
+      input._flatpickr.clear();
+    }
+    return;
+  }
+
+  input.value = value || "";
 }
 
 function loadTargets() {
@@ -414,7 +501,9 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
     const key = activity.company.toLowerCase();
     const existing = merged.get(key) || {
       company: activity.company,
-      status: "contacted",
+      pipeline_stage: mapActivityToPipelineStage(activity.activity_type),
+      account_health: "",
+      last_outcome: "",
       workers: 0,
       last_contact: null,
       next_step: "",
@@ -427,8 +516,19 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       existing.last_contact = activity.date;
     }
 
-    if (stageRank(activity.activity_type) > stageRank(existing.status)) {
-      existing.status = activity.activity_type;
+    if (
+      activity.outcome
+      && (
+        !existing.last_outcome
+        || !existing.last_contact
+        || (activity.date && activity.date >= existing.last_contact)
+      )
+    ) {
+      existing.last_outcome = activity.outcome;
+    }
+
+    if (pipelineStageValueRank(mapActivityToPipelineStage(activity.activity_type)) > pipelineStageValueRank(existing.pipeline_stage)) {
+      existing.pipeline_stage = mapActivityToPipelineStage(activity.activity_type);
     }
 
     if (activity.activity_type === "contract_signed" && activity.workers_delta > existing.workers) {
@@ -456,7 +556,9 @@ function syncManualAccountFromActivity(activity) {
     ? { ...state.manualData.accounts[existingIndex] }
     : {
         company: activity.company,
-        status: "contacted",
+        pipeline_stage: mapActivityToPipelineStage(activity.activity_type),
+        account_health: "",
+        last_outcome: "",
         workers: 0,
         last_contact: null,
         next_step: "",
@@ -469,8 +571,19 @@ function syncManualAccountFromActivity(activity) {
     current.last_contact = activity.date;
   }
 
-  if (stageRank(activity.activity_type) > stageRank(current.status)) {
-    current.status = activity.activity_type;
+  if (
+    activity.outcome
+    && (
+      !current.last_outcome
+      || !current.last_contact
+      || (activity.date && activity.date >= current.last_contact)
+    )
+  ) {
+    current.last_outcome = activity.outcome;
+  }
+
+  if (pipelineStageValueRank(mapActivityToPipelineStage(activity.activity_type)) > pipelineStageValueRank(current.pipeline_stage)) {
+    current.pipeline_stage = mapActivityToPipelineStage(activity.activity_type);
   }
 
   if (activity.activity_type === "contract_signed" && activity.workers_delta > current.workers) {
@@ -510,7 +623,9 @@ function normalizeRow(kind, row) {
   if (kind === "accounts") {
     return {
       company: row.company || row.name || "",
-      status: normalizeStatus(row.status || row.stage || row.activity_type),
+      pipeline_stage: normalizePipelineStage(row.pipeline_stage || row.pipelineStage || row.stage || row.status),
+      account_health: normalizeAccountHealth(row.account_health || row.accountHealth || row.health),
+      last_outcome: row.last_outcome || row.lastOutcome || "",
       workers: toNumber(row.workers || row.potential_volume || row.workers_requested || 0),
       last_contact: parseDate(row.last_contact || row.date),
       next_step: row.next_step || "",
@@ -538,8 +653,48 @@ function normalizeStatus(value = "") {
   if (key === "proposal" || key === "proposal_sent" || key === "offer_sent" || key === "contract_review") {
     return "offer";
   }
-  if (statusTheme[key]) return key;
+  if (activityTheme[key]) return key;
   return key ? "contacted" : "new";
+}
+
+function normalizePipelineStage(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const match = pipelineStageOptions.find(
+    (option) => option.toLowerCase() === raw.toLowerCase()
+  );
+  if (match) return match;
+
+  const fallback = {
+    new: "Necontactat",
+    contacted: "Discutie initiata",
+    meeting: "Meeting tinut",
+    offer: "Oferta trimisa",
+    contract_signed: "Contract semnat",
+    lost: "Pierdut",
+  };
+
+  return fallback[normalizeStatus(raw)] || raw;
+}
+
+function normalizeAccountHealth(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = accountHealthOptions.find(
+    (option) => option.toLowerCase() === raw.toLowerCase()
+  );
+  return match || raw;
+}
+
+function mapActivityToPipelineStage(activityType = "") {
+  const mapping = {
+    contacted: "Discutie initiata",
+    meeting: "Meeting tinut",
+    offer: "Oferta trimisa",
+    contract_signed: "Contract semnat",
+  };
+  return mapping[normalizeActivity(activityType)] || "Necontactat";
 }
 
 function normalizeActivity(value = "") {
@@ -560,6 +715,19 @@ function toNumber(value) {
 
 function stageRank(status = "") {
   return stageOrder[status] ?? 0;
+}
+
+function pipelineStageValueRank(stage = "") {
+  return pipelineStageRank[normalizePipelineStage(stage)] ?? -3;
+}
+
+function isOfferStage(stage = "") {
+  return ["Oferta trimisa", "Negociere", "Asteapta decizie"].includes(normalizePipelineStage(stage));
+}
+
+function isPipelineOpen(stage = "") {
+  const normalized = normalizePipelineStage(stage);
+  return !["Contract semnat", "Parcat", "Pierdut"].includes(normalized);
 }
 
 function normalizeCompanyKey(value = "") {
@@ -888,7 +1056,7 @@ function renderPipeline() {
   const activeAccounts = state.accounts
     .filter((account) => !state.search || account.company.toLowerCase().includes(state.search))
     .sort((left, right) => {
-      const stageDiff = stageRank(right.status) - stageRank(left.status);
+      const stageDiff = pipelineStageValueRank(right.pipeline_stage) - pipelineStageValueRank(left.pipeline_stage);
       if (stageDiff !== 0) return stageDiff;
       const leftTime = left.last_contact ? left.last_contact.getTime() : 0;
       const rightTime = right.last_contact ? right.last_contact.getTime() : 0;
@@ -896,23 +1064,23 @@ function renderPipeline() {
     });
 
   const counts = {
-    contacted: state.accounts.filter((account) => account.status === "contacted").length,
-    meeting: state.accounts.filter((account) => account.status === "meeting").length,
-    offer: state.accounts.filter((account) => account.status === "offer").length,
-    contract_signed: state.accounts.filter((account) => account.status === "contract_signed").length,
+    active: state.accounts.filter((account) => isPipelineOpen(account.pipeline_stage)).length,
+    offers: state.accounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
+    signed: state.accounts.filter((account) => account.pipeline_stage === "Contract semnat").length,
+    parked: state.accounts.filter((account) => ["Parcat", "Pierdut"].includes(account.pipeline_stage)).length,
   };
 
   elements.pipelineSummary.innerHTML = `
-    <div class="mini-chip">Contactate: ${counts.contacted}</div>
-    <div class="mini-chip">Meetings: ${counts.meeting}</div>
-    <div class="mini-chip">Oferte: ${counts.offer}</div>
-    <div class="mini-chip">Contracte: ${counts.contract_signed}</div>
+    <div class="mini-chip">Active: ${counts.active}</div>
+    <div class="mini-chip">In oferta: ${counts.offers}</div>
+    <div class="mini-chip">Semnate: ${counts.signed}</div>
+    <div class="mini-chip">Parcate/Pierdute: ${counts.parked}</div>
   `;
 
   if (!activeAccounts.length) {
     elements.accountsTableBody.innerHTML = `
       <tr>
-        <td colspan="5">
+        <td colspan="6">
           <div class="empty-card">Nu exista companii in pipeline inca. Prima activitate salvata va crea automat compania.</div>
         </td>
       </tr>
@@ -922,16 +1090,24 @@ function renderPipeline() {
 
   elements.accountsTableBody.innerHTML = activeAccounts
     .map((account) => {
-      const status = statusTheme[account.status] || statusTheme.new;
+      const pipelineStage = pipelineStageTheme[account.pipeline_stage] || pipelineStageTheme.Necontactat;
+      const health = accountHealthTheme[account.account_health] || null;
       return `
         <tr>
           <td><div class="company-name">${escapeHtml(account.company)}</div></td>
           <td>
-            <span class="status-pill" style="color:${status.color}; background:${status.bg}; border-color:${status.color}33;">
-              ${status.label}
+            <span class="status-pill" style="color:${pipelineStage.color}; background:${pipelineStage.bg}; border-color:${pipelineStage.color}33;">
+              ${escapeHtml(account.pipeline_stage || "Necontactat")}
             </span>
           </td>
-          <td>${account.workers || 0}</td>
+          <td>
+            ${
+              health
+                ? `<span class="status-pill" style="color:${health.color}; background:${health.bg}; border-color:${health.color}33;">${escapeHtml(account.account_health)}</span>`
+                : "-"
+            }
+          </td>
+          <td>${escapeHtml(account.last_outcome || "-")}</td>
           <td>${formatDate(account.last_contact)}</td>
           <td>${escapeHtml(formatNextStep(account))}</td>
         </tr>
@@ -943,7 +1119,7 @@ function renderPipeline() {
 function renderAlerts() {
   const now = new Date();
   const staleAccounts = state.accounts
-    .filter((account) => !["contract_signed", "lost"].includes(account.status))
+    .filter((account) => isPipelineOpen(account.pipeline_stage))
     .filter((account) => {
       if (account.next_step_date) return dayDiff(account.next_step_date, now) >= 0;
       if (!account.last_contact) return true;
@@ -972,10 +1148,11 @@ function renderAlerts() {
           <div class="alert-title">${escapeHtml(account.company)}</div>
           <div class="activity-copy">
             ${buildAlertCopy(account, now)}
+            ${account.last_outcome ? ` · ${escapeHtml(account.last_outcome)}` : ""}
             ${account.next_step ? ` · next: ${escapeHtml(account.next_step)}` : ""}
           </div>
         </div>
-        <div class="alert-date">${statusLabel(account.status)}</div>
+        <div class="alert-date">${escapeHtml(account.pipeline_stage || "-")}</div>
       </article>
     `)
     .join("");
@@ -1020,7 +1197,7 @@ function activityLabel(type) {
 }
 
 function statusLabel(type) {
-  const status = statusTheme[type] || statusTheme.new;
+  const status = activityTheme[type] || activityTheme.new;
   return status.label;
 }
 
@@ -1103,8 +1280,15 @@ function serializeActivityPayload(record) {
 function serializeCompanyPayload(record, raw = {}) {
   const payload = {
     company: record.company,
-    status: record.status,
   };
+
+  if (raw.pipeline_stage !== undefined) {
+    payload.pipeline_stage = record.pipeline_stage;
+  }
+
+  if (raw.account_health !== undefined) {
+    payload.account_health = record.account_health;
+  }
 
   if (raw.workers !== undefined && raw.workers !== "") {
     payload.workers = record.workers;
