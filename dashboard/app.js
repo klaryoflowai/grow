@@ -225,7 +225,8 @@ function bindEvents() {
 
   elements.forms.activity.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const raw = Object.fromEntries(formData.entries());
     const resolution = resolveCompanyInput(raw.company);
     if (!resolution.ok) {
@@ -256,14 +257,15 @@ function bindEvents() {
       updateStatus(`Salvat local: ${record.company} -> ${activityLabel(record.activity_type)}.`);
     }
 
-    event.currentTarget.reset();
+    form.reset();
     setDefaultFormDates();
     render();
   });
 
   elements.forms.account.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const raw = Object.fromEntries(formData.entries());
     const resolution = resolveCompanyInput(raw.company);
     if (!resolution.ok) {
@@ -293,7 +295,7 @@ function bindEvents() {
       updateStatus(`Compania ${record.company} a fost actualizata local.`);
     }
 
-    event.currentTarget.reset();
+    form.reset();
     setDefaultFormDates();
     render();
   });
@@ -923,12 +925,13 @@ function updateStatus(message) {
 }
 
 function render() {
+  const trackedCount = state.accounts.filter((account) => isTrackedAccount(account)).length;
   elements.dataModePill.textContent = state.apiEnabled
     ? "Airtable live"
     : hasManualData()
       ? "Fallback local"
       : "Asteapta conexiunea";
-  elements.summaryChip.textContent = `${state.activities.length} activitati · ${state.accounts.length} companii`;
+  elements.summaryChip.textContent = `${state.activities.length} activitati · ${trackedCount} companii cu tracking`;
 
   renderScorecards();
   renderConversions();
@@ -1355,6 +1358,7 @@ async function apiJson(url, options = {}) {
   const { body, headers, ...rest } = options;
   const response = await fetch(url, {
     ...rest,
+    cache: "no-store",
     headers: {
       Accept: "application/json",
       ...(body ? { "Content-Type": "application/json" } : {}),
