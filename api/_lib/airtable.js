@@ -294,13 +294,15 @@ async function upsertCompany(payload) {
   };
 
   if ("pipeline_stage" in payload && config.fields.companies.pipelineStage) {
-    fields[config.fields.companies.pipelineStage] = normalizeString(payload.pipeline_stage);
+    const normalizedPipelineStage = normalizeString(payload.pipeline_stage);
+    fields[config.fields.companies.pipelineStage] = normalizedPipelineStage || null;
   } else if (!existingRecord && config.fields.companies.pipelineStage) {
     fields[config.fields.companies.pipelineStage] = "";
   }
 
   if ("account_health" in payload && config.fields.companies.accountHealth) {
-    fields[config.fields.companies.accountHealth] = encodeAccountHealth(payload.account_health);
+    const encodedHealth = encodeAccountHealth(payload.account_health);
+    fields[config.fields.companies.accountHealth] = encodedHealth || null;
   } else if (!existingRecord && config.fields.companies.accountHealth) {
     fields[config.fields.companies.accountHealth] = "";
   }
