@@ -135,6 +135,7 @@ const elements = {
   refreshData: document.getElementById("refresh-data"),
   exportMemory: document.getElementById("export-memory"),
   clearMemory: document.getElementById("clear-memory"),
+  resetAccount: document.getElementById("reset-account"),
   connectionCopy: document.getElementById("connection-copy"),
   connectionBadges: document.getElementById("connection-badges"),
   companyOptions: document.getElementById("company-options"),
@@ -293,6 +294,56 @@ function bindEvents() {
     }
 
     event.currentTarget.reset();
+    setDefaultFormDates();
+    render();
+  });
+
+  elements.resetAccount.addEventListener("click", async () => {
+    const companyInput = elements.forms.account?.querySelector('input[name="company"]');
+    const rawCompany = companyInput?.value || "";
+    const resolution = resolveCompanyInput(rawCompany);
+
+    if (!resolution.ok || !resolution.company) {
+      updateStatus("Scrie mai intai compania pe care vrei sa o resetezi.");
+      return;
+    }
+
+    const company = resolution.company;
+    const confirmed = window.confirm(
+      `Resetez tracking-ul pentru ${company}? Vor fi golite stadiul, sanatatea contului, ultimul contact si next step-ul.`
+    );
+
+    if (!confirmed) return;
+
+    const payload = {
+      company,
+      pipeline_stage: "",
+      account_health: "",
+      last_contact: "",
+      next_step: "",
+      next_step_date: "",
+    };
+
+    if (state.apiEnabled) {
+      try {
+        await apiJson("/api/companies", {
+          method: "PATCH",
+          body: payload,
+        });
+        await refreshData({ silent: true });
+        updateStatus(`Tracking-ul pentru ${company} a fost resetat in Airtable.`);
+      } catch (error) {
+        updateStatus(`Nu am putut reseta compania in Airtable. ${error.message}`);
+        return;
+      }
+    } else {
+      clearManualAccountTracking(company);
+      persistManualData();
+      refreshCombinedData();
+      updateStatus(`Tracking-ul pentru ${company} a fost resetat local.`);
+    }
+
+    elements.forms.account.reset();
     setDefaultFormDates();
     render();
   });
@@ -615,6 +666,22 @@ function upsertManualAccount(record) {
   } else {
     state.manualData.accounts.unshift(record);
   }
+}
+
+function clearManualAccountTracking(companyName) {
+  const key = companyName.toLowerCase();
+  const existingIndex = state.manualData.accounts.findIndex((item) => item.company.toLowerCase() === key);
+  if (existingIndex < 0) return;
+
+  state.manualData.accounts[existingIndex] = {
+    ...state.manualData.accounts[existingIndex],
+    pipeline_stage: "",
+    account_health: "",
+    last_outcome: "",
+    last_contact: null,
+    next_step: "",
+    next_step_date: null,
+  };
 }
 
 function normalizeRow(kind, row) {

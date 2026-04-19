@@ -351,6 +351,12 @@ h3 {
   align-self: end;
 }
 
+.form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .status-line {
   margin: 14px 0 0;
   font-size: 0.92rem;
