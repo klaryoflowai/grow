@@ -25,11 +25,13 @@ function getAirtableConfig() {
       companies: readEnv("AIRTABLE_TABLE_COMPANIES", "Companies"),
       activities: readEnv("AIRTABLE_TABLE_ACTIVITIES", "Activities"),
       targets: readEnv("AIRTABLE_TABLE_TARGETS", "Targets"),
+      scorecard: readEnv("AIRTABLE_TABLE_SCORECARD", "Scorecard"),
     },
     views: {
       companies: readEnv("AIRTABLE_VIEW_COMPANIES"),
       activities: readEnv("AIRTABLE_VIEW_ACTIVITIES"),
       targets: readEnv("AIRTABLE_VIEW_TARGETS"),
+      scorecard: readEnv("AIRTABLE_VIEW_SCORECARD"),
     },
     fields: {
       companies: {
@@ -41,6 +43,7 @@ function getAirtableConfig() {
         lastContact: readEnv("AIRTABLE_FIELD_COMPANY_LAST_CONTACT", "Last Contact"),
         nextStep: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP", "Next Step"),
         nextStepDate: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP_DATE", "Next Step Date"),
+        stageChangedDate: readEnv("AIRTABLE_FIELD_COMPANY_STAGE_CHANGED_DATE", "Data Schimbare Stadiu"),
         sector: readEnv("AIRTABLE_FIELD_COMPANY_SECTOR", "Sector"),
         notes: readEnv("AIRTABLE_FIELD_COMPANY_NOTES", "Notes"),
       },
@@ -61,6 +64,19 @@ function getAirtableConfig() {
         meetings: readEnv("AIRTABLE_FIELD_TARGET_MEETINGS", "Meetings Target"),
         offers: readEnv("AIRTABLE_FIELD_TARGET_OFFERS", "Offers Target"),
         contracts: readEnv("AIRTABLE_FIELD_TARGET_CONTRACTS", "Contracts Target"),
+      },
+      scorecard: {
+        type: readEnv("AIRTABLE_FIELD_SCORECARD_TYPE", "Tip"),
+        date: readEnv("AIRTABLE_FIELD_SCORECARD_DATE", "Data"),
+        targetContacted: readEnv("AIRTABLE_FIELD_SCORECARD_TARGET_CONTACTED", "Target Contactate"),
+        targetMeetings: readEnv("AIRTABLE_FIELD_SCORECARD_TARGET_MEETINGS", "Target Meetings"),
+        targetOffers: readEnv("AIRTABLE_FIELD_SCORECARD_TARGET_OFFERS", "Target Oferte"),
+        targetContracts: readEnv("AIRTABLE_FIELD_SCORECARD_TARGET_CONTRACTS", "Target Contracte"),
+        contacted: readEnv("AIRTABLE_FIELD_SCORECARD_CONTACTED", "Contactate"),
+        meetings: readEnv("AIRTABLE_FIELD_SCORECARD_MEETINGS", "Meetings"),
+        offers: readEnv("AIRTABLE_FIELD_SCORECARD_OFFERS", "Oferte"),
+        contracts: readEnv("AIRTABLE_FIELD_SCORECARD_CONTRACTS", "Contracte"),
+        workers: readEnv("AIRTABLE_FIELD_SCORECARD_WORKERS", "Muncitori"),
       },
     },
     modes: {
