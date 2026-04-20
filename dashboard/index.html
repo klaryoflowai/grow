@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420c" />
+    <link rel="stylesheet" href="./styles.css?v=20260420d" />
   </head>
   <body>
     <div class="shell">
@@ -164,95 +164,113 @@
           </div>
 
           <div class="pipeline-layout">
-            <form id="account-form" class="mini-form">
-              <h3>Update rapid companie</h3>
-              <label class="field">
-                <span>Companie</span>
-                <input
-                  name="company"
-                  type="text"
-                  list="company-options"
-                  autocomplete="off"
-                  placeholder="Companie"
-                  required
-                />
-              </label>
-              <label class="field">
-                <span>Stadiu pipeline</span>
-                <select name="pipeline_stage">
-                  <option value="">-</option>
-                  <option value="Necontactat">Necontactat</option>
-                  <option value="Incercam sa ajungem la decident">Incercam sa ajungem la decident</option>
-                  <option value="Discutie initiata">Discutie initiata</option>
-                  <option value="Meeting programat">Meeting programat</option>
-                  <option value="Meeting tinut">Meeting tinut</option>
-                  <option value="Oferta trimisa">Oferta trimisa</option>
-                  <option value="Negociere">Negociere</option>
-                  <option value="Asteapta decizie">Asteapta decizie</option>
-                  <option value="Contract semnat">Contract semnat</option>
-                  <option value="Parcat">Parcat</option>
-                  <option value="Pierdut">Pierdut</option>
-                </select>
-              </label>
-              <fieldset class="field fieldset-reset">
-                <legend>Sanatate cont</legend>
-                <div class="health-choice-grid">
-                  <label class="health-choice">
-                    <input type="radio" name="account_health" value="Verde" />
-                    <span class="health-choice-card">
-                      <span class="health-dot health-verde"></span>
-                      <span>Verde</span>
-                    </span>
+            <div class="pipeline-left">
+              <form id="account-form" class="mini-form">
+                <div class="pipeline-card-head">
+                  <div>
+                    <p class="section-label">Operator</p>
+                    <h3>Update rapid companie</h3>
+                  </div>
+                  <div class="mini-chip">Tracking live</div>
+                </div>
+                <label class="field">
+                  <span>Companie</span>
+                  <input
+                    name="company"
+                    type="text"
+                    list="company-options"
+                    autocomplete="off"
+                    placeholder="Companie"
+                    required
+                  />
+                </label>
+                <label class="field">
+                  <span>Stadiu pipeline</span>
+                  <select name="pipeline_stage">
+                    <option value="">-</option>
+                    <option value="Necontactat">Necontactat</option>
+                    <option value="Incercam sa ajungem la decident">Incercam sa ajungem la decident</option>
+                    <option value="Discutie initiata">Discutie initiata</option>
+                    <option value="Meeting programat">Meeting programat</option>
+                    <option value="Meeting tinut">Meeting tinut</option>
+                    <option value="Oferta trimisa">Oferta trimisa</option>
+                    <option value="Negociere">Negociere</option>
+                    <option value="Asteapta decizie">Asteapta decizie</option>
+                    <option value="Contract semnat">Contract semnat</option>
+                    <option value="Parcat">Parcat</option>
+                    <option value="Pierdut">Pierdut</option>
+                  </select>
+                </label>
+                <fieldset class="field fieldset-reset">
+                  <legend>Sanatate cont</legend>
+                  <div class="health-choice-grid">
+                    <label class="health-choice">
+                      <input type="radio" name="account_health" value="Verde" />
+                      <span class="health-choice-card">
+                        <span class="health-dot health-verde"></span>
+                        <span>Verde</span>
+                      </span>
+                    </label>
+                    <label class="health-choice">
+                      <input type="radio" name="account_health" value="Galben" />
+                      <span class="health-choice-card">
+                        <span class="health-dot health-galben"></span>
+                        <span>Galben</span>
+                      </span>
+                    </label>
+                    <label class="health-choice">
+                      <input type="radio" name="account_health" value="Rosu" />
+                      <span class="health-choice-card">
+                        <span class="health-dot health-rosu"></span>
+                        <span>Rosu</span>
+                      </span>
+                    </label>
+                    <label class="health-choice">
+                      <input type="radio" name="account_health" value="Gri" />
+                      <span class="health-choice-card">
+                        <span class="health-dot health-gri"></span>
+                        <span>Gri</span>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+                <div class="pipeline-form-grid">
+                  <label class="field">
+                    <span>Potential muncitori</span>
+                    <input name="workers" type="number" min="0" placeholder="0" />
                   </label>
-                  <label class="health-choice">
-                    <input type="radio" name="account_health" value="Galben" />
-                    <span class="health-choice-card">
-                      <span class="health-dot health-galben"></span>
-                      <span>Galben</span>
-                    </span>
+                  <label class="field">
+                    <span>Ultimul contact</span>
+                    <input name="last_contact" type="text" data-date-picker placeholder="Alege data" />
                   </label>
-                  <label class="health-choice">
-                    <input type="radio" name="account_health" value="Rosu" />
-                    <span class="health-choice-card">
-                      <span class="health-dot health-rosu"></span>
-                      <span>Rosu</span>
-                    </span>
+                  <label class="field">
+                    <span>Next step</span>
+                    <input name="next_step" type="text" placeholder="ex: call luni 10:00" />
                   </label>
-                  <label class="health-choice">
-                    <input type="radio" name="account_health" value="Gri" />
-                    <span class="health-choice-card">
-                      <span class="health-dot health-gri"></span>
-                      <span>Gri</span>
-                    </span>
+                  <label class="field">
+                    <span>Data next step</span>
+                    <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
                   </label>
                 </div>
-              </fieldset>
-              <label class="field">
-                <span>Potential muncitori</span>
-                <input name="workers" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Ultimul contact</span>
-                <input name="last_contact" type="text" data-date-picker placeholder="Alege data" />
-              </label>
-              <label class="field">
-                <span>Next step</span>
-                <input name="next_step" type="text" placeholder="ex: call luni 10:00" />
-              </label>
-              <label class="field">
-                <span>Data next step</span>
-                <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
-              </label>
-              <div class="form-actions">
-                <button class="secondary-button" type="submit">Salveaza compania</button>
-                <button id="reset-account" class="ghost-button" type="button">Reseteaza tracking-ul</button>
-              </div>
-              <p class="status-line" id="company-form-status"></p>
-            </form>
+                <div class="form-actions">
+                  <button class="secondary-button" type="submit">Salveaza compania</button>
+                  <button id="reset-account" class="ghost-button" type="button">Reseteaza tracking-ul</button>
+                </div>
+                <p class="status-line" id="company-form-status"></p>
+              </form>
+            </div>
 
-            <div>
-              <div id="pipeline-summary" class="summary-row"></div>
-              <div class="table-wrap">
+            <div class="pipeline-right">
+              <div class="pipeline-overview-card">
+                <div class="pipeline-card-head">
+                  <div>
+                    <p class="section-label">Monitorizare</p>
+                    <h3>Snapshot pipeline</h3>
+                  </div>
+                </div>
+                <div id="pipeline-summary" class="summary-row"></div>
+              </div>
+              <div class="table-wrap pipeline-table-wrap">
                 <table>
                   <thead>
                     <tr>
@@ -349,6 +367,6 @@
     <datalist id="company-options"></datalist>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420c"></script>
+    <script src="./app.js?v=20260420d"></script>
   </body>
 </html>

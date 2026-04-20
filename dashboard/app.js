@@ -5,7 +5,7 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const appBuild = "20260420c";
+const appBuild = "20260420d";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -1321,10 +1321,26 @@ function renderPipeline() {
   };
 
   elements.pipelineSummary.innerHTML = `
-    <div class="mini-chip">Active: ${counts.active}</div>
-    <div class="mini-chip">In oferta: ${counts.offers}</div>
-    <div class="mini-chip">Semnate: ${counts.signed}</div>
-    <div class="mini-chip">Parcate/Pierdute: ${counts.parked}</div>
+    <article class="pipeline-stat-card">
+      <div class="pipeline-stat-label">Active</div>
+      <div class="pipeline-stat-value">${counts.active}</div>
+      <div class="pipeline-stat-meta">conturi in lucru</div>
+    </article>
+    <article class="pipeline-stat-card">
+      <div class="pipeline-stat-label">In oferta</div>
+      <div class="pipeline-stat-value">${counts.offers}</div>
+      <div class="pipeline-stat-meta">oferte sau negociere</div>
+    </article>
+    <article class="pipeline-stat-card">
+      <div class="pipeline-stat-label">Semnate</div>
+      <div class="pipeline-stat-value">${counts.signed}</div>
+      <div class="pipeline-stat-meta">castigate</div>
+    </article>
+    <article class="pipeline-stat-card">
+      <div class="pipeline-stat-label">Parcate / pierdute</div>
+      <div class="pipeline-stat-value">${counts.parked}</div>
+      <div class="pipeline-stat-meta">inchise sau puse pe pauza</div>
+    </article>
   `;
 
   if (!activeAccounts.length) {
