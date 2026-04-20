@@ -5,7 +5,7 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const appBuild = "20260420d";
+const appBuild = "20260420e";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -135,6 +135,7 @@ const elements = {
   dailyTrend: document.getElementById("daily-trend"),
   pipelineSummary: document.getElementById("pipeline-summary"),
   accountsTableBody: document.getElementById("accounts-table-body"),
+  executionSummary: document.getElementById("execution-summary"),
   alertsList: document.getElementById("alerts-list"),
   activitiesFeed: document.getElementById("activities-feed"),
   companySearch: document.getElementById("company-search"),
@@ -999,6 +1000,7 @@ function render() {
   renderConversions();
   renderTrend();
   renderPipeline();
+  renderExecutionSummary();
   renderAlerts();
   renderActivities();
   renderConnection();
@@ -1386,45 +1388,15 @@ function renderPipeline() {
 }
 
 function renderAlerts() {
-  const now = new Date();
-  const staleAccounts = state.accounts
-    .filter((account) => isTrackedAccount(account))
-    .filter((account) => isPipelineOpen(account.pipeline_stage))
-    .filter((account) => {
-      if (account.next_step_date) return dayDiff(account.next_step_date, now) >= 0;
-      if (!account.last_contact) return true;
-      return dayDiff(account.last_contact, now) > 7;
-    })
-    .sort((left, right) => {
-      const leftDays = left.next_step_date
-        ? dayDiff(left.next_step_date, now)
-        : left.last_contact ? dayDiff(left.last_contact, now) : 999;
-      const rightDays = right.next_step_date
-        ? dayDiff(right.next_step_date, now)
-        : right.last_contact ? dayDiff(right.last_contact, now) : 999;
-      return rightDays - leftDays;
-    })
-    .slice(0, 6);
+  const staleAccounts = getExecutionQueues().all.slice(0, 6);
 
   if (!staleAccounts.length) {
-    elements.alertsList.innerHTML = `<article class="empty-card">Nu exista follow-up-uri vechi de peste 7 zile.</article>`;
+    elements.alertsList.innerHTML = `<article class="empty-card">Nu exista follow-up-uri urgente in acest moment.</article>`;
     return;
   }
 
   elements.alertsList.innerHTML = staleAccounts
-    .map((account) => `
-      <article class="alert-card">
-        <div class="alert-main">
-          <div class="alert-title">${escapeHtml(account.company)}</div>
-          <div class="activity-copy">
-            ${buildAlertCopy(account, now)}
-            ${account.last_outcome ? ` · ${escapeHtml(account.last_outcome)}` : ""}
-            ${account.next_step ? ` · next: ${escapeHtml(account.next_step)}` : ""}
-          </div>
-        </div>
-        <div class="alert-date">${escapeHtml(account.pipeline_stage || "-")}</div>
-      </article>
-    `)
+    .map((account) => buildAlertCard(account))
     .join("");
 }
 
@@ -1437,23 +1409,57 @@ function renderActivities() {
   }
 
   elements.activitiesFeed.innerHTML = recent
-    .map((activity) => `
-      <article class="activity-card">
-        <div class="activity-main">
-          <div class="activity-title">${escapeHtml(activity.company)}</div>
-          <div class="activity-copy">
-            ${activityLabel(activity.activity_type)}
-            ${activity.outcome ? ` · ${escapeHtml(activity.outcome)}` : ""}
-            ${activity.workers_delta ? ` · ${activity.workers_delta} muncitori` : ""}
-            ${activity.next_step ? ` · next: ${escapeHtml(activity.next_step)}` : ""}
-            ${activity.next_step_date ? ` · ${formatDate(activity.next_step_date)}` : ""}
-            ${activity.notes ? ` · ${escapeHtml(activity.notes)}` : ""}
-          </div>
-        </div>
-        <div class="activity-date">${formatDate(activity.date)}</div>
-      </article>
-    `)
+    .map((activity) => buildActivityCard(activity))
     .join("");
+}
+
+function renderExecutionSummary() {
+  const queues = getExecutionQueues();
+  const todayActivities = getTodayActivities();
+  const todayCounts = countActivities(todayActivities);
+
+  elements.executionSummary.innerHTML = buildStats([
+    {
+      label: "Next step azi",
+      value: queues.today.length,
+      meta: "conturi programate pentru azi",
+      color: "#c98622",
+      variant: "today",
+      eyebrow: "Cadenta",
+      target: 0,
+      pct: queues.today.length > 0 ? 100 : 0,
+    },
+    {
+      label: "Intarziate",
+      value: queues.overdue.length,
+      meta: "next step depasit",
+      color: "#cb5846",
+      variant: "today",
+      eyebrow: "Cadenta",
+      target: 0,
+      pct: queues.overdue.length > 0 ? 100 : 0,
+    },
+    {
+      label: "Fara touch",
+      value: queues.stale.length,
+      meta: "peste 7 zile fara miscare",
+      color: "#2f6ea2",
+      variant: "today",
+      eyebrow: "Cadenta",
+      target: 0,
+      pct: queues.stale.length > 0 ? 100 : 0,
+    },
+    {
+      label: "Activitati azi",
+      value: todayActivities.length,
+      meta: `${todayCounts.contacted} contacte salvate azi`,
+      color: "#2d8f57",
+      variant: "today",
+      eyebrow: "Executie",
+      target: 0,
+      pct: todayActivities.length > 0 ? 100 : 0,
+    },
+  ]);
 }
 
 function activityLabel(type) {
@@ -1480,6 +1486,181 @@ function buildAlertCopy(account, now) {
   }
 
   return account.last_contact ? `${dayDiff(account.last_contact, now)} zile fara touch` : "fara touch salvat";
+}
+
+function getExecutionQueues(now = new Date()) {
+  const openTrackedAccounts = state.accounts
+    .filter((account) => isTrackedAccount(account))
+    .filter((account) => isPipelineOpen(account.pipeline_stage));
+
+  const overdue = [];
+  const today = [];
+  const stale = [];
+
+  openTrackedAccounts.forEach((account) => {
+    if (account.next_step_date) {
+      const delta = dayDiff(account.next_step_date, now);
+      if (delta > 0) {
+        overdue.push(account);
+      } else if (delta === 0) {
+        today.push(account);
+      }
+      return;
+    }
+
+    if (!account.last_contact || dayDiff(account.last_contact, now) > 7) {
+      stale.push(account);
+    }
+  });
+
+  const all = [...overdue, ...today, ...stale].sort((left, right) => {
+    const leftPriority = getAlertState(left, now).priority;
+    const rightPriority = getAlertState(right, now).priority;
+    return rightPriority - leftPriority;
+  });
+
+  return {
+    overdue,
+    today,
+    stale,
+    all,
+  };
+}
+
+function getAlertState(account, now = new Date()) {
+  if (account.next_step_date) {
+    const delta = dayDiff(account.next_step_date, now);
+    if (delta > 0) {
+      return {
+        eyebrow: "Intarziat",
+        badge: delta === 1 ? "1 zi peste termen" : `${delta} zile peste termen`,
+        copy: buildAlertCopy(account, now),
+        tone: "#cb5846",
+        soft: "#fbe8e4",
+        priority: 300 + delta,
+      };
+    }
+
+    if (delta === 0) {
+      return {
+        eyebrow: "De facut azi",
+        badge: "Astazi",
+        copy: buildAlertCopy(account, now),
+        tone: "#c98622",
+        soft: "#f7ecd5",
+        priority: 200,
+      };
+    }
+  }
+
+  if (!account.last_contact) {
+    return {
+      eyebrow: "Fara touch",
+      badge: "Primul pas",
+      copy: "fara touch salvat",
+      tone: "#2f6ea2",
+      soft: "#e4eef7",
+      priority: 150,
+    };
+  }
+
+  const silentDays = dayDiff(account.last_contact, now);
+  const isCold = silentDays > 14;
+  return {
+    eyebrow: isCold ? "Rece" : "Atentie",
+    badge: `${silentDays} zile fara touch`,
+    copy: buildAlertCopy(account, now),
+    tone: isCold ? "#cb5846" : "#2f6ea2",
+    soft: isCold ? "#fbe8e4" : "#e4eef7",
+    priority: 100 + silentDays,
+  };
+}
+
+function buildAlertCard(account) {
+  const alertState = getAlertState(account);
+  const pipelineTheme = pipelineStageTheme[account.pipeline_stage] || {
+    color: "#94a3b8",
+    bg: "rgba(148,163,184,0.14)",
+  };
+
+  const metaChips = [
+    buildThemedPill(account.pipeline_stage || "Fara stadiu", pipelineTheme),
+    buildHealthPill(account.account_health),
+    account.workers ? `<span class="execution-meta-pill">${account.workers} muncitori</span>` : "",
+  ].filter(Boolean);
+
+  const detailText = account.last_outcome ? escapeHtml(account.last_outcome) : "";
+
+  return `
+    <article class="execution-card execution-card--alert" style="--execution-accent:${alertState.tone}; --execution-soft:${alertState.soft};">
+      <div class="execution-card-head">
+        <div class="execution-kicker">${alertState.eyebrow}</div>
+        <span class="execution-badge">${escapeHtml(alertState.badge)}</span>
+      </div>
+      <div class="execution-company">${escapeHtml(account.company)}</div>
+      <div class="execution-copy">${escapeHtml(alertState.copy)}</div>
+      ${metaChips.length ? `<div class="execution-chip-row">${metaChips.join("")}</div>` : ""}
+      ${detailText ? `<div class="execution-note">${detailText}</div>` : ""}
+      <div class="execution-footer">
+        <span>${account.next_step_date ? `Data next step: ${formatDate(account.next_step_date)}` : `Ultimul touch: ${formatDate(account.last_contact)}`}</span>
+        <span>${account.next_step ? escapeHtml(account.next_step) : "Fara next step notat"}</span>
+      </div>
+    </article>
+  `;
+}
+
+function buildActivityCard(activity) {
+  const theme = activityTheme[activity.activity_type] || activityTheme.new;
+  const metaChips = [
+    activity.workers_delta ? `<span class="execution-meta-pill">${activity.workers_delta} muncitori</span>` : "",
+    activity.next_step ? `<span class="execution-meta-pill">Next: ${escapeHtml(activity.next_step)}</span>` : "",
+    activity.next_step_date ? `<span class="execution-meta-pill">${formatDate(activity.next_step_date)}</span>` : "",
+  ].filter(Boolean);
+
+  const primaryCopy = activity.outcome || activity.notes || "Actiune salvata in dashboard.";
+  const secondaryCopy = activity.outcome && activity.notes ? escapeHtml(activity.notes) : "";
+
+  return `
+    <article class="execution-card execution-card--activity" style="--execution-accent:${theme.color}; --execution-soft:${theme.bg};">
+      <div class="execution-card-head">
+        <span class="execution-badge execution-badge--solid">${escapeHtml(activityLabel(activity.activity_type))}</span>
+        <span class="execution-date">${formatDate(activity.date)}</span>
+      </div>
+      <div class="execution-company">${escapeHtml(activity.company)}</div>
+      <div class="execution-copy">${escapeHtml(primaryCopy)}</div>
+      ${secondaryCopy ? `<div class="execution-note">${secondaryCopy}</div>` : ""}
+      ${metaChips.length ? `<div class="execution-chip-row">${metaChips.join("")}</div>` : ""}
+    </article>
+  `;
+}
+
+function buildThemedPill(label, theme) {
+  if (!label) return "";
+  return `
+    <span class="status-pill" style="color:${theme.color}; background:${theme.bg}; border-color:${theme.color}33;">
+      ${escapeHtml(label)}
+    </span>
+  `;
+}
+
+function buildHealthPill(value = "") {
+  const normalized = normalizeAccountHealth(value);
+  if (!normalized) return "";
+  const dotClass = getHealthDotClass(normalized);
+  return `
+    <span class="execution-meta-pill execution-meta-pill--health">
+      <span class="health-dot ${dotClass}"></span>
+      ${escapeHtml(normalized)}
+    </span>
+  `;
+}
+
+function getHealthDotClass(value = "") {
+  const normalized = normalizeAccountHealth(value);
+  if (normalized === "Verde") return "health-verde";
+  if (normalized === "Galben") return "health-galben";
+  if (normalized === "Rosu") return "health-rosu";
+  return "health-gri";
 }
 
 function formatNextStep(account) {

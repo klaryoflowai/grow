@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420d" />
+    <link rel="stylesheet" href="./styles.css?v=20260420e" />
   </head>
   <body>
     <div class="shell">
@@ -289,7 +289,18 @@
           </div>
         </section>
 
-        <section class="panel span-6" data-page="execution">
+        <section class="panel span-12" data-page="execution">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Cadenta</p>
+              <h2>Executie pe ziua de azi</h2>
+              <p class="panel-copy">Un rezumat scurt pentru ce e de miscat, ce a ramas in urma si ce ai inregistrat azi.</p>
+            </div>
+          </div>
+          <div id="execution-summary" class="summary-row execution-summary-grid"></div>
+        </section>
+
+        <section class="panel span-7" data-page="execution">
           <div class="panel-header">
             <div>
               <p class="section-label">Follow-up</p>
@@ -297,10 +308,10 @@
               <p class="panel-copy">Conturile care cer o actiune imediata sau au depasit urmatorul pas.</p>
             </div>
           </div>
-          <div id="alerts-list" class="stack"></div>
+          <div id="alerts-list" class="stack execution-list"></div>
         </section>
 
-        <section class="panel span-6" data-page="execution">
+        <section class="panel span-5" data-page="execution">
           <div class="panel-header">
             <div>
               <p class="section-label">Activitate recenta</p>
@@ -308,7 +319,7 @@
               <p class="panel-copy">Istoric scurt pentru context rapid inainte de apeluri si sedinte.</p>
             </div>
           </div>
-          <div id="activities-feed" class="stack"></div>
+          <div id="activities-feed" class="stack execution-list"></div>
         </section>
 
         <section class="panel span-12" data-page="settings">
@@ -367,6 +378,6 @@
     <datalist id="company-options"></datalist>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420d"></script>
+    <script src="./app.js?v=20260420e"></script>
   </body>
 </html>
