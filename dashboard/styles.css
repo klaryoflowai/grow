@@ -531,8 +531,23 @@ h3 {
 .stat-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   min-height: 140px;
+  justify-content: space-between;
+}
+
+.stat-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .stat-label {
@@ -554,6 +569,43 @@ h3 {
   color: var(--text);
 }
 
+.stat-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(18, 32, 23, 0.08);
+  overflow: hidden;
+}
+
+.stat-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.stat-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.stat-progress-meta strong {
+  color: var(--text);
+}
+
+.stat-accent {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  opacity: 0.9;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -573,6 +625,38 @@ h3 {
   margin-bottom: 8px;
   font-weight: 700;
   color: var(--text);
+}
+
+.conversion-track {
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(18, 32, 23, 0.08);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.conversion-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.conversion-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.conversion-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .trend-list {
@@ -611,6 +695,18 @@ h3 {
 .trend-copy {
   font-size: 0.85rem;
   text-align: right;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.trend-copy span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(18, 32, 23, 0.06);
 }
 
 .pipeline-layout {

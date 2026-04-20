@@ -5,7 +5,7 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const appBuild = "20260420b";
+const appBuild = "20260420c";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -1098,19 +1098,41 @@ function renderScorecards() {
   const workersWon = workersWonThisMonth(monthlyActivities);
 
   elements.todayGrid.innerHTML = buildStats([
-    { label: "Contactate", value: todayCounts.contacted, meta: "actiuni salvate azi", color: "#38bdf8" },
-    { label: "Meetings", value: todayCounts.meeting, meta: "stabilite sau tinute", color: "#f59e0b" },
-    { label: "Oferte", value: todayCounts.offer, meta: "trimise azi", color: "#8b5cf6" },
-    { label: "Contracte", value: todayCounts.contract_signed, meta: "inchise azi", color: "#10b981" },
+    buildTodayCard("Contactate", todayCounts.contacted, "touch-uri salvate azi", "#2f6ea2"),
+    buildTodayCard("Meetings", todayCounts.meeting, "programate sau tinute", "#c98622"),
+    buildTodayCard("Oferte", todayCounts.offer, "trimise azi", "#8b5cf6"),
+    buildTodayCard("Contracte", todayCounts.contract_signed, "inchise azi", "#2d8f57"),
   ]);
 
   elements.monthGrid.innerHTML = buildStats([
-    buildTargetCard("Contactate", monthCounts.contacted, state.targets.contacted, "#38bdf8"),
-    buildTargetCard("Meetings", monthCounts.meeting, state.targets.meetings, "#f59e0b"),
+    buildTargetCard("Contactate", monthCounts.contacted, state.targets.contacted, "#2f6ea2"),
+    buildTargetCard("Meetings", monthCounts.meeting, state.targets.meetings, "#c98622"),
     buildTargetCard("Oferte", monthCounts.offer, state.targets.offers, "#8b5cf6"),
-    buildTargetCard("Contracte", monthCounts.contract_signed, state.targets.contracts, "#10b981"),
-    { label: "Muncitori", value: workersWon, meta: "castigati luna asta", color: "#10b981" },
+    buildTargetCard("Contracte", monthCounts.contract_signed, state.targets.contracts, "#2d8f57"),
+    {
+      label: "Muncitori",
+      value: workersWon,
+      meta: "castigati luna asta",
+      color: "#2d8f57",
+      variant: "month",
+      eyebrow: "Castig real",
+      target: 0,
+      pct: workersWon > 0 ? 100 : 0,
+    },
   ]);
+}
+
+function buildTodayCard(label, value, meta, color) {
+  return {
+    label,
+    value,
+    meta,
+    color,
+    variant: "today",
+    eyebrow: "Astazi",
+    target: 0,
+    pct: value > 0 ? 100 : 0,
+  };
 }
 
 function buildTargetCard(label, value, target, color) {
@@ -1120,6 +1142,10 @@ function buildTargetCard(label, value, target, color) {
     value,
     meta: `target ${target} · ${pct}%`,
     color,
+    variant: "month",
+    eyebrow: "Luna curenta",
+    target,
+    pct,
   };
 }
 
@@ -1127,10 +1153,30 @@ function buildStats(cards) {
   return cards
     .map(
       (card) => `
-        <article class="stat-card">
-          <div class="stat-label">${card.label}</div>
-          <div class="stat-value" style="color:${card.color};">${card.value}</div>
-          <div class="card-meta">${card.meta}</div>
+        <article class="stat-card stat-card--${card.variant || "default"}">
+          <div class="stat-shell">
+            <div class="stat-eyebrow">${card.eyebrow || "Indicator"}</div>
+            <div class="stat-label">${card.label}</div>
+            <div class="stat-value" style="color:${card.color};">${card.value}</div>
+            <div class="card-meta">${card.meta}</div>
+          </div>
+          ${
+            card.variant === "month" && card.target
+              ? `
+                <div class="stat-progress">
+                  <div class="stat-progress-track">
+                    <div class="stat-progress-fill" style="width:${Math.min(card.pct, 100)}%; background:${card.color};"></div>
+                  </div>
+                  <div class="stat-progress-meta">
+                    <span>${card.value} din ${card.target}</span>
+                    <strong>${card.pct}%</strong>
+                  </div>
+                </div>
+              `
+              : `
+                <div class="stat-accent" style="background:linear-gradient(90deg, ${card.color}, rgba(255,255,255,0));"></div>
+              `
+          }
         </article>
       `
     )
@@ -1154,9 +1200,15 @@ function renderConversions() {
         <article class="conversion-card">
           <div class="conversion-title">
             <span>${item.label}</span>
-            <strong>${item.rate}</strong>
+            <strong style="color:${item.color};">${item.rate}</strong>
           </div>
-          <div class="card-meta">${item.detail}</div>
+          <div class="conversion-track">
+            <div class="conversion-fill" style="width:${item.progress}%; background:${item.color};"></div>
+          </div>
+          <div class="conversion-meta">
+            <span>${item.detail}</span>
+            <span class="conversion-badge" style="color:${item.color}; background:${item.soft};">${item.note}</span>
+          </div>
         </article>
       `
     )
@@ -1169,13 +1221,36 @@ function buildConversionCard(label, numerator, denominator) {
       label,
       rate: "-",
       detail: "Nu exista suficienta activitate in etapa anterioara.",
+      progress: 0,
+      color: "#93a08f",
+      soft: "#eef1eb",
+      note: "Fara baza",
     };
+  }
+
+  const progress = Math.round((numerator / denominator) * 100);
+  let color = "#cb5846";
+  let soft = "#fbe8e4";
+  let note = "Sub prag";
+
+  if (progress >= 60) {
+    color = "#2d8f57";
+    soft = "#e5f3eb";
+    note = "Sanatos";
+  } else if (progress >= 30) {
+    color = "#c98622";
+    soft = "#f7ecd5";
+    note = "Mediu";
   }
 
   return {
     label,
-    rate: `${Math.round((numerator / denominator) * 100)}%`,
+    rate: `${progress}%`,
     detail: `${numerator} din ${denominator}`,
+    progress,
+    color,
+    soft,
+    note,
   };
 }
 
@@ -1193,7 +1268,10 @@ function renderTrend() {
             <div class="trend-fill" style="width:${width}%;"></div>
           </div>
           <div class="trend-copy">
-            ${day.contacted} contacte · ${day.meeting} meetings · ${day.offer} oferte · ${day.contract_signed} contracte
+            <span>${day.contacted} contacte</span>
+            <span>${day.meeting} meetings</span>
+            <span>${day.offer} oferte</span>
+            <span>${day.contract_signed} contracte</span>
           </div>
         </article>
       `;
