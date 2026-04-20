@@ -5,7 +5,7 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const appBuild = "20260420g";
+const appBuild = "20260420h";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -104,7 +104,7 @@ const storageKeys = {
   manual: "grow_dashboard_manual_data",
 };
 
-const dashboardPages = new Set(["overview", "pipeline", "execution", "settings"]);
+const dashboardPages = new Set(["overview", "scorecard", "pipeline", "execution", "settings"]);
 
 const state = {
   sourceData: {

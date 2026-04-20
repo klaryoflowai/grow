@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420g" />
+    <link rel="stylesheet" href="./styles.css?v=20260420h" />
   </head>
   <body>
     <div class="shell">
@@ -65,14 +65,63 @@
         </div>
       </header>
 
-      <nav class="page-nav" aria-label="Navigatie dashboard">
-        <button class="page-tab is-active" type="button" data-page-target="overview">Panou</button>
-        <button class="page-tab" type="button" data-page-target="pipeline">Pipeline</button>
-        <button class="page-tab" type="button" data-page-target="execution">Cadenta</button>
-        <button class="page-tab" type="button" data-page-target="settings">Setari</button>
-      </nav>
+      <div class="page-nav-shell">
+        <div class="page-nav-copy">
+          <span class="page-nav-label">Navigatie</span>
+          <strong>Zone dashboard</strong>
+        </div>
+        <nav class="page-nav" aria-label="Navigatie dashboard">
+          <button class="page-tab is-active" type="button" data-page-target="overview">Panou</button>
+          <button class="page-tab" type="button" data-page-target="scorecard">Scorecard</button>
+          <button class="page-tab" type="button" data-page-target="pipeline">Pipeline</button>
+          <button class="page-tab" type="button" data-page-target="execution">Cadenta</button>
+          <button class="page-tab" type="button" data-page-target="settings">Setari</button>
+        </nav>
+      </div>
 
       <main class="layout">
+        <section class="panel span-12" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Scorecard</p>
+              <h2>Ritm, conversie si progres</h2>
+              <p class="panel-copy">Pagina dedicata pentru citirea cifrelor de azi si a semnalelor comerciale din luna curenta.</p>
+            </div>
+          </div>
+
+          <div class="score-block">
+            <p class="score-title">Azi</p>
+            <div id="today-grid" class="score-grid"></div>
+          </div>
+
+          <div class="score-block">
+            <p class="score-title">Luna curenta</p>
+            <div id="month-grid" class="score-grid"></div>
+          </div>
+        </section>
+
+        <section class="panel span-4" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Conversie</p>
+              <h2>Raportul dintre etape</h2>
+              <p class="panel-copy">Vezi unde se pierde tractiunea dintre contact, oferta si contract.</p>
+            </div>
+          </div>
+          <div id="conversion-grid" class="stack"></div>
+        </section>
+
+        <section class="panel span-8" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Trend</p>
+              <h2>Ultimele 7 zile</h2>
+              <p class="panel-copy">Semnal de executie pentru ritmul comercial din ultima saptamana.</p>
+            </div>
+          </div>
+          <div id="daily-trend" class="trend-list"></div>
+        </section>
+
         <section class="panel span-12" data-page="overview">
           <div class="panel-header">
             <div>
@@ -138,48 +187,6 @@
           <p class="status-line" id="status-message">
             Dashboard-ul va incerca mai intai Airtable prin Vercel, apoi va cadea inapoi pe memoria locala.
           </p>
-        </section>
-
-        <section class="panel span-12" data-page="overview">
-          <div class="panel-header">
-            <div>
-              <p class="section-label">Scorecard</p>
-              <h2>Astazi si luna curenta</h2>
-              <p class="panel-copy">Citire rapida pentru volum, ritm si executie fata de target.</p>
-            </div>
-          </div>
-
-          <div class="score-block">
-            <p class="score-title">Azi</p>
-            <div id="today-grid" class="score-grid"></div>
-          </div>
-
-          <div class="score-block">
-            <p class="score-title">Luna curenta</p>
-            <div id="month-grid" class="score-grid"></div>
-          </div>
-        </section>
-
-        <section class="panel span-4" data-page="overview">
-          <div class="panel-header">
-            <div>
-              <p class="section-label">Conversie</p>
-              <h2>Raportul dintre etape</h2>
-              <p class="panel-copy">Vezi unde se pierde tractiunea dintre contact, oferta si contract.</p>
-            </div>
-          </div>
-          <div id="conversion-grid" class="stack"></div>
-        </section>
-
-        <section class="panel span-8" data-page="overview">
-          <div class="panel-header">
-            <div>
-              <p class="section-label">Trend</p>
-              <h2>Ultimele 7 zile</h2>
-              <p class="panel-copy">Semnal de executie pentru ritmul comercial din ultima saptamana.</p>
-            </div>
-          </div>
-          <div id="daily-trend" class="trend-list"></div>
         </section>
 
         <section class="panel span-12" data-page="pipeline">
@@ -407,6 +414,6 @@
     <datalist id="company-options"></datalist>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420g"></script>
+    <script src="./app.js?v=20260420h"></script>
   </body>
 </html>
