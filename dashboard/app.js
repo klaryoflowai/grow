@@ -674,7 +674,8 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
     merged.set(key, existing);
   });
 
-  return [...merged.values()];
+  const activityKeys = new Set(activities.filter((a) => a.company).map((a) => a.company.toLowerCase()));
+  return [...merged.values()].filter((account) => activityKeys.has(account.company.toLowerCase()));
 }
 
 function syncManualAccountFromActivity(activity) {
