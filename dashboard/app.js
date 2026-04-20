@@ -23,7 +23,7 @@ const scorecardTargets = {
   },
 };
 
-const appBuild = "20260420q";
+const appBuild = "20260420r";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -2911,16 +2911,52 @@ function renderPipeline() {
 }
 
 function renderAlerts() {
-  const staleAccounts = getExecutionQueues().all.slice(0, 6);
+  const queues = getExecutionQueues();
+  const sections = [
+    {
+      key: "today",
+      eyebrow: "Astazi",
+      title: "Azi",
+      copy: "Conturile care au next step exact azi.",
+      empty: "Nu ai next step-uri programate pentru azi.",
+      tone: "#c98622",
+      soft: "#f7ecd5",
+      items: queues.today,
+    },
+    {
+      key: "overdue",
+      eyebrow: "Urgent",
+      title: "Intarziate",
+      copy: "Conturile unde termenul pentru next step a fost depasit.",
+      empty: "Nu exista conturi intarziate acum.",
+      tone: "#cb5846",
+      soft: "#fbe8e4",
+      items: queues.overdue,
+    },
+    {
+      key: "stale",
+      eyebrow: "Reci",
+      title: "Reci > 7 zile",
+      copy: "Conturile fara next step sau fara touch recent.",
+      empty: "Nu exista conturi reci peste 7 zile.",
+      tone: "#2f6ea2",
+      soft: "#e4eef7",
+      items: queues.stale,
+    },
+  ];
 
-  if (!staleAccounts.length) {
+  const totalAccounts = sections.reduce((sum, section) => sum + section.items.length, 0);
+
+  if (!totalAccounts) {
     elements.alertsList.innerHTML = `<article class="empty-card">Nu exista follow-up-uri urgente in acest moment.</article>`;
     return;
   }
 
-  elements.alertsList.innerHTML = staleAccounts
-    .map((account) => buildAlertCard(account))
-    .join("");
+  elements.alertsList.innerHTML = `
+    <div class="execution-board">
+      ${sections.map((section) => buildAlertLane(section)).join("")}
+    </div>
+  `;
 }
 
 function renderActivities() {
@@ -3130,6 +3166,28 @@ function buildAlertCard(account) {
         <span>${account.next_step ? escapeHtml(account.next_step) : "Fara next step notat"}</span>
       </div>
     </article>
+  `;
+}
+
+function buildAlertLane(section) {
+  const cards = section.items.length
+    ? section.items.map((account) => buildAlertCard(account)).join("")
+    : `<article class="empty-card execution-lane-empty">${section.empty}</article>`;
+
+  return `
+    <section class="execution-lane" style="--lane-accent:${section.tone}; --lane-soft:${section.soft};">
+      <div class="execution-lane-head">
+        <div class="execution-lane-copy-wrap">
+          <div class="execution-lane-kicker">${section.eyebrow}</div>
+          <h3 class="execution-lane-title">${section.title}</h3>
+          <p class="execution-lane-copy">${section.copy}</p>
+        </div>
+        <span class="execution-lane-count">${section.items.length}</span>
+      </div>
+      <div class="execution-lane-list">
+        ${cards}
+      </div>
+    </section>
   `;
 }
 
