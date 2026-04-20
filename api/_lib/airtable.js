@@ -666,6 +666,37 @@ async function upsertScorecard(payload) {
 
   return normalizeScorecardRecord(record, config);
 }
+
+async function upsertScorecardTrend(payload) {
+  const config = getRequiredConfig();
+  const date = toIsoDate(payload.date || new Date());
+
+  if (!date) {
+    throw new AirtableError(400, "Trendul zilnic are nevoie de Data.");
+  }
+
+  const trendRecords = await listRecords("scorecardTrend");
+  const existingRecord = trendRecords.find((record) => {
+    const normalized = normalizeScorecardTrendRecord(record, config);
+    return normalized.date === date;
+  });
+
+  const fields = {
+    [config.fields.scorecardTrend.date]: date,
+    [config.fields.scorecardTrend.contacted]: toNumber(payload.contacted),
+    [config.fields.scorecardTrend.meetings]: toNumber(payload.meetings),
+    [config.fields.scorecardTrend.offers]: toNumber(payload.offers),
+    [config.fields.scorecardTrend.contracts]: toNumber(payload.contracts),
+    [config.fields.scorecardTrend.notes]: normalizeString(payload.notes),
+  };
+
+  const record = existingRecord
+    ? await updateRecord("scorecardTrend", existingRecord.id, fields)
+    : await createRecord("scorecardTrend", fields);
+
+  return normalizeScorecardTrendRecord(record, config);
+}
+
 async function getDashboardData() {
   const config = getAirtableConfig();
   const currentPeriod = getCurrentPeriod(config.timezone);
@@ -768,5 +799,6 @@ module.exports = {
   getDashboardData,
   upsertCompany,
   upsertScorecard,
+  upsertScorecardTrend,
   upsertTargets,
 };

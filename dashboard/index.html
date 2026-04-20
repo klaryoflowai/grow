@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420n" />
+    <link rel="stylesheet" href="./styles.css?v=20260420p" />
   </head>
   <body>
     <div class="shell">
@@ -73,6 +73,7 @@
         </div>
         <nav class="page-nav" aria-label="Navigatie dashboard">
           <button class="page-tab is-active" type="button" data-page-target="scorecard">Scorecard</button>
+          <button class="page-tab" type="button" data-page-target="checklist">Checklist</button>
           <button class="page-tab" type="button" data-page-target="overview">Panou</button>
           <button class="page-tab" type="button" data-page-target="pipeline">Pipeline</button>
           <button class="page-tab" type="button" data-page-target="execution">Cadenta</button>
@@ -223,6 +224,93 @@
             </div>
           </form>
           <p class="status-line" id="scorecard-form-status"></p>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Operating system</p>
+              <h2>Checklist de executie zilnica si saptamanala</h2>
+              <p class="panel-copy">Aceasta pagina tine intr-un singur loc ritmul de lucru, regulile si punctele din dashboard sau Airtable care trebuie atinse ca sa nu cauti printre tabele.</p>
+            </div>
+          </div>
+          <div id="checklist-snapshot" class="checklist-snapshot-grid"></div>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Ritual zilnic</p>
+              <h2>Ce faci de dimineata pana la final de zi</h2>
+              <p class="panel-copy">Fiecare card iti spune ce verifici, unde salvezi si ce pagina deschizi mai departe.</p>
+            </div>
+          </div>
+          <div id="checklist-day-grid" class="checklist-grid"></div>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Final de zi in browser</p>
+              <h2>Salveaza ziua direct in Scorecard Trend</h2>
+              <p class="panel-copy">Formularul preia automat cifrele din activitatile salvate pentru data aleasa. Daca exista deja o zi salvata, incarca valorile din Airtable sau din fallback-ul local.</p>
+            </div>
+          </div>
+          <div class="checklist-trend-layout">
+            <div class="checklist-trend-card">
+              <h3>Ce face aceasta zona</h3>
+              <p class="helper">Inchizi ziua direct din dashboard, fara sa mai mergi in Airtable pentru randul zilnic.</p>
+              <div class="checklist-trend-bullets">
+                <article class="note-card">Precompleteaza Contactate, Meetings, Oferte si Contracte din activitatile tale salvate.</article>
+                <article class="note-card">Daca pentru acea data exista deja un rand in Scorecard Trend, formularul incarca valorile existente.</article>
+                <article class="note-card">Cand Airtable este live, scrie in tabela Scorecard Trend. Daca nu, retine local pana la reconectare.</article>
+              </div>
+            </div>
+            <form id="daily-trend-form" class="scorecard-form checklist-trend-form">
+              <div class="scorecard-form-grid">
+                <label class="field">
+                  <span>Data</span>
+                  <input name="date" type="text" data-date-picker required placeholder="Alege data" />
+                </label>
+                <label class="field">
+                  <span>Contactate</span>
+                  <input name="contacted" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Meetings</span>
+                  <input name="meetings" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Oferte</span>
+                  <input name="offers" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Contracte</span>
+                  <input name="contracts" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field span-2">
+                  <span>Note</span>
+                  <textarea name="notes" rows="4" placeholder="Observatii de final de zi: blocaje, follow-up-uri sensibile, ce trebuie protejat maine"></textarea>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button id="hydrate-daily-trend" class="ghost-button" type="button">Preia din activitatile zilei</button>
+                <button class="secondary-button" type="submit">Salveaza ziua</button>
+              </div>
+              <p class="status-line" id="daily-trend-form-status"></p>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Ritual saptamanal</p>
+              <h2>Luni, mijloc de saptamana si Friday review</h2>
+              <p class="panel-copy">Ritmul scurt pentru a tine pipeline-ul in miscare si scorecard-ul curat.</p>
+            </div>
+          </div>
+          <div id="checklist-week-grid" class="checklist-grid checklist-grid--weekly"></div>
         </section>
 
         <section class="panel span-12" data-page="overview">
@@ -528,6 +616,10 @@
         <button class="mobile-log-close ghost-button" id="mobile-log-close" type="button" aria-label="Inchide">✕</button>
       </div>
       <form id="mobile-activity-form" class="mobile-log-form">
+        <div class="mobile-log-intro">
+          <strong>Salveaza touch-ul si pune urmatorul pas din acelasi ecran.</strong>
+          <span>Daca s-a schimbat etapa reala, poti actualiza si pipeline-ul companiei.</span>
+        </div>
         <label class="field">
           <span>Companie</span>
           <input name="company" type="text" list="company-options" autocomplete="off" placeholder="Companie" required />
@@ -562,12 +654,34 @@
           <span>Nota</span>
           <textarea name="notes" rows="2" placeholder="Comentariu scurt (optional)"></textarea>
         </label>
+        <label class="field">
+          <span>Next step</span>
+          <input name="next_step" type="text" placeholder="ex: suna joi, trimite oferta" />
+        </label>
+        <label class="field">
+          <span>Data next step</span>
+          <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
+        </label>
+        <label class="field">
+          <span>Stadiu pipeline dupa touch</span>
+          <select name="pipeline_stage">
+            <option value="">Nu schimb</option>
+            <option value="Necontactat">Necontactat</option>
+            <option value="Contactat">Contactat</option>
+            <option value="Meeting">Meeting</option>
+            <option value="Oferta">Oferta</option>
+            <option value="Negociere">Negociere</option>
+            <option value="Contract semnat">Contract semnat</option>
+            <option value="Parcat">Parcat</option>
+            <option value="Pierdut">Pierdut</option>
+          </select>
+        </label>
         <button class="primary-button" type="submit">Salveaza</button>
       </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420n"></script>
+    <script src="./app.js?v=20260420p"></script>
   </body>
 </html>

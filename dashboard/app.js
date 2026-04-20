@@ -23,7 +23,7 @@ const scorecardTargets = {
   },
 };
 
-const appBuild = "20260420n";
+const appBuild = "20260420p";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -127,13 +127,15 @@ const storageKeys = {
   scorecards: "grow_dashboard_scorecards",
 };
 
-const dashboardPages = new Set(["overview", "scorecard", "pipeline", "execution", "settings"]);
+const dashboardPages = new Set(["overview", "scorecard", "checklist", "pipeline", "execution", "settings"]);
+let mobileLogHideTimer = null;
 
 const state = {
   sourceData: {
     accounts: [],
     activities: [],
     scorecards: [],
+    dailyScores: [],
   },
   manualData: loadManualData(),
   manualScorecards: loadScorecards(),
@@ -161,6 +163,9 @@ const elements = {
   retryConnection: document.getElementById("retry-connection"),
   scorecardWeekChip: document.getElementById("scorecard-week-chip"),
   scorecardSourceChip: document.getElementById("scorecard-source-chip"),
+  checklistSnapshot: document.getElementById("checklist-snapshot"),
+  checklistDayGrid: document.getElementById("checklist-day-grid"),
+  checklistWeekGrid: document.getElementById("checklist-week-grid"),
   powerThreeGrid: document.getElementById("power-three-grid"),
   velocityFocusCard: document.getElementById("velocity-focus-card"),
   funnelGrid: document.getElementById("funnel-grid"),
@@ -183,10 +188,12 @@ const elements = {
   connectionBadges: document.getElementById("connection-badges"),
   companyFormStatus: document.getElementById("company-form-status"),
   scorecardFormStatus: document.getElementById("scorecard-form-status"),
+  dailyTrendFormStatus: document.getElementById("daily-trend-form-status"),
   companyOptions: document.getElementById("company-options"),
   pageButtons: [...document.querySelectorAll("[data-page-target]")],
   pageSections: [...document.querySelectorAll("[data-page]")],
   saveTargets: document.getElementById("save-targets"),
+  hydrateDailyTrend: document.getElementById("hydrate-daily-trend"),
   targets: {
     contacted: document.getElementById("target-contacted"),
     meetings: document.getElementById("target-meetings"),
@@ -197,6 +204,7 @@ const elements = {
     activity: document.getElementById("activity-form"),
     account: document.getElementById("account-form"),
     scorecard: document.getElementById("scorecard-form"),
+    dailyTrend: document.getElementById("daily-trend-form"),
   },
   companyInputs: [...document.querySelectorAll('input[name="company"]')],
 };
@@ -224,16 +232,17 @@ async function init() {
 async function submitActivityFromRaw(raw, form) {
   if (!state.bootstrapReady) {
     updateStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
-    return;
+    return false;
   }
   const resolution = resolveCompanyInput(raw.company);
   if (!resolution.ok) {
     updateStatus(resolution.message);
-    return;
+    return false;
   }
   raw.company = resolution.company;
   const record = normalizeRow("activities", raw);
-  if (!record.company || !record.date) return;
+  if (!record.company || !record.date) return false;
+  const companyPatchPayload = buildCompanyPatchFromActivityRaw(raw, record);
 
   if (state.apiEnabled) {
     try {
@@ -241,18 +250,35 @@ async function submitActivityFromRaw(raw, form) {
         method: "POST",
         body: serializeActivityPayload(record),
       });
+      if (companyPatchPayload) {
+        await apiJson("/api/companies", {
+          method: "PATCH",
+          body: companyPatchPayload,
+        });
+      }
       await refreshData({ silent: true });
-      updateStatus(`Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}.`);
+      updateStatus(
+        `Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}${
+          companyPatchPayload ? " + pipeline sincronizat" : ""
+        }.`
+      );
     } catch (error) {
       updateStatus(`Airtable nu a putut salva activitatea. ${error.message}`);
-      return;
+      return false;
     }
   } else {
     state.manualData.activities.unshift(record);
     syncManualAccountFromActivity(record);
+    if (companyPatchPayload) {
+      upsertManualAccount(normalizeRow("accounts", companyPatchPayload));
+    }
     persistManualData();
     refreshCombinedData();
-    updateStatus(`Salvat local: ${record.company} → ${activityLabel(record.activity_type)}.`);
+    updateStatus(
+      `Salvat local: ${record.company} → ${activityLabel(record.activity_type)}${
+        companyPatchPayload ? " + pipeline sincronizat" : ""
+      }.`
+    );
   }
 
   if (form) {
@@ -260,6 +286,7 @@ async function submitActivityFromRaw(raw, form) {
     setDefaultFormDates();
   }
   render();
+  return true;
 }
 
 function bindEvents() {
@@ -267,6 +294,30 @@ function bindEvents() {
     button.addEventListener("click", () => {
       setPage(button.dataset.pageTarget);
     });
+  });
+
+  document.addEventListener("click", (event) => {
+    const shortcut = event.target.closest("[data-page-jump]");
+    if (!shortcut) return;
+
+    event.preventDefault();
+
+    if (shortcut.dataset.openMobileLog === "true" && shouldUseMobileLog()) {
+      openMobileLogSheet();
+      return;
+    }
+
+    const page = shortcut.dataset.pageJump;
+    if (page) {
+      setPage(page);
+    }
+
+    const focusTarget = shortcut.dataset.focusTarget;
+    if (focusTarget) {
+      window.setTimeout(() => {
+        focusTargetById(focusTarget);
+      }, 90);
+    }
   });
 
   window.addEventListener("hashchange", () => {
@@ -347,12 +398,11 @@ function bindEvents() {
 
   if (fab && mobileSheet && mobileForm) {
     fab.addEventListener("click", () => {
-      mobileSheet.classList.add("is-open");
-      mobileSheet.classList.remove("is-hidden");
+      openMobileLogSheet();
     });
 
     document.getElementById("mobile-log-close")?.addEventListener("click", () => {
-      mobileSheet.classList.remove("is-open");
+      closeMobileLogSheet();
     });
 
     mobileForm.addEventListener("submit", async (event) => {
@@ -360,8 +410,10 @@ function bindEvents() {
       const formData = new FormData(mobileForm);
       const raw = Object.fromEntries(formData.entries());
       raw.date = new Date().toISOString().slice(0, 10);
-      await submitActivityFromRaw(raw, mobileForm);
-      mobileSheet.classList.remove("is-open");
+      const saved = await submitActivityFromRaw(raw, mobileForm);
+      if (saved) {
+        closeMobileLogSheet();
+      }
     });
   }
 
@@ -446,6 +498,56 @@ function bindEvents() {
     render();
   });
 
+  elements.forms.dailyTrend?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.bootstrapReady) {
+      updateDailyTrendStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
+      return;
+    }
+
+    const form = event.currentTarget;
+    const raw = Object.fromEntries(new FormData(form).entries());
+    const record = normalizeRow("dailyScores", raw);
+
+    if (!record.date) {
+      updateDailyTrendStatus("Alege mai intai data pentru ziua pe care vrei sa o inchizi.");
+      return;
+    }
+
+    if (state.apiEnabled) {
+      try {
+        await apiJson("/api/scorecard-trend", {
+          method: "PUT",
+          body: serializeDailyScorePayload(record),
+        });
+        await refreshData({ silent: true });
+        updateDailyTrendStatus(`Ziua ${record.date} a fost salvata in Airtable, in Scorecard Trend.`);
+      } catch (error) {
+        updateDailyTrendStatus(`Airtable nu a putut salva trendul zilnic. ${error.message}`);
+        return;
+      }
+    } else {
+      upsertManualDailyScore(record);
+      persistManualData();
+      refreshCombinedData();
+      updateDailyTrendStatus(`Ziua ${record.date} a fost salvata local.`);
+    }
+
+    hydrateDailyTrendForm(record.date);
+    render();
+  });
+
+  elements.hydrateDailyTrend?.addEventListener("click", () => {
+    const form = elements.forms.dailyTrend;
+    const selectedDate = form?.elements?.namedItem("date")?.value;
+    hydrateDailyTrendForm(selectedDate || new Date().toISOString().slice(0, 10), { preferActivityCounts: true });
+    updateDailyTrendStatus("Formularul a fost precompletat din activitatile salvate pentru data aleasa.");
+  });
+
+  elements.forms.dailyTrend?.elements?.namedItem("date")?.addEventListener("change", (event) => {
+    hydrateDailyTrendForm(event.currentTarget.value);
+  });
+
   elements.resetAccount.addEventListener("click", async () => {
     const companyInput = elements.forms.account?.querySelector('input[name="company"]');
     const rawCompany = companyInput?.value || "";
@@ -516,14 +618,60 @@ function bindEvents() {
     localStorage.removeItem(storageKeys.manual);
     localStorage.removeItem(storageKeys.scorecards);
     localStorage.removeItem(storageKeys.targets);
-    state.manualData = { accounts: [], activities: [] };
+    state.manualData = { accounts: [], activities: [], dailyScores: [] };
     state.manualScorecards = [];
+    state.dailyScores = [];
     state.targets = { ...defaultTargets };
     hydrateInputs();
     refreshCombinedData();
-    updateStatus("Memoria locala a fost stearsa, inclusiv scorecard-ul saptamanal.");
+    hydrateDailyTrendForm();
+    updateStatus("Memoria locala a fost stearsa, inclusiv trendul zilnic si scorecard-ul saptamanal.");
     render();
   });
+}
+
+function shouldUseMobileLog() {
+  return window.matchMedia("(max-width: 860px)").matches;
+}
+
+function openMobileLogSheet() {
+  const mobileSheet = document.getElementById("mobile-log-sheet");
+  const mobileForm = document.getElementById("mobile-activity-form");
+  if (!mobileSheet || !mobileForm) return;
+
+  if (mobileLogHideTimer) {
+    window.clearTimeout(mobileLogHideTimer);
+    mobileLogHideTimer = null;
+  }
+  mobileSheet.classList.add("is-open");
+  mobileSheet.classList.remove("is-hidden");
+  window.setTimeout(() => {
+    focusTargetById("mobile-activity-form");
+  }, 60);
+}
+
+function closeMobileLogSheet() {
+  const mobileSheet = document.getElementById("mobile-log-sheet");
+  if (!mobileSheet) return;
+  mobileSheet.classList.remove("is-open");
+  if (mobileLogHideTimer) {
+    window.clearTimeout(mobileLogHideTimer);
+  }
+  mobileLogHideTimer = window.setTimeout(() => {
+    mobileSheet.classList.add("is-hidden");
+  }, 240);
+}
+
+function focusTargetById(id) {
+  const target = document.getElementById(id);
+  if (!target) return;
+
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  const focusable = target.matches("input, select, textarea, button, [tabindex]")
+    ? target
+    : target.querySelector("input, select, textarea, button, [tabindex]");
+
+  focusable?.focus({ preventScroll: true });
 }
 
 async function refreshData(options = {}) {
@@ -544,8 +692,7 @@ async function refreshData(options = {}) {
     state.sourceData.scorecards = Array.isArray(payload.scorecards)
       ? payload.scorecards.map((row) => normalizeRow("scorecard", row))
       : [];
-
-    state.dailyScores = Array.isArray(payload.dailyScores)
+    state.sourceData.dailyScores = Array.isArray(payload.dailyScores)
       ? payload.dailyScores.map((row) => normalizeRow("dailyScores", row))
       : [];
 
@@ -558,6 +705,7 @@ async function refreshData(options = {}) {
 
     refreshCombinedData();
     hydrateScorecardForm();
+    hydrateDailyTrendForm();
 
     if (elements.retryConnection) elements.retryConnection.hidden = true;
     if (!silent) {
@@ -572,11 +720,11 @@ async function refreshData(options = {}) {
     state.sourceMode = "fallback";
     state.connection = null;
     state.warnings = [];
-    state.sourceData = { accounts: [], activities: [], scorecards: [] };
-    state.dailyScores = [];
+    state.sourceData = { accounts: [], activities: [], scorecards: [], dailyScores: [] };
     state.targets = loadTargets();
     refreshCombinedData();
     hydrateScorecardForm();
+    hydrateDailyTrendForm();
 
     if (elements.retryConnection) elements.retryConnection.hidden = false;
     if (!silent) {
@@ -623,6 +771,59 @@ function hydrateScorecardForm() {
   assign("notes", scorecard.notes);
 }
 
+function hydrateDailyTrendForm(date = "", options = {}) {
+  const form = elements.forms.dailyTrend;
+  if (!form) return;
+
+  const requestedDate = normalizeString(date)
+    || normalizeString(form.elements.namedItem("date")?.value)
+    || new Date().toISOString().slice(0, 10);
+  const draft = buildDailyTrendDraft(requestedDate, options);
+
+  const assign = (name, value) => {
+    const field = form.elements.namedItem(name);
+    if (!field) return;
+    if (field instanceof RadioNodeList) return;
+    if (field.dataset?.datePicker !== undefined) {
+      setDateFieldValue(field, value || "");
+      return;
+    }
+    field.value = value ?? "";
+  };
+
+  assign("date", draft.date);
+  assign("contacted", draft.contacted);
+  assign("meetings", draft.meetings);
+  assign("offers", draft.offers);
+  assign("contracts", draft.contracts);
+  assign("notes", draft.notes);
+}
+
+function buildDailyTrendDraft(date = "", options = {}) {
+  const { preferActivityCounts = false } = options;
+  const isoDate = normalizeString(date) || new Date().toISOString().slice(0, 10);
+  const existing = state.dailyScores.find((row) => row.date === isoDate);
+  const counts = countActivities(getActivitiesForDate(isoDate));
+  const draftFromActivities = {
+    id: existing?.id || "",
+    date: isoDate,
+    contacted: counts.contacted,
+    meetings: counts.meeting,
+    offers: counts.offer,
+    contracts: counts.contract_signed,
+    notes: existing?.notes || "",
+  };
+
+  if (existing && !preferActivityCounts) {
+    return {
+      ...draftFromActivities,
+      ...existing,
+    };
+  }
+
+  return draftFromActivities;
+}
+
 function setDefaultFormDates() {
   const today = new Date().toISOString().slice(0, 10);
   const activityDate = elements.forms.activity?.querySelector('input[name="date"]');
@@ -630,12 +831,14 @@ function setDefaultFormDates() {
   const accountLastContact = elements.forms.account?.querySelector('input[name="last_contact"]');
   const accountNextStepDate = elements.forms.account?.querySelector('input[name="next_step_date"]');
   const scorecardWeekStart = elements.forms.scorecard?.querySelector('input[name="week_start"]');
+  const dailyTrendDate = elements.forms.dailyTrend?.querySelector('input[name="date"]');
 
   if (activityDate && !activityDate.value) setDateFieldValue(activityDate, today);
   if (activityNextStepDate && !activityNextStepDate.value) setDateFieldValue(activityNextStepDate, "");
   if (accountLastContact && !accountLastContact.value) setDateFieldValue(accountLastContact, today);
   if (accountNextStepDate && !accountNextStepDate.value) setDateFieldValue(accountNextStepDate, "");
   if (scorecardWeekStart && !scorecardWeekStart.value) setDateFieldValue(scorecardWeekStart, getWeekStart(today));
+  if (dailyTrendDate && !dailyTrendDate.value) setDateFieldValue(dailyTrendDate, today);
 }
 
 function initDatePickers() {
@@ -731,16 +934,17 @@ function loadScorecards() {
 
 function loadManualData() {
   const raw = localStorage.getItem(storageKeys.manual);
-  if (!raw) return { accounts: [], activities: [] };
+  if (!raw) return { accounts: [], activities: [], dailyScores: [] };
 
   try {
     const parsed = JSON.parse(raw);
     return {
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts.map((row) => normalizeRow("accounts", row)) : [],
       activities: Array.isArray(parsed.activities) ? parsed.activities.map((row) => normalizeRow("activities", row)) : [],
+      dailyScores: Array.isArray(parsed.dailyScores) ? parsed.dailyScores.map((row) => normalizeRow("dailyScores", row)) : [],
     };
   } catch {
-    return { accounts: [], activities: [] };
+    return { accounts: [], activities: [], dailyScores: [] };
   }
 }
 
@@ -756,6 +960,7 @@ function hasManualData() {
   return Boolean(
     state.manualData.accounts.length
     || state.manualData.activities.length
+    || state.manualData.dailyScores.length
     || state.manualScorecards.length
   );
 }
@@ -782,6 +987,9 @@ function refreshCombinedData() {
       .filter((item) => item.week_start)
       .sort((left, right) => right.week_start.localeCompare(left.week_start));
     state.scorecard = selectCurrentScorecard(state.scorecards);
+    state.dailyScores = [...state.sourceData.dailyScores]
+      .filter((item) => item.date)
+      .sort((left, right) => right.date.localeCompare(left.date));
     updateCompanyOptions();
     return;
   }
@@ -799,6 +1007,9 @@ function refreshCombinedData() {
     .filter((item) => item.week_start)
     .sort((left, right) => right.week_start.localeCompare(left.week_start));
   state.scorecard = selectCurrentScorecard(state.scorecards);
+  state.dailyScores = [...state.manualData.dailyScores]
+    .filter((item) => item.date)
+    .sort((left, right) => right.date.localeCompare(left.date));
   updateCompanyOptions();
 }
 
@@ -974,6 +1185,20 @@ function upsertManualScorecard(record) {
     };
   } else {
     state.manualScorecards.unshift(record);
+  }
+}
+
+function upsertManualDailyScore(record) {
+  const key = normalizeString(record.date);
+  const existingIndex = state.manualData.dailyScores.findIndex((item) => normalizeString(item.date) === key);
+
+  if (existingIndex >= 0) {
+    state.manualData.dailyScores[existingIndex] = {
+      ...state.manualData.dailyScores[existingIndex],
+      ...record,
+    };
+  } else {
+    state.manualData.dailyScores.unshift(record);
   }
 }
 
@@ -1434,6 +1659,12 @@ function updateScorecardStatus(message) {
   }
 }
 
+function updateDailyTrendStatus(message) {
+  if (elements.dailyTrendFormStatus) {
+    elements.dailyTrendFormStatus.textContent = message;
+  }
+}
+
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#/, "").trim();
   return dashboardPages.has(hash) ? hash : "scorecard";
@@ -1475,6 +1706,7 @@ function render() {
   elements.summaryChip.textContent = `${state.activities.length} activitati · ${trackedCount} companii cu tracking`;
 
   renderPacingCard();
+  renderChecklist();
   renderScorecardDashboard();
   renderTrend();
   renderPipeline();
@@ -1592,11 +1824,316 @@ function renderConnection() {
 
   elements.connectionCopy.textContent = state.apiEnabled
     ? "Baza Grow este conectata. Formularele scriu direct in Airtable, iar trendul zilnic poate veni din tabela Scorecard Trend."
-    : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile, target-urile si scorecard-ul saptamanal.";
+    : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile, target-urile, trendul zilnic si scorecard-ul saptamanal.";
 
   elements.connectionBadges.innerHTML = `
     <div class="chip-wrap">${chips.join("")}</div>
     ${warnings}
+  `;
+}
+
+function renderChecklist() {
+  if (!elements.checklistSnapshot || !elements.checklistDayGrid || !elements.checklistWeekGrid) return;
+
+  const queues = getExecutionQueues();
+  const todayActivities = getTodayActivities();
+  const todayCounts = countActivities(todayActivities);
+  const monthlyCounts = countActivities(getMonthlyActivities());
+  const trackedOpenAccounts = state.accounts.filter(
+    (account) => isTrackedAccount(account) && isPipelineOpen(account.pipeline_stage)
+  ).length;
+  const { total, elapsed } = getWorkingDaysInfo();
+  const workingDaysLeft = Math.max(total - elapsed + 1, 1);
+  const contactsRemaining = Math.max((state.targets.contacted || 0) - monthlyCounts.contacted, 0);
+  const meetingsRemaining = Math.max((state.targets.meetings || 0) - monthlyCounts.meeting, 0);
+  const dailyContactsNeeded = Math.ceil(contactsRemaining / workingDaysLeft);
+  const dailyMeetingsNeeded = Math.ceil(meetingsRemaining / workingDaysLeft);
+  const trendTable = state.connection?.tables?.scorecardTrend || "Scorecard Trend";
+  const scorecardTable = state.connection?.tables?.scorecard || "Scorecard";
+
+  elements.checklistSnapshot.innerHTML = [
+    buildChecklistSnapshotCard({
+      eyebrow: "Astazi",
+      label: "Conturi de miscat",
+      value: queues.overdue.length + queues.today.length,
+      meta: `${queues.overdue.length} intarziate · ${queues.today.length} programate azi`,
+      tone: "#c98622",
+      soft: "#f7ecd5",
+    }),
+    buildChecklistSnapshotCard({
+      eyebrow: "Executie",
+      label: "Touch-uri salvate azi",
+      value: todayActivities.length,
+      meta: `${todayCounts.contacted} contacte · ${todayCounts.meeting} meetings`,
+      tone: "#2f6ea2",
+      soft: "#e4eef7",
+    }),
+    buildChecklistSnapshotCard({
+      eyebrow: "Pipeline",
+      label: "Companii active",
+      value: trackedOpenAccounts,
+      meta: `${queues.stale.length} reci fara miscare peste 7 zile`,
+      tone: "#2d8f57",
+      soft: "#e5f3eb",
+    }),
+    buildChecklistSnapshotCard({
+      eyebrow: "Ritm",
+      label: "Necesar pe zi",
+      value: `${dailyContactsNeeded}/${dailyMeetingsNeeded}`,
+      meta: `${contactsRemaining} contacte si ${meetingsRemaining} meetings ramase luna asta`,
+      tone: "#7b5cc9",
+      soft: "#eee8fb",
+    }),
+  ].join("");
+
+  elements.checklistDayGrid.innerHTML = [
+    buildChecklistCard({
+      tone: "#2f6ea2",
+      soft: "#eef5fb",
+      eyebrow: "Morning",
+      title: "Start de zi",
+      badge: `${queues.overdue.length + queues.today.length} miscari prioritare`,
+      copy: "Pornesti din cadenta si alegi clar ce trebuie impins pana la pranz.",
+      steps: [
+        `Deschide Cadenta si curata mai intai cele ${queues.overdue.length} follow-up-uri intarziate.`,
+        `Alege primele 3 conturi din "Ce trebuie miscat azi" si muta-le pana la ora 11.`,
+        `Verifica Pipeline pentru conturile in Oferta sau Negociere si noteaza urmatorul pas realist.`,
+        `Pleaca la drum cu tinta de azi: ${dailyContactsNeeded} contacte noi si ${dailyMeetingsNeeded} meetings spre targetul lunar.`,
+      ],
+      sources: [
+        "Cadenta -> next step azi / intarziate",
+        "Pipeline -> stadiu + next step",
+      ],
+      actions: [
+        { label: "Deschide Cadenta", page: "execution", style: "secondary-button" },
+        { label: "Vezi Pipeline", page: "pipeline", style: "ghost-button", focus: "company-search" },
+      ],
+    }),
+    buildChecklistCard({
+      tone: "#2d8f57",
+      soft: "#eef8f2",
+      eyebrow: "Rhythm",
+      title: "In timpul zilei",
+      badge: `${todayActivities.length} touch-uri deja salvate`,
+      copy: "Regula simpla: un touch real trebuie sa lase in urma o urmare clara, nu doar memorie.",
+      steps: [
+        "Dupa fiecare apel, mesaj sau meeting real, salveaza touch-ul in aceeasi zi.",
+        "Daca nu ai ajuns la decident, marcheaza outcome-ul real: Nu am ajuns la decident, Nu raspunde, Revino mai tarziu.",
+        "Pentru activitatile doar planificate, foloseste Planificat; nu le amesteca cu executia reala.",
+        "Cand alegi compania, foloseste sugestiile existente ca sa eviti duplicatele.",
+      ],
+      sources: [
+        "Panou -> Adauga o activitate in 10 secunde",
+        "Activities -> Company, Activity Type, Outcome",
+      ],
+      actions: [
+        { label: "Log touch", page: "overview", style: "secondary-button", focus: "activity-form", openMobileLog: true },
+        { label: "Deschide Setari", page: "settings", style: "ghost-button", focus: "refresh-data" },
+      ],
+    }),
+    buildChecklistCard({
+      tone: "#c98622",
+      soft: "#fcf4e6",
+      eyebrow: "After touch",
+      title: "Dupa un touch real",
+      badge: "salveaza contextul complet",
+      copy: "Logul rapid poate retine touch-ul, urmatorul pas si, daca e cazul, noul stadiu din pipeline.",
+      steps: [
+        "Completeaza Companie, Actiune si Rezultat.",
+        "Daca exista urmatorul pas, completeaza Next step si Data next step.",
+        "Daca etapa s-a schimbat in realitate, actualizeaza Stadiu pipeline dupa touch.",
+        "Pentru schimbari mai ample de cont, intra apoi si in Update rapid companie.",
+      ],
+      sources: [
+        "Activities -> Company, Activity Type, Outcome, Next Step, Next Step Date, Notes",
+        "Companies -> Stadiu Pipeline",
+      ],
+      actions: [
+        { label: "Deschide log rapid", page: "overview", style: "secondary-button", focus: "activity-form", openMobileLog: true },
+        { label: "Update companie", page: "pipeline", style: "ghost-button", focus: "account-form" },
+      ],
+    }),
+    buildChecklistCard({
+      tone: "#7b5cc9",
+      soft: "#f3effc",
+      eyebrow: "End of day",
+      title: "Final de zi",
+      badge: trendTable,
+      copy: "Inchizi ziua cu date curate si cu maine deja programat, nu doar cu activitate bifata.",
+      steps: [
+        `Completeaza formularul din browser pentru ${trendTable}: Contactate, Meetings, Oferte, Contracte si Notes pentru ziua curenta.`,
+        "Verifica daca toate touch-urile reale au next step atunci cand conversatia ramane deschisa.",
+        "Uita-te in Cadenta si nu lasa conturi importante fara data pentru urmatoarea miscare.",
+        "Pregateste primele 3 actiuni pentru dimineata urmatoare.",
+      ],
+      sources: [
+        `${trendTable} -> Contactate, Meetings, Oferte, Contracte, Notes`,
+        "Cadenta -> next step azi / intarziate",
+      ],
+      actions: [
+        { label: "Inchide ziua", page: "checklist", style: "secondary-button", focus: "daily-trend-form" },
+        { label: "Vezi Panou", page: "overview", style: "ghost-button", focus: "activity-form" },
+      ],
+    }),
+    buildChecklistCard({
+      tone: "#cb5846",
+      soft: "#fceeea",
+      eyebrow: "Rules",
+      title: "Reminder cu regulile zilnice",
+      badge: state.apiEnabled ? "Airtable live" : "Fallback local",
+      copy: "Micile reguli care tin sistemul curat si fac datele utile, nu doar frumoase.",
+      rules: [
+        "Niciun touch real fara log in aceeasi zi.",
+        "Niciun next step fara data atunci cand deal-ul ramane deschis.",
+        "Planned inseamna planificat, nu realizat.",
+        "Stadiul din pipeline se schimba doar cand realitatea s-a schimbat.",
+        "Alege compania din sugestii ca sa nu creezi duplicate.",
+      ],
+      sources: [
+        "Activities + Companies sunt sursa operationala",
+        `${scorecardTable} si ${trendTable} sunt sursa de review`,
+      ],
+      actions: [
+        { label: "Deschide Setari", page: "settings", style: "secondary-button", focus: "refresh-data" },
+        { label: "Scorecard saptamanal", page: "scorecard", style: "ghost-button", focus: "scorecard-form" },
+      ],
+    }),
+  ].join("");
+
+  elements.checklistWeekGrid.innerHTML = [
+    buildChecklistCard({
+      tone: "#2f6ea2",
+      soft: "#eef5fb",
+      eyebrow: "Monday",
+      title: "Luni 10 min",
+      badge: "reset de saptamana",
+      copy: "Pui ritmul saptamanii fara sa reinventezi procesul.",
+      steps: [
+        "Verifica targetul lunar ramas si transforma-l in ritm zilnic realist pentru contacte si meetings.",
+        "Alege 10 companii Dream 100 P1 pe care vrei sa le misti saptamana aceasta.",
+        "Curata conturile reci sau parcarele care merita reactivate.",
+        "Noteaza primele sedinte, vizite si blocaje care pot aparea in saptamana curenta.",
+      ],
+      sources: [
+        "Cadenta + Pipeline",
+        `Targets -> targete lunare curente`,
+      ],
+      actions: [
+        { label: "Vezi Cadenta", page: "execution", style: "secondary-button" },
+        { label: "Vezi Pipeline", page: "pipeline", style: "ghost-button", focus: "company-search" },
+      ],
+    }),
+    buildChecklistCard({
+      tone: "#c98622",
+      soft: "#fcf4e6",
+      eyebrow: "Midweek",
+      title: "Mijlocul saptamanii",
+      badge: "ajustare de ritm",
+      copy: "Aici vezi daca activitatea produce viteza sau doar volum.",
+      steps: [
+        "Compara activitatea reala cu ritmul necesar pe zi si vezi unde esti sub target.",
+        "Impinge conturile care stau prea mult in Contactat sau Meeting fara urmator pas clar.",
+        "Verifica toate ofertele active si actualizeaza data reala pentru follow-up.",
+        "Daca apar blocaje recurente, noteaza-le pentru Friday review.",
+      ],
+      sources: [
+        "Pipeline -> Contactat, Meeting, Oferta, Negociere",
+        "Cadenta -> intarziate si fara touch",
+      ],
+      actions: [
+        { label: "Monitorizeaza Pipeline", page: "pipeline", style: "secondary-button", focus: "account-form" },
+        { label: "Vezi Cadenta", page: "execution", style: "ghost-button" },
+      ],
+    }),
+    buildChecklistCard({
+      tone: "#2d8f57",
+      soft: "#eef8f2",
+      eyebrow: "Friday review",
+      title: "Vineri",
+      badge: scorecardTable,
+      copy: "Aici inchizi saptamana si lasi datele gata pentru decizii, nu doar pentru raport.",
+      steps: [
+        `Completeaza pagina Scorecard, care scrie in tabela ${scorecardTable}, cu cifrele saptamanii.`,
+        `Verifica in ${trendTable} daca fiecare zi lucrata are randul completat corect.`,
+        "Analizeaza bottleneck-ul principal din palnie: Contact -> Meeting, Meeting -> Oferta sau Oferta -> Semnat.",
+        "Lasa pregatite actiunile de luni si curata conturile care nu mai au sanse reale.",
+      ],
+      sources: [
+        `${scorecardTable} -> review saptamanal`,
+        `${trendTable} -> ritm zilnic`,
+      ],
+      actions: [
+        { label: "Completeaza Scorecard", page: "scorecard", style: "secondary-button", focus: "scorecard-form" },
+        { label: "Revino la Pipeline", page: "pipeline", style: "ghost-button", focus: "company-search" },
+      ],
+    }),
+  ].join("");
+}
+
+function buildChecklistSnapshotCard(card) {
+  return `
+    <article class="checklist-snapshot-card" style="--checklist-accent:${card.tone}; --checklist-soft:${card.soft};">
+      <div class="checklist-snapshot-eyebrow">${escapeHtml(card.eyebrow)}</div>
+      <div class="checklist-snapshot-label">${escapeHtml(card.label)}</div>
+      <div class="checklist-snapshot-value">${escapeHtml(card.value)}</div>
+      <div class="checklist-snapshot-meta">${escapeHtml(card.meta)}</div>
+    </article>
+  `;
+}
+
+function buildChecklistCard(card) {
+  const steps = Array.isArray(card.steps) && card.steps.length
+    ? `<ol class="checklist-list">${card.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>`
+    : "";
+
+  const rules = Array.isArray(card.rules) && card.rules.length
+    ? `<div class="checklist-rule-row">${card.rules.map((rule) => `<span class="checklist-rule-pill">${escapeHtml(rule)}</span>`).join("")}</div>`
+    : "";
+
+  const sources = Array.isArray(card.sources) && card.sources.length
+    ? `
+      <div class="checklist-source-block">
+        <div class="checklist-source-title">Se leaga de</div>
+        <div class="checklist-source-row">
+          ${card.sources.map((source) => `<span class="mini-chip">${escapeHtml(source)}</span>`).join("")}
+        </div>
+      </div>
+    `
+    : "";
+
+  const actions = Array.isArray(card.actions) && card.actions.length
+    ? `
+      <div class="checklist-actions">
+        ${card.actions.map((action) => `
+          <button
+            class="${action.style || "secondary-button"}"
+            type="button"
+            data-page-jump="${escapeHtml(action.page || "")}"
+            ${action.focus ? `data-focus-target="${escapeHtml(action.focus)}"` : ""}
+            ${action.openMobileLog ? 'data-open-mobile-log="true"' : ""}
+          >
+            ${escapeHtml(action.label)}
+          </button>
+        `).join("")}
+      </div>
+    `
+    : "";
+
+  return `
+    <article class="checklist-card" style="--checklist-accent:${card.tone}; --checklist-soft:${card.soft};">
+      <div class="checklist-card-head">
+        <div>
+          <div class="checklist-card-eyebrow">${escapeHtml(card.eyebrow)}</div>
+          <h3>${escapeHtml(card.title)}</h3>
+        </div>
+        <span class="checklist-badge">${escapeHtml(card.badge)}</span>
+      </div>
+      <p class="checklist-copy">${escapeHtml(card.copy)}</p>
+      ${steps}
+      ${rules}
+      ${sources}
+      ${actions}
+    </article>
   `;
 }
 
@@ -2006,6 +2543,12 @@ function scorecardIcon(name) {
 function getTodayActivities() {
   const today = new Date();
   return state.activities.filter((activity) => isSameDay(activity.date, today));
+}
+
+function getActivitiesForDate(date) {
+  const selectedDate = parseDate(date);
+  if (!selectedDate) return [];
+  return state.activities.filter((activity) => isSameDay(activity.date, selectedDate));
 }
 
 function getMonthlyActivities() {
@@ -2697,6 +3240,21 @@ async function apiJson(url, options = {}) {
   return payload;
 }
 
+function buildCompanyPatchFromActivityRaw(raw, record) {
+  const payload = { company: record.company };
+  let shouldSync = false;
+
+  if (raw.pipeline_stage !== undefined) {
+    const pipelineStage = normalizePipelineStage(raw.pipeline_stage);
+    if (pipelineStage) {
+      payload.pipeline_stage = pipelineStage;
+      shouldSync = true;
+    }
+  }
+
+  return shouldSync ? payload : null;
+}
+
 function serializeActivityPayload(record) {
   return {
     date: record.date ? record.date.toISOString().slice(0, 10) : "",
@@ -2765,6 +3323,17 @@ function serializeScorecardPayload(record) {
     contracts_signed: record.contracts_signed,
     workers_signed: record.workers_signed,
     workers_delivered: record.workers_delivered,
+    notes: record.notes,
+  };
+}
+
+function serializeDailyScorePayload(record) {
+  return {
+    date: record.date,
+    contacted: record.contacted,
+    meetings: record.meetings,
+    offers: record.offers,
+    contracts: record.contracts,
     notes: record.notes,
   };
 }
