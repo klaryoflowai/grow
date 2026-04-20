@@ -23,7 +23,7 @@ const scorecardTargets = {
   },
 };
 
-const appBuild = "20260420p";
+const appBuild = "20260420q";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
