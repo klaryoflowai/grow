@@ -131,6 +131,7 @@ const elements = {
   dataModePill: document.getElementById("data-mode-pill"),
   summaryChip: document.getElementById("summary-chip"),
   statusMessage: document.getElementById("status-message"),
+  retryConnection: document.getElementById("retry-connection"),
   todayGrid: document.getElementById("today-grid"),
   monthGrid: document.getElementById("month-grid"),
   conversionGrid: document.getElementById("conversion-grid"),
@@ -272,6 +273,14 @@ function bindEvents() {
     await refreshData();
   });
 
+  elements.retryConnection?.addEventListener("click", async () => {
+    elements.retryConnection.disabled = true;
+    elements.retryConnection.textContent = "Se reconecteaza...";
+    await refreshData();
+    elements.retryConnection.disabled = false;
+    elements.retryConnection.textContent = "Reincearca conexiunea";
+  });
+
   elements.companySearch.addEventListener("input", (event) => {
     state.search = event.target.value.trim().toLowerCase();
     renderPipeline();
@@ -315,7 +324,7 @@ function bindEvents() {
       const formData = new FormData(mobileForm);
       const raw = Object.fromEntries(formData.entries());
       raw.date = new Date().toISOString().slice(0, 10);
-      await submitActivityFromRaw(raw, null);
+      await submitActivityFromRaw(raw, mobileForm);
       mobileSheet.classList.remove("is-open");
     });
   }
@@ -460,6 +469,7 @@ async function refreshData(options = {}) {
 
     refreshCombinedData();
 
+    if (elements.retryConnection) elements.retryConnection.hidden = true;
     if (!silent) {
       updateStatus(
         state.apiEnabled
@@ -476,8 +486,9 @@ async function refreshData(options = {}) {
     state.targets = loadTargets();
     refreshCombinedData();
 
+    if (elements.retryConnection) elements.retryConnection.hidden = false;
     if (!silent) {
-      updateStatus(`API-ul Vercel nu raspunde inca. Dashboard-ul ruleaza pe fallback local. ${error.message}`);
+      updateStatus(`API-ul Vercel nu raspunde. Dashboard-ul ruleaza pe memoria locala.`);
     }
   }
 }
