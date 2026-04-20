@@ -101,17 +101,30 @@ function getRequiredConfig() {
 }
 
 const pipelineRankMap = {
-  "Necontactat": 0,
-  "Incercam sa ajungem la decident": 1,
-  "Discutie initiata": 2,
-  "Meeting programat": 3,
-  "Meeting tinut": 4,
-  "Oferta trimisa": 5,
-  Negociere: 6,
-  "Asteapta decizie": 7,
-  "Contract semnat": 8,
+  Necontactat: 0,
+  Contactat: 1,
+  Meeting: 2,
+  Oferta: 3,
+  Negociere: 4,
+  "Contract semnat": 5,
   Parcat: -1,
   Pierdut: -2,
+  // legacy names — kept for backward compat during Airtable migration
+  "Incercam sa ajungem la decident": 1,
+  "Discutie initiata": 1,
+  "Meeting programat": 2,
+  "Meeting tinut": 2,
+  "Oferta trimisa": 3,
+  "Asteapta decizie": 4,
+};
+
+const legacyStageMap = {
+  "Incercam sa ajungem la decident": "Contactat",
+  "Discutie initiata": "Contactat",
+  "Meeting programat": "Meeting",
+  "Meeting tinut": "Meeting",
+  "Oferta trimisa": "Oferta",
+  "Asteapta decizie": "Negociere",
 };
 
 const lockedPipelineStages = new Set(["Contract semnat", "Parcat", "Pierdut"]);
@@ -135,13 +148,18 @@ const accountHealthFromAirtableMap = {
   "⚪️": "Gri",
 };
 
+function normalizePipelineStage(stage = "") {
+  const raw = normalizeString(stage);
+  return legacyStageMap[raw] || raw;
+}
+
 function statusToPipelineStage(status = "") {
   const normalized = normalizeStatus(status);
   const mapping = {
     new: "Necontactat",
-    contacted: "Discutie initiata",
-    meeting: "Meeting tinut",
-    offer: "Oferta trimisa",
+    contacted: "Contactat",
+    meeting: "Meeting",
+    offer: "Oferta",
     contract_signed: "Contract semnat",
     lost: "Pierdut",
   };
@@ -183,12 +201,12 @@ function decodeAccountHealth(value = "") {
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
-  const pipelineStage = normalizeString(pipelineStageField ? fields[pipelineStageField] : "");
+  const rawStage = normalizeString(pipelineStageField ? fields[pipelineStageField] : "");
 
   return {
     id: record.id,
     company: normalizeString(fields[config.fields.companies.company]),
-    pipeline_stage: pipelineStage,
+    pipeline_stage: normalizePipelineStage(rawStage),
     account_health: decodeAccountHealth(
       config.fields.companies.accountHealth ? fields[config.fields.companies.accountHealth] : ""
     ),
@@ -196,6 +214,9 @@ function normalizeCompanyRecord(record, config) {
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.companies.nextStepDate]),
+    stage_changed_date: toIsoDate(
+      config.fields.companies.stageChangedDate ? fields[config.fields.companies.stageChangedDate] : ""
+    ),
     sector: normalizeString(fields[config.fields.companies.sector]),
     notes: normalizeString(fields[config.fields.companies.notes]),
   };
@@ -292,8 +313,12 @@ async function upsertCompany(payload) {
   };
 
   if ("pipeline_stage" in payload && config.fields.companies.pipelineStage) {
-    const normalizedPipelineStage = normalizeString(payload.pipeline_stage);
+    const normalizedPipelineStage = normalizePipelineStage(normalizeString(payload.pipeline_stage));
     fields[config.fields.companies.pipelineStage] = normalizedPipelineStage || null;
+    const prevStage = existingCompany?.pipeline_stage || "";
+    if (normalizedPipelineStage && normalizedPipelineStage !== prevStage && config.fields.companies.stageChangedDate) {
+      fields[config.fields.companies.stageChangedDate] = toIsoDate(new Date());
+    }
   } else if (!existingRecord && config.fields.companies.pipelineStage) {
     fields[config.fields.companies.pipelineStage] = "";
   }
@@ -404,6 +429,9 @@ async function touchCompanyFromActivity(activity) {
 
   if (config.fields.companies.pipelineStage) {
     fields[config.fields.companies.pipelineStage] = nextPipelineStage || null;
+    if (nextPipelineStage && nextPipelineStage !== existingStage && config.fields.companies.stageChangedDate) {
+      fields[config.fields.companies.stageChangedDate] = toIsoDate(new Date());
+    }
   }
 
   if (activity.next_step) {
@@ -471,6 +499,12 @@ async function createActivity(payload) {
   const createdRecord = await createRecord("activities", fields);
   const companyNameById = new Map([[touched.record.id, touched.normalized.company]]);
 
+  try {
+    await upsertDailyScore(activity.activity_type, activity.workers_delta);
+  } catch {
+    // daily scorecard is non-critical — don't fail the activity save
+  }
+
   return {
     activity: normalizeActivityRecord(createdRecord, config, companyNameById),
     company: touched.normalized,
@@ -501,6 +535,94 @@ async function upsertTargets(payload) {
   return normalizeTargetsRecord(record, config);
 }
 
+function normalizeScorecardRecord(record, config) {
+  const fields = record.fields || {};
+  const f = config.fields.scorecard;
+  return {
+    id: record.id,
+    type: normalizeString(fields[f.type]),
+    date: toIsoDate(fields[f.date]),
+    targetContacted: toNumber(fields[f.targetContacted]),
+    targetMeetings: toNumber(fields[f.targetMeetings]),
+    targetOffers: toNumber(fields[f.targetOffers]),
+    targetContracts: toNumber(fields[f.targetContracts]),
+    contacted: toNumber(fields[f.contacted]),
+    meetings: toNumber(fields[f.meetings]),
+    offers: toNumber(fields[f.offers]),
+    contracts: toNumber(fields[f.contracts]),
+    workers: toNumber(fields[f.workers]),
+  };
+}
+
+async function upsertScorecardTargets(payload) {
+  const config = getRequiredConfig();
+  const currentPeriod = getCurrentPeriod(config.timezone);
+  const monthDate = `${currentPeriod}-01`;
+  const f = config.fields.scorecard;
+
+  let scorecardRecords = [];
+  try {
+    scorecardRecords = await listRecords("scorecard");
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
+
+  const existingMonthly = scorecardRecords.find((record) => {
+    const norm = normalizeScorecardRecord(record, config);
+    return norm.type === "Lunar" && norm.date && norm.date.startsWith(currentPeriod);
+  });
+
+  const fields = {
+    [f.type]: "Lunar",
+    [f.date]: monthDate,
+    [f.targetContacted]: toNumber(payload.contacted),
+    [f.targetMeetings]: toNumber(payload.meetings),
+    [f.targetOffers]: toNumber(payload.offers),
+    [f.targetContracts]: toNumber(payload.contracts),
+  };
+
+  const record = existingMonthly
+    ? await updateRecord("scorecard", existingMonthly.id, fields)
+    : await createRecord("scorecard", fields);
+
+  return normalizeScorecardRecord(record, config);
+}
+
+async function upsertDailyScore(activityType, workersCount = 0) {
+  const config = getRequiredConfig();
+  const today = toIsoDate(new Date());
+  const f = config.fields.scorecard;
+
+  let scorecardRecords = [];
+  try {
+    scorecardRecords = await listRecords("scorecard");
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
+
+  const existingDaily = scorecardRecords.find((record) => {
+    const norm = normalizeScorecardRecord(record, config);
+    return norm.type === "Zilnic" && norm.date === today;
+  });
+
+  const current = existingDaily ? normalizeScorecardRecord(existingDaily, config) : null;
+  const fields = { [f.type]: "Zilnic", [f.date]: today };
+
+  if (activityType === "contacted") fields[f.contacted] = (current?.contacted || 0) + 1;
+  else if (activityType === "meeting") fields[f.meetings] = (current?.meetings || 0) + 1;
+  else if (activityType === "offer") fields[f.offers] = (current?.offers || 0) + 1;
+  else if (activityType === "contract_signed") {
+    fields[f.contracts] = (current?.contracts || 0) + 1;
+    if (workersCount > 0) fields[f.workers] = (current?.workers || 0) + workersCount;
+  }
+
+  if (existingDaily) {
+    await updateRecord("scorecard", existingDaily.id, fields);
+  } else {
+    await createRecord("scorecard", fields);
+  }
+}
+
 async function getDashboardData() {
   const config = getAirtableConfig();
   const currentPeriod = getCurrentPeriod(config.timezone);
@@ -525,15 +647,19 @@ async function getDashboardData() {
   const companyRecords = await listRecords("companies");
   const activityRecords = await listRecords("activities");
   let targetRecords = [];
+  let scorecardRecords = [];
 
   try {
     targetRecords = await listRecords("targets");
   } catch (error) {
-    if (error.status === 404) {
-      warnings.push("Tabela Targets nu a fost gasita. Dashboard-ul ruleaza cu target-urile implicite.");
-    } else {
-      throw error;
-    }
+    if (error.status !== 404) throw error;
+    warnings.push("Tabela Targets nu a fost gasita. Dashboard-ul ruleaza cu target-urile implicite.");
+  }
+
+  try {
+    scorecardRecords = await listRecords("scorecard");
+  } catch (error) {
+    if (error.status !== 404) throw error;
   }
 
   const companyNameById = buildCompanyNameMap(companyRecords, config);
@@ -543,13 +669,29 @@ async function getDashboardData() {
   const activities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
-  const targets = selectTargets(targetRecords, config);
+
+  const currentPeriod = getCurrentPeriod(config.timezone);
+  const normalizedScorecard = scorecardRecords.map((record) => normalizeScorecardRecord(record, config));
+  const monthlyRow = normalizedScorecard.find((row) => row.type === "Lunar" && row.date && row.date.startsWith(currentPeriod));
+  const dailyScores = normalizedScorecard
+    .filter((row) => row.type === "Zilnic")
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  const targets = monthlyRow
+    ? {
+        contacted: monthlyRow.targetContacted || defaultTargets.contacted,
+        meetings: monthlyRow.targetMeetings || defaultTargets.meetings,
+        offers: monthlyRow.targetOffers || defaultTargets.offers,
+        contracts: monthlyRow.targetContracts || defaultTargets.contracts,
+      }
+    : selectTargets(targetRecords, config);
 
   return {
     configured: true,
     companies,
     activities,
     targets,
+    dailyScores,
     connection: {
       baseId: config.baseId,
       timezone: config.timezone,
@@ -566,4 +708,5 @@ module.exports = {
   getDashboardData,
   upsertCompany,
   upsertTargets,
+  upsertScorecardTargets,
 };

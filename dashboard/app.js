@@ -18,13 +18,10 @@ const activityTheme = {
 
 const pipelineStageOptions = [
   "Necontactat",
-  "Incercam sa ajungem la decident",
-  "Discutie initiata",
-  "Meeting programat",
-  "Meeting tinut",
-  "Oferta trimisa",
+  "Contactat",
+  "Meeting",
+  "Oferta",
   "Negociere",
-  "Asteapta decizie",
   "Contract semnat",
   "Parcat",
   "Pierdut",
@@ -32,27 +29,30 @@ const pipelineStageOptions = [
 
 const pipelineStageRank = {
   Necontactat: 0,
-  "Incercam sa ajungem la decident": 1,
-  "Discutie initiata": 2,
-  "Meeting programat": 3,
-  "Meeting tinut": 4,
-  "Oferta trimisa": 5,
-  Negociere: 6,
-  "Asteapta decizie": 7,
-  "Contract semnat": 8,
+  Contactat: 1,
+  Meeting: 2,
+  Oferta: 3,
+  Negociere: 4,
+  "Contract semnat": 5,
   Parcat: -1,
   Pierdut: -2,
 };
 
+const legacyStageMap = {
+  "Incercam sa ajungem la decident": "Contactat",
+  "Discutie initiata": "Contactat",
+  "Meeting programat": "Meeting",
+  "Meeting tinut": "Meeting",
+  "Oferta trimisa": "Oferta",
+  "Asteapta decizie": "Negociere",
+};
+
 const pipelineStageTheme = {
   Necontactat: { color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
-  "Incercam sa ajungem la decident": { color: "#60a5fa", bg: "rgba(96,165,250,0.16)" },
-  "Discutie initiata": { color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
-  "Meeting programat": { color: "#fbbf24", bg: "rgba(251,191,36,0.16)" },
-  "Meeting tinut": { color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
-  "Oferta trimisa": { color: "#8b5cf6", bg: "rgba(139,92,246,0.16)" },
+  Contactat: { color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
+  Meeting: { color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
+  Oferta: { color: "#8b5cf6", bg: "rgba(139,92,246,0.16)" },
   Negociere: { color: "#a855f7", bg: "rgba(168,85,247,0.16)" },
-  "Asteapta decizie": { color: "#c084fc", bg: "rgba(192,132,252,0.16)" },
   "Contract semnat": { color: "#10b981", bg: "rgba(16,185,129,0.16)" },
   Parcat: { color: "#64748b", bg: "rgba(100,116,139,0.16)" },
   Pierdut: { color: "#ef4444", bg: "rgba(239,68,68,0.16)" },
@@ -114,6 +114,7 @@ const state = {
   manualData: loadManualData(),
   accounts: [],
   activities: [],
+  dailyScores: [],
   search: "",
   page: getPageFromHash(),
   apiEnabled: false,
@@ -126,6 +127,7 @@ const state = {
 
 const elements = {
   currentDate: document.getElementById("current-date"),
+  pacingCard: document.getElementById("pacing-card"),
   dataModePill: document.getElementById("data-mode-pill"),
   summaryChip: document.getElementById("summary-chip"),
   statusMessage: document.getElementById("status-message"),
@@ -182,6 +184,47 @@ async function init() {
   render();
 }
 
+async function submitActivityFromRaw(raw, form) {
+  if (!state.bootstrapReady) {
+    updateStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
+    return;
+  }
+  const resolution = resolveCompanyInput(raw.company);
+  if (!resolution.ok) {
+    updateStatus(resolution.message);
+    return;
+  }
+  raw.company = resolution.company;
+  const record = normalizeRow("activities", raw);
+  if (!record.company || !record.date) return;
+
+  if (state.apiEnabled) {
+    try {
+      await apiJson("/api/activities", {
+        method: "POST",
+        body: serializeActivityPayload(record),
+      });
+      await refreshData({ silent: true });
+      updateStatus(`Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}.`);
+    } catch (error) {
+      updateStatus(`Airtable nu a putut salva activitatea. ${error.message}`);
+      return;
+    }
+  } else {
+    state.manualData.activities.unshift(record);
+    syncManualAccountFromActivity(record);
+    persistManualData();
+    refreshCombinedData();
+    updateStatus(`Salvat local: ${record.company} → ${activityLabel(record.activity_type)}.`);
+  }
+
+  if (form) {
+    form.reset();
+    setDefaultFormDates();
+  }
+  render();
+}
+
 function bindEvents() {
   elements.pageButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -203,13 +246,13 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        const result = await apiJson("/api/targets", {
+        const result = await apiJson("/api/scorecard", {
           method: "PUT",
           body: payload,
         });
-        state.targets = normalizeTargets(result.targets);
+        state.targets = normalizeTargets(result.scorecard || result.targets || payload);
         refreshCombinedData();
-        updateStatus("Target-urile lunare au fost salvate in Airtable.");
+        updateStatus("Target-urile lunare au fost salvate in Scorecard (Airtable).");
         render();
         return;
       } catch (error) {
@@ -246,46 +289,36 @@ function bindEvents() {
 
   elements.forms.activity.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.bootstrapReady) {
-      updateStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
-      return;
-    }
     const form = event.currentTarget;
     const formData = new FormData(form);
     const raw = Object.fromEntries(formData.entries());
-    const resolution = resolveCompanyInput(raw.company);
-    if (!resolution.ok) {
-      updateStatus(resolution.message);
-      return;
-    }
-    raw.company = resolution.company;
-    const record = normalizeRow("activities", raw);
-    if (!record.company || !record.date) return;
-
-    if (state.apiEnabled) {
-      try {
-        await apiJson("/api/activities", {
-          method: "POST",
-          body: serializeActivityPayload(record),
-        });
-        await refreshData({ silent: true });
-        updateStatus(`Salvat in Airtable: ${record.company} -> ${activityLabel(record.activity_type)}.`);
-      } catch (error) {
-        updateStatus(`Airtable nu a putut salva activitatea. ${error.message}`);
-        return;
-      }
-    } else {
-      state.manualData.activities.unshift(record);
-      syncManualAccountFromActivity(record);
-      persistManualData();
-      refreshCombinedData();
-      updateStatus(`Salvat local: ${record.company} -> ${activityLabel(record.activity_type)}.`);
-    }
-
-    form.reset();
-    setDefaultFormDates();
-    render();
+    if (!raw.date) raw.date = new Date().toISOString().slice(0, 10);
+    await submitActivityFromRaw(raw, form);
   });
+
+  const mobileForm = document.getElementById("mobile-activity-form");
+  const mobileSheet = document.getElementById("mobile-log-sheet");
+  const fab = document.getElementById("fab-log");
+
+  if (fab && mobileSheet && mobileForm) {
+    fab.addEventListener("click", () => {
+      mobileSheet.classList.add("is-open");
+      mobileSheet.classList.remove("is-hidden");
+    });
+
+    document.getElementById("mobile-log-close")?.addEventListener("click", () => {
+      mobileSheet.classList.remove("is-open");
+    });
+
+    mobileForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(mobileForm);
+      const raw = Object.fromEntries(formData.entries());
+      raw.date = new Date().toISOString().slice(0, 10);
+      await submitActivityFromRaw(raw, null);
+      mobileSheet.classList.remove("is-open");
+    });
+  }
 
   elements.forms.account.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -415,6 +448,8 @@ async function refreshData(options = {}) {
     state.sourceData.activities = Array.isArray(payload.activities)
       ? payload.activities.map((row) => normalizeRow("activities", row))
       : [];
+
+    state.dailyScores = Array.isArray(payload.dailyScores) ? payload.dailyScores : [];
 
     if (payload.targets) {
       state.targets = normalizeTargets(payload.targets);
@@ -757,6 +792,8 @@ function normalizePipelineStage(value = "") {
   const raw = String(value || "").trim();
   if (!raw) return "";
 
+  if (legacyStageMap[raw]) return legacyStageMap[raw];
+
   const match = pipelineStageOptions.find(
     (option) => option.toLowerCase() === raw.toLowerCase()
   );
@@ -764,9 +801,9 @@ function normalizePipelineStage(value = "") {
 
   const fallback = {
     new: "Necontactat",
-    contacted: "Discutie initiata",
-    meeting: "Meeting tinut",
-    offer: "Oferta trimisa",
+    contacted: "Contactat",
+    meeting: "Meeting",
+    offer: "Oferta",
     contract_signed: "Contract semnat",
     lost: "Pierdut",
   };
@@ -793,9 +830,9 @@ function normalizeAccountHealth(value = "") {
 
 function mapActivityToPipelineStage(activityType = "") {
   const mapping = {
-    contacted: "Discutie initiata",
-    meeting: "Meeting tinut",
-    offer: "Oferta trimisa",
+    contacted: "Contactat",
+    meeting: "Meeting",
+    offer: "Oferta",
     contract_signed: "Contract semnat",
   };
   return mapping[normalizeActivity(activityType)] || "Necontactat";
@@ -843,7 +880,7 @@ function mergePipelineStage(existingStage = "", activityType = "") {
 }
 
 function isOfferStage(stage = "") {
-  return ["Oferta trimisa", "Negociere", "Asteapta decizie"].includes(normalizePipelineStage(stage));
+  return ["Oferta", "Negociere"].includes(normalizePipelineStage(stage));
 }
 
 function isPipelineOpen(stage = "") {
@@ -996,6 +1033,7 @@ function render() {
       : "Asteapta conexiunea";
   elements.summaryChip.textContent = `${state.activities.length} activitati · ${trackedCount} companii cu tracking`;
 
+  renderPacingCard();
   renderScorecards();
   renderConversions();
   renderTrend();
@@ -1005,6 +1043,64 @@ function render() {
   renderActivities();
   renderConnection();
   renderPage();
+}
+
+function getWorkingDaysInfo() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const today = now.getDate();
+  let total = 0;
+  let elapsed = 0;
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    const day = new Date(year, month, d).getDay();
+    if (day !== 0 && day !== 6) {
+      total += 1;
+      if (d <= today) elapsed += 1;
+    }
+  }
+
+  return { total: Math.max(total, 1), elapsed: Math.max(elapsed, 1) };
+}
+
+function renderPacingCard() {
+  if (!elements.pacingCard) return;
+
+  const todayCounts = countActivities(getTodayActivities());
+  const monthlyCounts = countActivities(getMonthlyActivities());
+  const { total, elapsed } = getWorkingDaysInfo();
+  const target = state.targets.contacted || 1;
+  const expectedByNow = Math.round((target / total) * elapsed);
+  const ratio = expectedByNow > 0 ? monthlyCounts.contacted / expectedByNow : 1;
+
+  let statusLabel, statusColor, pacingBg;
+  if (ratio >= 0.8) {
+    statusLabel = "Ritm OK";
+    statusColor = "#10b981";
+    pacingBg = "rgba(16,185,129,0.18)";
+  } else if (ratio >= 0.5) {
+    statusLabel = "In urma";
+    statusColor = "#f59e0b";
+    pacingBg = "rgba(245,158,11,0.18)";
+  } else {
+    statusLabel = "Sub ritm";
+    statusColor = "#ef4444";
+    pacingBg = "rgba(239,68,68,0.18)";
+  }
+
+  elements.pacingCard.style.setProperty("--pacing-bg", pacingBg);
+  elements.pacingCard.style.setProperty("--pacing-color", statusColor);
+  elements.pacingCard.innerHTML = `
+    <div class="hero-pacing-label">Ritm zilnic</div>
+    <div class="hero-pacing-number" style="color:${statusColor};">${monthlyCounts.contacted}<span class="hero-pacing-target"> / ${target}</span></div>
+    <div class="hero-pacing-status">
+      Azi: <strong>${todayCounts.contacted}</strong> contacte · <strong>${todayCounts.meeting}</strong> meetings
+      <span class="hero-pacing-badge" style="color:${statusColor}; border-color:${statusColor}33; background:${pacingBg};">${statusLabel}</span>
+    </div>
+    <div class="hero-pacing-meta">Asteptat pana azi: ${expectedByNow} · Zi lucratoare ${elapsed} din ${total}</div>
+  `;
 }
 
 function renderConnection() {
@@ -1188,13 +1284,33 @@ function buildStats(cards) {
 function renderConversions() {
   const monthlyActivities = getMonthlyActivities();
   const counts = countActivities(monthlyActivities);
+  const noResponseCount = monthlyActivities.filter(
+    (a) => a.outcome && a.outcome.toLowerCase().includes("nu raspunde")
+  ).length;
 
   const conversions = [
-    buildConversionCard("Contact -> Meeting", counts.meeting, counts.contacted),
-    buildConversionCard("Meeting -> Oferta", counts.offer, counts.meeting),
-    buildConversionCard("Oferta -> Contract", counts.contract_signed, counts.offer),
-    buildConversionCard("Contact -> Contract", counts.contract_signed, counts.contacted),
+    buildConversionCard("Contact → Meeting", counts.meeting, counts.contacted),
+    buildConversionCard("Meeting → Oferta", counts.offer, counts.meeting),
+    buildConversionCard("Oferta → Contract", counts.contract_signed, counts.offer),
+    buildConversionCard("Contact → Contract", counts.contract_signed, counts.contacted),
   ];
+
+  const responseRatePct = counts.contacted > 0
+    ? Math.round(((counts.contacted - noResponseCount) / counts.contacted) * 100)
+    : null;
+
+  const responseCard = responseRatePct !== null
+    ? `<article class="conversion-card conversion-card--response">
+        <div class="conversion-title">
+          <span>Rata raspuns contacte</span>
+          <strong style="color:${responseRatePct >= 60 ? "#2d8f57" : responseRatePct >= 40 ? "#c98622" : "#cb5846"};">${responseRatePct}%</strong>
+        </div>
+        <div class="conversion-track">
+          <div class="conversion-fill" style="width:${responseRatePct}%; background:${responseRatePct >= 60 ? "#2d8f57" : responseRatePct >= 40 ? "#c98622" : "#cb5846"};"></div>
+        </div>
+        <div class="conversion-meta"><span>${counts.contacted - noResponseCount} raspunsuri din ${counts.contacted} contacte · ${noResponseCount} "Nu raspunde"</span></div>
+      </article>`
+    : "";
 
   elements.conversionGrid.innerHTML = conversions
     .map(
@@ -1214,7 +1330,7 @@ function renderConversions() {
         </article>
       `
     )
-    .join("");
+    .join("") + responseCard;
 }
 
 function buildConversionCard(label, numerator, denominator) {
@@ -1283,20 +1399,30 @@ function renderTrend() {
 
 function getLastSevenDays() {
   const rows = [];
+  const scoreByDate = new Map(state.dailyScores.map((s) => [s.date, s]));
 
   for (let offset = 6; offset >= 0; offset -= 1) {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() - offset);
-    const activities = state.activities.filter((activity) => isSameDay(activity.date, date));
-    const counts = countActivities(activities);
+    const isoDate = date.toISOString().slice(0, 10);
+    const scoreRow = scoreByDate.get(isoDate);
+
+    let counts;
+    if (scoreRow) {
+      counts = {
+        contacted: scoreRow.contacted || 0,
+        meeting: scoreRow.meetings || 0,
+        offer: scoreRow.offers || 0,
+        contract_signed: scoreRow.contracts || 0,
+      };
+    } else {
+      counts = countActivities(state.activities.filter((activity) => isSameDay(activity.date, date)));
+    }
 
     rows.push({
       label: new Intl.DateTimeFormat("ro-RO", { day: "2-digit", month: "short" }).format(date),
-      contacted: counts.contacted,
-      meeting: counts.meeting,
-      offer: counts.offer,
-      contract_signed: counts.contract_signed,
+      ...counts,
     });
   }
 
@@ -1315,11 +1441,13 @@ function renderPipeline() {
       return rightTime - leftTime;
     });
 
+  const activeAccs = trackedAccounts.filter((account) => isPipelineOpen(account.pipeline_stage));
   const counts = {
-    active: trackedAccounts.filter((account) => isPipelineOpen(account.pipeline_stage)).length,
+    active: activeAccs.length,
     offers: trackedAccounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
     signed: trackedAccounts.filter((account) => account.pipeline_stage === "Contract semnat").length,
     parked: trackedAccounts.filter((account) => ["Parcat", "Pierdut"].includes(account.pipeline_stage)).length,
+    workersInPipeline: activeAccs.reduce((sum, a) => sum + (a.workers || 0), 0),
   };
 
   elements.pipelineSummary.innerHTML = `
@@ -1331,17 +1459,17 @@ function renderPipeline() {
     <article class="pipeline-stat-card">
       <div class="pipeline-stat-label">In oferta</div>
       <div class="pipeline-stat-value">${counts.offers}</div>
-      <div class="pipeline-stat-meta">oferte sau negociere</div>
+      <div class="pipeline-stat-meta">oferta sau negociere</div>
+    </article>
+    <article class="pipeline-stat-card">
+      <div class="pipeline-stat-label">Muncitori in pipeline</div>
+      <div class="pipeline-stat-value" style="color:var(--forest-600);">${counts.workersInPipeline}</div>
+      <div class="pipeline-stat-meta">potential din deal-uri active</div>
     </article>
     <article class="pipeline-stat-card">
       <div class="pipeline-stat-label">Semnate</div>
       <div class="pipeline-stat-value">${counts.signed}</div>
       <div class="pipeline-stat-meta">castigate</div>
-    </article>
-    <article class="pipeline-stat-card">
-      <div class="pipeline-stat-label">Parcate / pierdute</div>
-      <div class="pipeline-stat-value">${counts.parked}</div>
-      <div class="pipeline-stat-meta">inchise sau puse pe pauza</div>
     </article>
   `;
 

@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420h" />
+    <link rel="stylesheet" href="./styles.css?v=20260421a" />
   </head>
   <body>
     <div class="shell">
@@ -47,18 +47,23 @@
             </div>
           </div>
           <div class="hero-side">
-            <article class="hero-status-card hero-status-card--primary">
-              <span class="hero-status-label">Mod date</span>
-              <strong class="hero-status-value" id="data-mode-pill">Asteapta conexiunea</strong>
+            <article class="hero-pacing-card" id="pacing-card">
+              <div class="hero-pacing-label">Ritm zilnic</div>
+              <div class="hero-pacing-number">—</div>
+              <div class="hero-pacing-status">Se incarca...</div>
             </article>
             <div class="hero-status-grid">
               <article class="hero-status-card">
                 <span class="hero-status-label">Tracking</span>
-                <strong class="hero-status-value" id="summary-chip">0 activitati inregistrate</strong>
+                <strong class="hero-status-value" id="summary-chip">0 activitati</strong>
               </article>
               <article class="hero-status-card">
                 <span class="hero-status-label">Astazi</span>
                 <strong class="hero-status-value hero-status-value--date" id="current-date"></strong>
+              </article>
+              <article class="hero-status-card">
+                <span class="hero-status-label">Mod date</span>
+                <strong class="hero-status-value" id="data-mode-pill">Asteapta conexiunea</strong>
               </article>
             </div>
           </div>
@@ -133,20 +138,16 @@
 
           <form id="activity-form" class="quick-form">
             <label class="field">
-              <span>Data</span>
-              <input name="date" type="text" data-date-picker required placeholder="Alege data" />
-            </label>
-            <label class="field">
               <span>Companie</span>
               <input name="company" type="text" list="company-options" autocomplete="off" placeholder="Grow Companie" required />
             </label>
             <label class="field">
               <span>Actiune</span>
               <select name="activity_type" required>
-                <option value="contacted">contacted</option>
-                <option value="meeting">meeting</option>
-                <option value="offer">offer</option>
-                <option value="contract_signed">contract_signed</option>
+                <option value="contacted">Contactat</option>
+                <option value="meeting">Meeting</option>
+                <option value="offer">Oferta</option>
+                <option value="contract_signed">Contract semnat</option>
               </select>
             </label>
             <label class="field">
@@ -165,23 +166,32 @@
                 <option value="Pierdut la competitor">Pierdut la competitor</option>
               </select>
             </label>
-            <label class="field">
-              <span>Muncitori</span>
-              <input name="workers_delta" type="number" min="0" placeholder="0" />
-            </label>
-            <label class="field">
-              <span>Next step</span>
-              <input name="next_step" type="text" placeholder="ex: trimite oferta, suna marti" />
-            </label>
-            <label class="field">
-              <span>Data next step</span>
-              <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
-            </label>
-            <label class="field span-2">
-              <span>Note</span>
-              <input name="notes" type="text" placeholder="ex: follow-up luni, cere oferta finala, discutie buna" />
-            </label>
             <button class="primary-button save-button" type="submit">Salveaza</button>
+            <details class="form-details quick-form-details">
+              <summary>+ Detalii</summary>
+              <div class="form-details-grid">
+                <label class="field">
+                  <span>Data</span>
+                  <input name="date" type="text" data-date-picker placeholder="Alege data" />
+                </label>
+                <label class="field">
+                  <span>Muncitori</span>
+                  <input name="workers_delta" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Next step</span>
+                  <input name="next_step" type="text" placeholder="ex: trimite oferta, suna marti" />
+                </label>
+                <label class="field">
+                  <span>Data next step</span>
+                  <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
+                </label>
+                <label class="field form-details-notes">
+                  <span>Note</span>
+                  <input name="notes" type="text" placeholder="ex: follow-up luni, cere oferta finala" />
+                </label>
+              </div>
+            </details>
           </form>
 
           <p class="status-line" id="status-message">
@@ -225,13 +235,10 @@
                   <select name="pipeline_stage">
                     <option value="">-</option>
                     <option value="Necontactat">Necontactat</option>
-                    <option value="Incercam sa ajungem la decident">Incercam sa ajungem la decident</option>
-                    <option value="Discutie initiata">Discutie initiata</option>
-                    <option value="Meeting programat">Meeting programat</option>
-                    <option value="Meeting tinut">Meeting tinut</option>
-                    <option value="Oferta trimisa">Oferta trimisa</option>
+                    <option value="Contactat">Contactat</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Oferta">Oferta</option>
                     <option value="Negociere">Negociere</option>
-                    <option value="Asteapta decizie">Asteapta decizie</option>
                     <option value="Contract semnat">Contract semnat</option>
                     <option value="Parcat">Parcat</option>
                     <option value="Pierdut">Pierdut</option>
@@ -371,7 +378,7 @@
             <div class="config-card">
               <h3>Target-uri lunare</h3>
               <p class="helper">
-                Daca Airtable este conectat, salvarea merge direct in tabela Targets pentru luna curenta.
+                Daca Airtable este conectat, salvarea merge in tabela Scorecard (rand Lunar pentru luna curenta).
               </p>
               <div class="mini-grid">
                 <label class="field">
@@ -412,8 +419,48 @@
     </div>
 
     <datalist id="company-options"></datalist>
+
+    <button class="fab" id="fab-log" aria-label="Log activitate rapida" title="Log activitate (3 pasi)">+</button>
+
+    <div class="mobile-log-sheet is-hidden" id="mobile-log-sheet" role="dialog" aria-modal="true" aria-label="Log activitate rapida">
+      <div class="mobile-log-header">
+        <span class="mobile-log-title">Log rapid</span>
+        <button class="mobile-log-close ghost-button" id="mobile-log-close" type="button" aria-label="Inchide">✕</button>
+      </div>
+      <form id="mobile-activity-form" class="mobile-log-form">
+        <label class="field">
+          <span>Companie</span>
+          <input name="company" type="text" list="company-options" autocomplete="off" placeholder="Companie" required />
+        </label>
+        <label class="field">
+          <span>Actiune</span>
+          <select name="activity_type" required>
+            <option value="contacted">Contactat</option>
+            <option value="meeting">Meeting</option>
+            <option value="offer">Oferta</option>
+            <option value="contract_signed">Contract semnat</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Rezultat</span>
+          <select name="outcome">
+            <option value="">-</option>
+            <option value="Am vorbit cu decidentul">Am vorbit cu decidentul</option>
+            <option value="Nu am ajuns la decident">Nu am ajuns la decident</option>
+            <option value="Nu raspunde">Nu raspunde</option>
+            <option value="Numar gresit">Numar gresit</option>
+            <option value="Nu au nevoie acum">Nu au nevoie acum</option>
+            <option value="Revino mai tarziu">Revino mai tarziu</option>
+            <option value="Interesat">Interesat</option>
+            <option value="Asteapta oferta">Asteapta oferta</option>
+          </select>
+        </label>
+        <button class="primary-button" type="submit">Salveaza</button>
+      </form>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420h"></script>
+    <script src="./app.js?v=20260421a"></script>
   </body>
 </html>
