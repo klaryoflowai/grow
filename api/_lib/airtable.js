@@ -1,6 +1,10 @@
 const { defaultTargets, getAirtableConfig, isConfigured } = require("./config");
 const {
+  buildWeekLabel,
+  getCurrentWeekStart,
   getCurrentPeriod,
+  getWeekEnd,
+  getWeekStart,
   normalizeActivity,
   normalizePeriod,
   normalizeStatus,
@@ -278,6 +282,74 @@ function normalizeTargetsRecord(record, config) {
   };
 }
 
+function createEmptyScorecard(timezone = "Europe/Chisinau") {
+  const weekStart = getCurrentWeekStart(timezone);
+  const weekEnd = getWeekEnd(weekStart);
+  return {
+    id: "",
+    week_start: weekStart,
+    week_end: weekEnd,
+    week_key: weekStart,
+    week_label: buildWeekLabel(weekStart, weekEnd),
+    new_contract_workers_mtd: 0,
+    dream100_p1_prospects: 0,
+    sales_velocity_days: 0,
+    cold_calls: 0,
+    linkedin_messages: 0,
+    field_visits: 0,
+    meetings_set: 0,
+    offers_sent: 0,
+    contracts_signed: 0,
+    workers_signed: 0,
+    workers_delivered: 0,
+    notes: "",
+  };
+}
+
+function normalizeScorecardRecord(record, config) {
+  const fields = record.fields || {};
+  const weekStart = getWeekStart(
+    fields[config.fields.scorecard.weekStart]
+    || fields[config.fields.scorecard.weekKey]
+  );
+  const weekEnd = toIsoDate(fields[config.fields.scorecard.weekEnd]) || getWeekEnd(weekStart);
+  const weekKey = normalizeString(fields[config.fields.scorecard.weekKey]) || weekStart;
+  const weekLabel = normalizeString(fields[config.fields.scorecard.weekLabel]) || buildWeekLabel(weekStart, weekEnd);
+
+  return {
+    id: record.id,
+    week_start: weekStart,
+    week_end: weekEnd,
+    week_key: weekKey,
+    week_label: weekLabel,
+    new_contract_workers_mtd: toNumber(fields[config.fields.scorecard.newContractWorkersMtd]),
+    dream100_p1_prospects: toNumber(fields[config.fields.scorecard.dream100P1Prospects]),
+    sales_velocity_days: toNumber(fields[config.fields.scorecard.salesVelocityDays]),
+    cold_calls: toNumber(fields[config.fields.scorecard.coldCalls]),
+    linkedin_messages: toNumber(fields[config.fields.scorecard.linkedInMessages]),
+    field_visits: toNumber(fields[config.fields.scorecard.fieldVisits]),
+    meetings_set: toNumber(fields[config.fields.scorecard.meetingsSet]),
+    offers_sent: toNumber(fields[config.fields.scorecard.offersSent]),
+    contracts_signed: toNumber(fields[config.fields.scorecard.contractsSigned]),
+    workers_signed: toNumber(fields[config.fields.scorecard.workersSigned]),
+    workers_delivered: toNumber(fields[config.fields.scorecard.workersDelivered]),
+    notes: normalizeString(fields[config.fields.scorecard.notes]),
+  };
+}
+
+function selectCurrentScorecard(records, config) {
+  const currentWeekStart = getCurrentWeekStart(config.timezone);
+  const normalized = records
+    .map((record) => normalizeScorecardRecord(record, config))
+    .filter((record) => record.week_start);
+
+  const sorted = normalized.sort((left, right) => right.week_start.localeCompare(left.week_start));
+
+  return sorted.find((record) => record.week_start === currentWeekStart || record.week_key === currentWeekStart)
+    || sorted[0]
+    || createEmptyScorecard(config.timezone);
+}
+
 function selectTargets(records, config) {
   const currentPeriod = getCurrentPeriod(config.timezone);
   const normalized = records.map((record) => normalizeTargetsRecord(record, config));
@@ -501,12 +573,6 @@ async function createActivity(payload) {
   const createdRecord = await createRecord("activities", fields);
   const companyNameById = new Map([[touched.record.id, touched.normalized.company]]);
 
-  try {
-    await upsertDailyScore(activity.activity_type, activity.workers_delta);
-  } catch {
-    // daily scorecard is non-critical — don't fail the activity save
-  }
-
   return {
     activity: normalizeActivityRecord(createdRecord, config, companyNameById),
     company: touched.normalized,
@@ -537,97 +603,52 @@ async function upsertTargets(payload) {
   return normalizeTargetsRecord(record, config);
 }
 
-function normalizeScorecardRecord(record, config) {
-  const fields = record.fields || {};
-  const f = config.fields.scorecard;
-  return {
-    id: record.id,
-    type: normalizeString(fields[f.type]),
-    date: toIsoDate(fields[f.date]),
-    targetContacted: toNumber(fields[f.targetContacted]),
-    targetMeetings: toNumber(fields[f.targetMeetings]),
-    targetOffers: toNumber(fields[f.targetOffers]),
-    targetContracts: toNumber(fields[f.targetContracts]),
-    contacted: toNumber(fields[f.contacted]),
-    meetings: toNumber(fields[f.meetings]),
-    offers: toNumber(fields[f.offers]),
-    contracts: toNumber(fields[f.contracts]),
-    workers: toNumber(fields[f.workers]),
-  };
-}
-
-async function upsertScorecardTargets(payload) {
+async function upsertScorecard(payload) {
   const config = getRequiredConfig();
-  const currentPeriod = getCurrentPeriod(config.timezone);
-  const monthDate = `${currentPeriod}-01`;
-  const f = config.fields.scorecard;
+  const weekStart = getWeekStart(payload.week_start || payload.week_key || getCurrentWeekStart(config.timezone));
 
-  let scorecardRecords = [];
-  try {
-    scorecardRecords = await listRecords("scorecard");
-  } catch (error) {
-    if (error.status !== 404) throw error;
+  if (!weekStart) {
+    throw new AirtableError(400, "Scorecard-ul are nevoie de Week Start.");
   }
 
-  const existingMonthly = scorecardRecords.find((record) => {
-    const norm = normalizeScorecardRecord(record, config);
-    return norm.type === "Lunar" && norm.date && norm.date.startsWith(currentPeriod);
+  const weekEnd = getWeekEnd(weekStart);
+  const weekKey = weekStart;
+  const weekLabel = buildWeekLabel(weekStart, weekEnd);
+  const scorecardRecords = await listRecords("scorecard");
+  const existingRecord = scorecardRecords.find((record) => {
+    const normalized = normalizeScorecardRecord(record, config);
+    return normalized.week_key === weekKey || normalized.week_start === weekStart;
   });
 
   const fields = {
-    [f.type]: "Lunar",
-    [f.date]: monthDate,
-    [f.targetContacted]: toNumber(payload.contacted),
-    [f.targetMeetings]: toNumber(payload.meetings),
-    [f.targetOffers]: toNumber(payload.offers),
-    [f.targetContracts]: toNumber(payload.contracts),
+    [config.fields.scorecard.weekStart]: weekStart,
+    [config.fields.scorecard.weekEnd]: weekEnd,
+    [config.fields.scorecard.weekKey]: weekKey,
+    [config.fields.scorecard.weekLabel]: weekLabel,
+    [config.fields.scorecard.newContractWorkersMtd]: toNumber(payload.new_contract_workers_mtd),
+    [config.fields.scorecard.dream100P1Prospects]: toNumber(payload.dream100_p1_prospects),
+    [config.fields.scorecard.salesVelocityDays]: toNumber(payload.sales_velocity_days),
+    [config.fields.scorecard.coldCalls]: toNumber(payload.cold_calls),
+    [config.fields.scorecard.linkedInMessages]: toNumber(payload.linkedin_messages),
+    [config.fields.scorecard.fieldVisits]: toNumber(payload.field_visits),
+    [config.fields.scorecard.meetingsSet]: toNumber(payload.meetings_set),
+    [config.fields.scorecard.offersSent]: toNumber(payload.offers_sent),
+    [config.fields.scorecard.contractsSigned]: toNumber(payload.contracts_signed),
+    [config.fields.scorecard.workersSigned]: toNumber(payload.workers_signed),
+    [config.fields.scorecard.workersDelivered]: toNumber(payload.workers_delivered),
+    [config.fields.scorecard.notes]: normalizeString(payload.notes),
   };
 
-  const record = existingMonthly
-    ? await updateRecord("scorecard", existingMonthly.id, fields)
+  const record = existingRecord
+    ? await updateRecord("scorecard", existingRecord.id, fields)
     : await createRecord("scorecard", fields);
 
   return normalizeScorecardRecord(record, config);
 }
-
-async function upsertDailyScore(activityType, workersCount = 0) {
-  const config = getRequiredConfig();
-  const today = toIsoDate(new Date());
-  const f = config.fields.scorecard;
-
-  let scorecardRecords = [];
-  try {
-    scorecardRecords = await listRecords("scorecard");
-  } catch (error) {
-    if (error.status !== 404) throw error;
-  }
-
-  const existingDaily = scorecardRecords.find((record) => {
-    const norm = normalizeScorecardRecord(record, config);
-    return norm.type === "Zilnic" && norm.date === today;
-  });
-
-  const current = existingDaily ? normalizeScorecardRecord(existingDaily, config) : null;
-  const fields = { [f.type]: "Zilnic", [f.date]: today };
-
-  if (activityType === "contacted") fields[f.contacted] = (current?.contacted || 0) + 1;
-  else if (activityType === "meeting") fields[f.meetings] = (current?.meetings || 0) + 1;
-  else if (activityType === "offer") fields[f.offers] = (current?.offers || 0) + 1;
-  else if (activityType === "contract_signed") {
-    fields[f.contracts] = (current?.contracts || 0) + 1;
-    if (workersCount > 0) fields[f.workers] = (current?.workers || 0) + workersCount;
-  }
-
-  if (existingDaily) {
-    await updateRecord("scorecard", existingDaily.id, fields);
-  } else {
-    await createRecord("scorecard", fields);
-  }
-}
-
 async function getDashboardData() {
   const config = getAirtableConfig();
   const currentPeriod = getCurrentPeriod(config.timezone);
+  const currentWeekStart = getCurrentWeekStart(config.timezone);
 
   if (!isConfigured(config)) {
     return {
@@ -635,6 +656,8 @@ async function getDashboardData() {
       companies: [],
       activities: [],
       targets: { period: currentPeriod, ...defaultTargets },
+      scorecards: [],
+      scorecard: createEmptyScorecard(config.timezone),
       connection: {
         baseId: config.baseId || "",
         timezone: config.timezone,
@@ -661,7 +684,11 @@ async function getDashboardData() {
   try {
     scorecardRecords = await listRecords("scorecard");
   } catch (error) {
-    if (error.status !== 404) throw error;
+    if (error.status === 404) {
+      warnings.push("Tabela Scorecard nu a fost gasita. Creeaza tabela Scorecard pentru noua pagina 4DX.");
+    } else {
+      throw error;
+    }
   }
 
   const companyNameById = buildCompanyNameMap(companyRecords, config);
@@ -671,28 +698,22 @@ async function getDashboardData() {
   const activities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
-
-  const normalizedScorecard = scorecardRecords.map((record) => normalizeScorecardRecord(record, config));
-  const monthlyRow = normalizedScorecard.find((row) => row.type === "Lunar" && row.date && row.date.startsWith(currentPeriod));
-  const dailyScores = normalizedScorecard
-    .filter((row) => row.type === "Zilnic")
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
-
-  const targets = monthlyRow
-    ? {
-        contacted: monthlyRow.targetContacted || defaultTargets.contacted,
-        meetings: monthlyRow.targetMeetings || defaultTargets.meetings,
-        offers: monthlyRow.targetOffers || defaultTargets.offers,
-        contracts: monthlyRow.targetContracts || defaultTargets.contracts,
-      }
-    : selectTargets(targetRecords, config);
+  const targets = selectTargets(targetRecords, config);
+  const scorecards = scorecardRecords
+    .map((record) => normalizeScorecardRecord(record, config))
+    .filter((record) => record.week_start)
+    .sort((left, right) => right.week_start.localeCompare(left.week_start));
+  const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
+    || scorecards[0]
+    || createEmptyScorecard(config.timezone);
 
   return {
     configured: true,
     companies,
     activities,
     targets,
-    dailyScores,
+    scorecards,
+    scorecard,
     connection: {
       baseId: config.baseId,
       timezone: config.timezone,
@@ -708,6 +729,6 @@ module.exports = {
   createActivity,
   getDashboardData,
   upsertCompany,
+  upsertScorecard,
   upsertTargets,
-  upsertScorecardTargets,
 };

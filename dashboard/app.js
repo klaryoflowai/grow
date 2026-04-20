@@ -5,7 +5,25 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const appBuild = "20260420h";
+const scorecardTargets = {
+  powerThree: {
+    newContractWorkersMtd: 100,
+    dream100P1Prospects: 10,
+    salesVelocityDays: 21,
+  },
+  leadMeasures: {
+    outreach: 50,
+    fieldVisits: 5,
+    meetingsSet: 3,
+  },
+  funnel: {
+    contactToMeeting: 30,
+    meetingToOffer: 70,
+    offerToSigned: 20,
+  },
+};
+
+const appBuild = "20260420k";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -102,6 +120,7 @@ const stageOrder = {
 const storageKeys = {
   targets: "grow_dashboard_targets",
   manual: "grow_dashboard_manual_data",
+  scorecards: "grow_dashboard_scorecards",
 };
 
 const dashboardPages = new Set(["overview", "scorecard", "pipeline", "execution", "settings"]);
@@ -110,11 +129,15 @@ const state = {
   sourceData: {
     accounts: [],
     activities: [],
+    scorecards: [],
   },
   manualData: loadManualData(),
+  manualScorecards: loadScorecards(),
   accounts: [],
   activities: [],
   dailyScores: [],
+  scorecards: [],
+  scorecard: createEmptyScorecard(),
   search: "",
   page: getPageFromHash(),
   apiEnabled: false,
@@ -132,10 +155,16 @@ const elements = {
   summaryChip: document.getElementById("summary-chip"),
   statusMessage: document.getElementById("status-message"),
   retryConnection: document.getElementById("retry-connection"),
-  todayGrid: document.getElementById("today-grid"),
-  monthGrid: document.getElementById("month-grid"),
-  conversionGrid: document.getElementById("conversion-grid"),
+  scorecardWeekChip: document.getElementById("scorecard-week-chip"),
+  scorecardSourceChip: document.getElementById("scorecard-source-chip"),
+  powerThreeGrid: document.getElementById("power-three-grid"),
+  velocityFocusCard: document.getElementById("velocity-focus-card"),
+  funnelGrid: document.getElementById("funnel-grid"),
+  leadMeasuresGrid: document.getElementById("lead-measures-grid"),
+  activityRatioCard: document.getElementById("activity-ratio-card"),
+  lagFunnel: document.getElementById("lag-funnel"),
   dailyTrend: document.getElementById("daily-trend"),
+  scorecardTrendList: document.getElementById("scorecard-trend-list"),
   pipelineSummary: document.getElementById("pipeline-summary"),
   accountsTableBody: document.getElementById("accounts-table-body"),
   executionSummary: document.getElementById("execution-summary"),
@@ -149,6 +178,7 @@ const elements = {
   connectionCopy: document.getElementById("connection-copy"),
   connectionBadges: document.getElementById("connection-badges"),
   companyFormStatus: document.getElementById("company-form-status"),
+  scorecardFormStatus: document.getElementById("scorecard-form-status"),
   companyOptions: document.getElementById("company-options"),
   pageButtons: [...document.querySelectorAll("[data-page-target]")],
   pageSections: [...document.querySelectorAll("[data-page]")],
@@ -162,6 +192,7 @@ const elements = {
   forms: {
     activity: document.getElementById("activity-form"),
     account: document.getElementById("account-form"),
+    scorecard: document.getElementById("scorecard-form"),
   },
   companyInputs: [...document.querySelectorAll('input[name="company"]')],
 };
@@ -180,6 +211,7 @@ async function init() {
   initDatePickers();
   setDefaultFormDates();
   bindEvents();
+  initCompanyPickers();
   await refreshData({ silent: true });
   state.bootstrapReady = true;
   render();
@@ -247,13 +279,13 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        const result = await apiJson("/api/scorecard", {
+        const result = await apiJson("/api/targets", {
           method: "PUT",
           body: payload,
         });
-        state.targets = normalizeTargets(result.scorecard || result.targets || payload);
+        state.targets = normalizeTargets(result.targets || payload);
         refreshCombinedData();
-        updateStatus("Target-urile lunare au fost salvate in Scorecard (Airtable).");
+        updateStatus("Target-urile lunare au fost salvate in Airtable.");
         render();
         return;
       } catch (error) {
@@ -371,6 +403,45 @@ function bindEvents() {
     render();
   });
 
+  elements.forms.scorecard?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.bootstrapReady) {
+      updateScorecardStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
+      return;
+    }
+
+    const form = event.currentTarget;
+    const raw = Object.fromEntries(new FormData(form).entries());
+    const record = normalizeRow("scorecard", raw);
+
+    if (!record.week_start) {
+      updateScorecardStatus("Alege mai intai saptamana pentru care actualizezi scorecard-ul.");
+      return;
+    }
+
+    if (state.apiEnabled) {
+      try {
+        await apiJson("/api/scorecard", {
+          method: "PUT",
+          body: serializeScorecardPayload(record),
+        });
+        await refreshData({ silent: true });
+        updateScorecardStatus(`Scorecard-ul pentru ${record.week_label} a fost salvat in Airtable.`);
+      } catch (error) {
+        updateScorecardStatus(`Airtable nu a putut salva scorecard-ul. ${error.message}`);
+        return;
+      }
+    } else {
+      upsertManualScorecard(record);
+      persistScorecards();
+      refreshCombinedData();
+      updateScorecardStatus(`Scorecard-ul pentru ${record.week_label} a fost salvat local.`);
+    }
+
+    hydrateScorecardForm();
+    render();
+  });
+
   elements.resetAccount.addEventListener("click", async () => {
     const companyInput = elements.forms.account?.querySelector('input[name="company"]');
     const rawCompany = companyInput?.value || "";
@@ -422,7 +493,11 @@ function bindEvents() {
   });
 
   elements.exportMemory.addEventListener("click", () => {
-    const payload = JSON.stringify(state.manualData, null, 2);
+    const payload = JSON.stringify({
+      targets: state.targets,
+      manualData: state.manualData,
+      manualScorecards: state.manualScorecards,
+    }, null, 2);
     const blob = new Blob([payload], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -430,14 +505,19 @@ function bindEvents() {
     link.download = `grow-scorecard-memory-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    updateStatus("Fallback-ul local a fost exportat.");
+    updateStatus("Fallback-ul local a fost exportat, inclusiv scorecard-ul saptamanal.");
   });
 
   elements.clearMemory.addEventListener("click", () => {
     localStorage.removeItem(storageKeys.manual);
+    localStorage.removeItem(storageKeys.scorecards);
+    localStorage.removeItem(storageKeys.targets);
     state.manualData = { accounts: [], activities: [] };
+    state.manualScorecards = [];
+    state.targets = { ...defaultTargets };
+    hydrateInputs();
     refreshCombinedData();
-    updateStatus("Memoria locala a fost stearsa.");
+    updateStatus("Memoria locala a fost stearsa, inclusiv scorecard-ul saptamanal.");
     render();
   });
 }
@@ -457,6 +537,9 @@ async function refreshData(options = {}) {
     state.sourceData.activities = Array.isArray(payload.activities)
       ? payload.activities.map((row) => normalizeRow("activities", row))
       : [];
+    state.sourceData.scorecards = Array.isArray(payload.scorecards)
+      ? payload.scorecards.map((row) => normalizeRow("scorecard", row))
+      : [];
 
     state.dailyScores = Array.isArray(payload.dailyScores) ? payload.dailyScores : [];
 
@@ -468,6 +551,7 @@ async function refreshData(options = {}) {
     }
 
     refreshCombinedData();
+    hydrateScorecardForm();
 
     if (elements.retryConnection) elements.retryConnection.hidden = true;
     if (!silent) {
@@ -482,9 +566,10 @@ async function refreshData(options = {}) {
     state.sourceMode = "fallback";
     state.connection = null;
     state.warnings = [];
-    state.sourceData = { accounts: [], activities: [] };
+    state.sourceData = { accounts: [], activities: [], scorecards: [] };
     state.targets = loadTargets();
     refreshCombinedData();
+    hydrateScorecardForm();
 
     if (elements.retryConnection) elements.retryConnection.hidden = false;
     if (!silent) {
@@ -500,17 +585,50 @@ function hydrateInputs() {
   elements.targets.contracts.value = state.targets.contracts;
 }
 
+function hydrateScorecardForm() {
+  const form = elements.forms.scorecard;
+  const scorecard = state.scorecard || createEmptyScorecard();
+  if (!form || !scorecard) return;
+
+  const assign = (name, value) => {
+    const field = form.elements.namedItem(name);
+    if (!field) return;
+    if (field instanceof RadioNodeList) return;
+    if (field.dataset?.datePicker !== undefined) {
+      setDateFieldValue(field, value || "");
+      return;
+    }
+    field.value = value ?? "";
+  };
+
+  assign("week_start", scorecard.week_start);
+  assign("new_contract_workers_mtd", scorecard.new_contract_workers_mtd);
+  assign("dream100_p1_prospects", scorecard.dream100_p1_prospects);
+  assign("sales_velocity_days", scorecard.sales_velocity_days);
+  assign("cold_calls", scorecard.cold_calls);
+  assign("linkedin_messages", scorecard.linkedin_messages);
+  assign("field_visits", scorecard.field_visits);
+  assign("meetings_set", scorecard.meetings_set);
+  assign("offers_sent", scorecard.offers_sent);
+  assign("contracts_signed", scorecard.contracts_signed);
+  assign("workers_signed", scorecard.workers_signed);
+  assign("workers_delivered", scorecard.workers_delivered);
+  assign("notes", scorecard.notes);
+}
+
 function setDefaultFormDates() {
   const today = new Date().toISOString().slice(0, 10);
   const activityDate = elements.forms.activity?.querySelector('input[name="date"]');
   const activityNextStepDate = elements.forms.activity?.querySelector('input[name="next_step_date"]');
   const accountLastContact = elements.forms.account?.querySelector('input[name="last_contact"]');
   const accountNextStepDate = elements.forms.account?.querySelector('input[name="next_step_date"]');
+  const scorecardWeekStart = elements.forms.scorecard?.querySelector('input[name="week_start"]');
 
   if (activityDate && !activityDate.value) setDateFieldValue(activityDate, today);
   if (activityNextStepDate && !activityNextStepDate.value) setDateFieldValue(activityNextStepDate, "");
   if (accountLastContact && !accountLastContact.value) setDateFieldValue(accountLastContact, today);
   if (accountNextStepDate && !accountNextStepDate.value) setDateFieldValue(accountNextStepDate, "");
+  if (scorecardWeekStart && !scorecardWeekStart.value) setDateFieldValue(scorecardWeekStart, getWeekStart(today));
 }
 
 function initDatePickers() {
@@ -568,6 +686,42 @@ function normalizeTargets(value = {}) {
   };
 }
 
+function createEmptyScorecard(weekStart = getWeekStart(new Date().toISOString().slice(0, 10))) {
+  const normalizedWeekStart = getWeekStart(weekStart);
+  const weekEnd = getWeekEnd(normalizedWeekStart);
+  return {
+    id: "",
+    week_start: normalizedWeekStart,
+    week_end: weekEnd,
+    week_key: normalizedWeekStart,
+    week_label: buildWeekLabel(normalizedWeekStart, weekEnd),
+    new_contract_workers_mtd: 0,
+    dream100_p1_prospects: 0,
+    sales_velocity_days: 0,
+    cold_calls: 0,
+    linkedin_messages: 0,
+    field_visits: 0,
+    meetings_set: 0,
+    offers_sent: 0,
+    contracts_signed: 0,
+    workers_signed: 0,
+    workers_delivered: 0,
+    notes: "",
+  };
+}
+
+function loadScorecards() {
+  const raw = localStorage.getItem(storageKeys.scorecards);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((row) => normalizeRow("scorecard", row)) : [];
+  } catch {
+    return [];
+  }
+}
+
 function loadManualData() {
   const raw = localStorage.getItem(storageKeys.manual);
   if (!raw) return { accounts: [], activities: [] };
@@ -587,8 +741,23 @@ function persistManualData() {
   localStorage.setItem(storageKeys.manual, JSON.stringify(state.manualData));
 }
 
+function persistScorecards() {
+  localStorage.setItem(storageKeys.scorecards, JSON.stringify(state.manualScorecards));
+}
+
 function hasManualData() {
-  return Boolean(state.manualData.accounts.length || state.manualData.activities.length);
+  return Boolean(
+    state.manualData.accounts.length
+    || state.manualData.activities.length
+    || state.manualScorecards.length
+  );
+}
+
+function selectCurrentScorecard(scorecards) {
+  const currentWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
+  return scorecards.find((record) => record.week_start === currentWeekStart || record.week_key === currentWeekStart)
+    || scorecards[0]
+    || createEmptyScorecard(currentWeekStart);
 }
 
 function refreshCombinedData() {
@@ -602,6 +771,10 @@ function refreshCombinedData() {
       });
 
     state.accounts = mergeAccounts(state.sourceData.accounts, [], state.activities);
+    state.scorecards = [...state.sourceData.scorecards]
+      .filter((item) => item.week_start)
+      .sort((left, right) => right.week_start.localeCompare(left.week_start));
+    state.scorecard = selectCurrentScorecard(state.scorecards);
     updateCompanyOptions();
     return;
   }
@@ -611,10 +784,14 @@ function refreshCombinedData() {
     .sort((left, right) => {
       const leftTime = left.date ? left.date.getTime() : 0;
       const rightTime = right.date ? right.date.getTime() : 0;
-      return rightTime - leftTime;
-    });
+        return rightTime - leftTime;
+      });
 
   state.accounts = mergeAccounts([], state.manualData.accounts, state.activities);
+  state.scorecards = [...state.manualScorecards]
+    .filter((item) => item.week_start)
+    .sort((left, right) => right.week_start.localeCompare(left.week_start));
+  state.scorecard = selectCurrentScorecard(state.scorecards);
   updateCompanyOptions();
 }
 
@@ -762,6 +939,20 @@ function clearManualAccountTracking(companyName) {
   };
 }
 
+function upsertManualScorecard(record) {
+  const key = record.week_key || record.week_start;
+  const existingIndex = state.manualScorecards.findIndex((item) => (item.week_key || item.week_start) === key);
+
+  if (existingIndex >= 0) {
+    state.manualScorecards[existingIndex] = {
+      ...state.manualScorecards[existingIndex],
+      ...record,
+    };
+  } else {
+    state.manualScorecards.unshift(record);
+  }
+}
+
 function normalizeRow(kind, row) {
   if (kind === "accounts") {
     return {
@@ -774,6 +965,30 @@ function normalizeRow(kind, row) {
       next_step: row.next_step || "",
       next_step_date: parseDate(row.next_step_date),
       sector: row.sector || row.industry || "",
+      notes: row.notes || "",
+    };
+  }
+
+  if (kind === "scorecard") {
+    const weekStart = getWeekStart(row.week_start || row.weekStart || row.week_key || row.weekKey);
+    const weekEnd = getWeekEnd(weekStart || row.week_end || row.weekEnd);
+    return {
+      id: row.id || "",
+      week_start: weekStart,
+      week_end: row.week_end || row.weekEnd || weekEnd,
+      week_key: row.week_key || row.weekKey || weekStart,
+      week_label: row.week_label || row.weekLabel || buildWeekLabel(weekStart, weekEnd),
+      new_contract_workers_mtd: toNumber(row.new_contract_workers_mtd || row.newContractWorkersMtd || 0),
+      dream100_p1_prospects: toNumber(row.dream100_p1_prospects || row.dream100P1Prospects || 0),
+      sales_velocity_days: toNumber(row.sales_velocity_days || row.salesVelocityDays || 0),
+      cold_calls: toNumber(row.cold_calls || row.coldCalls || 0),
+      linkedin_messages: toNumber(row.linkedin_messages || row.linkedInMessages || 0),
+      field_visits: toNumber(row.field_visits || row.fieldVisits || 0),
+      meetings_set: toNumber(row.meetings_set || row.meetingsSet || 0),
+      offers_sent: toNumber(row.offers_sent || row.offersSent || 0),
+      contracts_signed: toNumber(row.contracts_signed || row.contractsSigned || 0),
+      workers_signed: toNumber(row.workers_signed || row.workersSigned || 0),
+      workers_delivered: toNumber(row.workers_delivered || row.workersDelivered || 0),
       notes: row.notes || "",
     };
   }
@@ -861,6 +1076,42 @@ function parseDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function getWeekStart(value) {
+  const date = parseDate(value);
+  if (!date) return "";
+  const normalized = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const mondayOffset = (normalized.getUTCDay() + 6) % 7;
+  normalized.setUTCDate(normalized.getUTCDate() - mondayOffset);
+  return normalized.toISOString().slice(0, 10);
+}
+
+function getWeekEnd(value) {
+  const weekStart = getWeekStart(value);
+  const date = parseDate(weekStart);
+  if (!date) return "";
+  date.setUTCDate(date.getUTCDate() + 6);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildWeekLabel(weekStart, weekEnd) {
+  const startDate = parseDate(weekStart);
+  const endDate = parseDate(weekEnd || getWeekEnd(weekStart));
+  if (!startDate || !endDate) return "";
+
+  const start = new Intl.DateTimeFormat("ro-RO", {
+    day: "2-digit",
+    month: "short",
+  }).format(startDate);
+
+  const end = new Intl.DateTimeFormat("ro-RO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(endDate);
+
+  return `${start} - ${end}`;
+}
+
 function toNumber(value) {
   const num = Number(String(value || "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(num) ? num : 0;
@@ -924,18 +1175,18 @@ function canonicalCompanyName(value = "") {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
 
-  const exactMatch = state.accounts.find(
-    (account) => account.company && normalizeCompanyKey(account.company) === normalizeCompanyKey(trimmed)
+  const exactMatch = getCompanyCatalog().find(
+    (company) => normalizeCompanyKey(company) === normalizeCompanyKey(trimmed)
   );
-  if (exactMatch) return exactMatch.company;
+  if (exactMatch) return exactMatch;
 
   if (trimmed.length < 3) return trimmed;
 
-  const prefixMatches = state.accounts.filter(
-    (account) => account.company && account.company.toLowerCase().startsWith(trimmed.toLowerCase())
+  const prefixMatches = getCompanyCatalog().filter(
+    (company) => company.toLowerCase().startsWith(trimmed.toLowerCase())
   );
 
-  return prefixMatches.length === 1 ? prefixMatches[0].company : trimmed;
+  return prefixMatches.length === 1 ? prefixMatches[0] : trimmed;
 }
 
 function resolveCompanyInput(value = "") {
@@ -963,15 +1214,14 @@ function resolveCompanyInput(value = "") {
     };
   }
 
-  const similar = state.accounts.filter((account) => {
-    if (!account.company) return false;
-    const company = account.company.toLowerCase();
+  const similar = getCompanyCatalog().filter((companyName) => {
+    const company = companyName.toLowerCase();
     const query = trimmed.toLowerCase();
     return company.startsWith(query) || company.includes(query);
   });
 
   if (similar.length > 1) {
-    const options = similar.slice(0, 5).map((account) => account.company).join(", ");
+    const options = similar.slice(0, 5).join(", ");
     return {
       ok: false,
       company: trimmed,
@@ -985,17 +1235,147 @@ function resolveCompanyInput(value = "") {
   };
 }
 
+function getCompanyCatalog() {
+  return [...new Set([
+    ...state.sourceData.accounts.map((account) => normalizeString(account.company)),
+    ...state.manualData.accounts.map((account) => normalizeString(account.company)),
+    ...state.accounts.map((account) => normalizeString(account.company)),
+    ...state.sourceData.activities.map((activity) => normalizeString(activity.company)),
+    ...state.manualData.activities.map((activity) => normalizeString(activity.company)),
+    ...state.activities.map((activity) => normalizeString(activity.company)),
+  ].filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, "ro"));
+}
+
+function getFilteredCompanyCatalog(query = "") {
+  const names = getCompanyCatalog();
+  const trimmedQuery = String(query || "").trim().toLowerCase();
+  if (!trimmedQuery) return names;
+
+  const prefixMatches = [];
+  const containsMatches = [];
+
+  names.forEach((name) => {
+    const normalized = name.toLowerCase();
+    if (normalized.startsWith(trimmedQuery)) {
+      prefixMatches.push(name);
+    } else if (normalized.includes(trimmedQuery)) {
+      containsMatches.push(name);
+    }
+  });
+
+  return [...prefixMatches, ...containsMatches];
+}
+
+function initCompanyPickers() {
+  elements.companyInputs.forEach((input) => {
+    const field = input.closest(".field");
+    if (!field) return;
+
+    field.classList.add("field--company");
+    input.removeAttribute("list");
+
+    let dropdown = field.querySelector(".company-suggestions");
+    if (!dropdown) {
+      dropdown = document.createElement("div");
+      dropdown.className = "company-suggestions is-hidden";
+      dropdown.setAttribute("role", "listbox");
+      dropdown.setAttribute("aria-label", "Sugestii companii");
+      field.appendChild(dropdown);
+    }
+
+    const renderSuggestions = () => {
+      const matches = getFilteredCompanyCatalog(input.value);
+
+      if (!matches.length) {
+        dropdown.innerHTML = `
+          <div class="company-suggestion company-suggestion--empty">
+            Nu exista companii potrivite in lista curenta.
+          </div>
+        `;
+        return;
+      }
+
+      dropdown.innerHTML = matches
+        .map((name) => `
+          <button class="company-suggestion" type="button" data-company="${escapeHtml(name)}">
+            <span>${escapeHtml(name)}</span>
+          </button>
+        `)
+        .join("");
+    };
+
+    const showSuggestions = () => {
+      renderSuggestions();
+      dropdown.classList.remove("is-hidden");
+      field.classList.add("has-company-suggestions");
+    };
+
+    const hideSuggestions = () => {
+      dropdown.classList.add("is-hidden");
+      field.classList.remove("has-company-suggestions");
+    };
+
+    input.addEventListener("focus", showSuggestions);
+    input.addEventListener("input", showSuggestions);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        hideSuggestions();
+      }
+    });
+    input.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (!field.contains(document.activeElement)) {
+          hideSuggestions();
+        }
+      }, 120);
+    });
+
+    dropdown.addEventListener("mousedown", (event) => {
+      const option = event.target.closest("[data-company]");
+      if (!option) return;
+
+      event.preventDefault();
+      input.value = option.dataset.company || "";
+      hideSuggestions();
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.focus();
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    elements.companyInputs.forEach((input) => {
+      const field = input.closest(".field--company");
+      const dropdown = field?.querySelector(".company-suggestions");
+      if (!field || !dropdown) return;
+      if (field.contains(event.target)) return;
+      dropdown.classList.add("is-hidden");
+      field.classList.remove("has-company-suggestions");
+    });
+  });
+}
+
 function updateCompanyOptions() {
-  const names = [...new Set(
-    state.accounts
-      .map((account) => account.company)
-      .filter(Boolean)
-      .sort((left, right) => left.localeCompare(right, "ro"))
-  )];
+  const names = getCompanyCatalog();
 
   elements.companyOptions.innerHTML = names
     .map((name) => `<option value="${escapeHtml(name)}"></option>`)
     .join("");
+
+  elements.companyInputs.forEach((input) => {
+    const field = input.closest(".field--company");
+    const dropdown = field?.querySelector(".company-suggestions");
+    if (!field || !dropdown || dropdown.classList.contains("is-hidden")) return;
+
+    const matches = getFilteredCompanyCatalog(input.value);
+    dropdown.innerHTML = matches.length
+      ? matches.map((name) => `
+          <button class="company-suggestion" type="button" data-company="${escapeHtml(name)}">
+            <span>${escapeHtml(name)}</span>
+          </button>
+        `).join("")
+      : `<div class="company-suggestion company-suggestion--empty">Nu exista companii potrivite in lista curenta.</div>`;
+  });
 }
 
 function updateStatus(message) {
@@ -1005,14 +1385,20 @@ function updateStatus(message) {
   }
 }
 
+function updateScorecardStatus(message) {
+  if (elements.scorecardFormStatus) {
+    elements.scorecardFormStatus.textContent = message;
+  }
+}
+
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#/, "").trim();
-  return dashboardPages.has(hash) ? hash : "overview";
+  return dashboardPages.has(hash) ? hash : "scorecard";
 }
 
 function setPage(page, options = {}) {
   const { syncHash = true } = options;
-  state.page = dashboardPages.has(page) ? page : "overview";
+  state.page = dashboardPages.has(page) ? page : "scorecard";
 
   if (syncHash) {
     const nextHash = `#${state.page}`;
@@ -1046,8 +1432,7 @@ function render() {
   elements.summaryChip.textContent = `${state.activities.length} activitati · ${trackedCount} companii cu tracking`;
 
   renderPacingCard();
-  renderScorecards();
-  renderConversions();
+  renderScorecardDashboard();
   renderTrend();
   renderPipeline();
   renderExecutionSummary();
@@ -1139,6 +1524,10 @@ function renderConnection() {
     chips.push(`<div class="mini-chip">Targets: ${escapeHtml(tables.targets)}</div>`);
   }
 
+  if (tables.scorecard) {
+    chips.push(`<div class="mini-chip">Scorecard: ${escapeHtml(tables.scorecard)}</div>`);
+  }
+
   chips.push(`<div class="mini-chip">Build: ${appBuild}</div>`);
   chips.push(`<div class="mini-chip">Host: ${escapeHtml(window.location.host)}</div>`);
 
@@ -1156,12 +1545,415 @@ function renderConnection() {
 
   elements.connectionCopy.textContent = state.apiEnabled
     ? "Baza Grow este conectata. Formularele de mai sus scriu direct in Airtable prin endpoint-urile Vercel."
-    : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile si target-urile.";
+    : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile, target-urile si scorecard-ul saptamanal.";
 
   elements.connectionBadges.innerHTML = `
     <div class="chip-wrap">${chips.join("")}</div>
     ${warnings}
   `;
+}
+
+function renderScorecardDashboard() {
+  if (!elements.powerThreeGrid) return;
+
+  const scorecard = state.scorecard || createEmptyScorecard();
+  const metrics = getScorecardMetrics(scorecard);
+  const historyCount = state.scorecards.length;
+
+  if (elements.scorecardWeekChip) {
+    elements.scorecardWeekChip.textContent = scorecard.week_label || "Saptamana curenta";
+  }
+
+  if (elements.scorecardSourceChip) {
+    elements.scorecardSourceChip.textContent = state.apiEnabled
+      ? `Airtable live · ${historyCount || 1} saptamani`
+      : historyCount
+        ? `Fallback local · ${historyCount} saptamani`
+        : "Pregatit pentru tabela Scorecard";
+  }
+
+  elements.powerThreeGrid.innerHTML = [
+    buildPowerThreeCard({
+      eyebrow: "Critical Number",
+      label: "Contracte Noi (Volume)",
+      value: scorecard.new_contract_workers_mtd,
+      suffix: "muncitori",
+      target: scorecardTargets.powerThree.newContractWorkersMtd,
+      tone: "#2d8f57",
+      soft: "#e5f3eb",
+      icon: "volume",
+      note: "numarul total de muncitori semnati in contracte noi, luna curenta",
+    }),
+    buildPowerThreeCard({
+      eyebrow: "Lead Measure",
+      label: "Prospectare Dream 100",
+      value: scorecard.dream100_p1_prospects,
+      suffix: "companii P1",
+      target: scorecardTargets.powerThree.dream100P1Prospects,
+      tone: "#2f6ea2",
+      soft: "#e4eef7",
+      icon: "target",
+      note: "companii P1 noi abordate saptamana aceasta",
+    }),
+    buildPowerThreeCard({
+      eyebrow: "Sales Velocity",
+      label: "Lead la Contract Semnat",
+      value: scorecard.sales_velocity_days,
+      suffix: "zile",
+      target: scorecardTargets.powerThree.salesVelocityDays,
+      tone: metrics.velocityTone,
+      soft: metrics.velocitySoft,
+      icon: "speed",
+      inverse: true,
+      note: "media de zile de la lead la contract semnat",
+    }),
+  ].join("");
+
+  elements.velocityFocusCard.innerHTML = buildVelocityFocus(scorecard, metrics);
+  elements.funnelGrid.innerHTML = [
+    buildConversionCard4dx("Contact -> Meeting", metrics.contactToMeeting, scorecardTargets.funnel.contactToMeeting),
+    buildConversionCard4dx("Meeting -> Oferta", metrics.meetingToOffer, scorecardTargets.funnel.meetingToOffer),
+    buildConversionCard4dx("Oferta -> Semnat", metrics.offerToSigned, scorecardTargets.funnel.offerToSigned),
+  ].join("");
+
+  elements.leadMeasuresGrid.innerHTML = [
+    buildLeadMeasureCard({
+      icon: "phone",
+      label: "Contacte Reci (Outreach)",
+      value: metrics.outreachTotal,
+      target: scorecardTargets.leadMeasures.outreach,
+      tone: "#2f6ea2",
+      detail: `${scorecard.cold_calls} cold calls · ${scorecard.linkedin_messages} LinkedIn`,
+    }),
+    buildLeadMeasureCard({
+      icon: "field",
+      label: "Vizite in teren / networking",
+      value: scorecard.field_visits,
+      target: scorecardTargets.leadMeasures.fieldVisits,
+      tone: "#5c7796",
+      detail: "prezenta fizica in sedii, santiere sau evenimente",
+    }),
+    buildLeadMeasureCard({
+      icon: "meeting",
+      label: "Meetings stabilite",
+      value: scorecard.meetings_set,
+      target: scorecardTargets.leadMeasures.meetingsSet,
+      tone: "#6f8aa6",
+      detail: "intalniri de calificare confirmate",
+    }),
+  ].join("");
+
+  elements.activityRatioCard.innerHTML = buildActivityRatioCard(scorecard, metrics);
+  elements.lagFunnel.innerHTML = buildLagFunnel(scorecard, metrics);
+  elements.scorecardTrendList.innerHTML = buildScorecardTrendList(state.scorecards);
+}
+
+function getScorecardMetrics(scorecard) {
+  const outreachTotal = scorecard.cold_calls + scorecard.linkedin_messages;
+  const contactToMeeting = buildRateMetric(scorecard.meetings_set, scorecard.dream100_p1_prospects);
+  const meetingToOffer = buildRateMetric(scorecard.offers_sent, scorecard.meetings_set);
+  const offerToSigned = buildRateMetric(scorecard.contracts_signed, scorecard.offers_sent);
+  const activityRatio = scorecard.meetings_set ? outreachTotal / scorecard.meetings_set : 0;
+  const bottleneck = [contactToMeeting, meetingToOffer, offerToSigned]
+    .filter((item) => item.hasBase)
+    .sort((left, right) => left.value - right.value)[0];
+  const velocityGood = scorecard.sales_velocity_days > 0 && scorecard.sales_velocity_days <= scorecardTargets.powerThree.salesVelocityDays;
+
+  return {
+    outreachTotal,
+    contactToMeeting,
+    meetingToOffer,
+    offerToSigned,
+    activityRatio,
+    bottleneck,
+    velocityTone: velocityGood ? "#2d8f57" : scorecard.sales_velocity_days ? "#c98622" : "#93a08f",
+    velocitySoft: velocityGood ? "#e5f3eb" : scorecard.sales_velocity_days ? "#f7ecd5" : "#eef1eb",
+  };
+}
+
+function buildRateMetric(numerator, denominator) {
+  const hasBase = denominator > 0;
+  const value = hasBase ? Math.round((numerator / denominator) * 100) : 0;
+  return {
+    hasBase,
+    numerator,
+    denominator,
+    value,
+  };
+}
+
+function buildPowerThreeCard(options) {
+  const progress = options.inverse
+    ? progressAgainstMax(options.value, options.target)
+    : progressAgainstTarget(options.value, options.target);
+  const progressText = options.inverse
+    ? options.value
+      ? `${options.value} zile vs target < ${options.target}`
+      : `target < ${options.target} zile`
+    : `${options.value} din ${options.target}`;
+
+  return `
+    <article class="power-card" style="--metric-accent:${options.tone}; --metric-soft:${options.soft};">
+      <div class="power-card-head">
+        <div class="metric-icon">${scorecardIcon(options.icon)}</div>
+        <div class="metric-kicker">${options.eyebrow}</div>
+      </div>
+      <div class="metric-title">${options.label}</div>
+      <div class="metric-value-row">
+        <div class="metric-value">${options.value}</div>
+        <div class="metric-suffix">${options.suffix}</div>
+      </div>
+      <div class="metric-note">${options.note}</div>
+      <div class="metric-progress">
+        <div class="metric-progress-track">
+          <div class="metric-progress-fill" style="width:${progress}%;"></div>
+        </div>
+        <div class="metric-progress-meta">
+          <span>${progressText}</span>
+          <strong>${progress}%</strong>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function buildVelocityFocus(scorecard, metrics) {
+  const conversionCount = [
+    `${metrics.contactToMeeting.value}% contact -> meeting`,
+    `${metrics.meetingToOffer.value}% meeting -> oferta`,
+    `${metrics.offerToSigned.value}% oferta -> semnat`,
+  ];
+
+  return `
+    <article class="velocity-card" style="--metric-accent:${metrics.velocityTone}; --metric-soft:${metrics.velocitySoft};">
+      <div class="metric-kicker">Sales Velocity</div>
+      <div class="velocity-value">${scorecard.sales_velocity_days || "-"}</div>
+      <div class="velocity-subcopy">zile medie de la lead la contract semnat</div>
+      <div class="velocity-status">
+        <span class="metric-chip">${scorecard.sales_velocity_days && scorecard.sales_velocity_days <= scorecardTargets.powerThree.salesVelocityDays ? "In target" : "Sub observatie"}</span>
+        <span>Target: &lt; ${scorecardTargets.powerThree.salesVelocityDays} zile</span>
+      </div>
+      <div class="velocity-foot">${conversionCount.join(" · ")}</div>
+    </article>
+  `;
+}
+
+function buildConversionCard4dx(label, metric, target) {
+  const color = !metric.hasBase
+    ? "#93a08f"
+    : metric.value >= target
+      ? "#2d8f57"
+      : metric.value >= Math.max(10, target - 15)
+        ? "#c98622"
+        : "#cb5846";
+  const soft = !metric.hasBase
+    ? "#eef1eb"
+    : metric.value >= target
+      ? "#e5f3eb"
+      : metric.value >= Math.max(10, target - 15)
+        ? "#f7ecd5"
+        : "#fbe8e4";
+
+  return `
+    <article class="conversion-card conversion-card--4dx">
+      <div class="conversion-title">
+        <span>${label}</span>
+        <strong style="color:${color};">${metric.hasBase ? `${metric.value}%` : "-"}</strong>
+      </div>
+      <div class="conversion-track">
+        <div class="conversion-fill" style="width:${metric.hasBase ? Math.min(metric.value, 100) : 0}%; background:${color};"></div>
+      </div>
+      <div class="conversion-meta">
+        <span>${metric.hasBase ? `${metric.numerator} din ${metric.denominator}` : "Fara baza suficienta in saptamana curenta."}</span>
+        <span class="conversion-badge" style="color:${color}; background:${soft};">Target ${target}%</span>
+      </div>
+    </article>
+  `;
+}
+
+function buildLeadMeasureCard(options) {
+  const progress = progressAgainstTarget(options.value, options.target);
+  return `
+    <article class="measure-card measure-card--lead" style="--metric-accent:${options.tone};">
+      <div class="measure-head">
+        <div class="metric-icon metric-icon--lead">${scorecardIcon(options.icon)}</div>
+        <div class="metric-title">${options.label}</div>
+      </div>
+      <div class="measure-value-row">
+        <div class="measure-value">${options.value}</div>
+        <div class="measure-target">target ${options.target}</div>
+      </div>
+      <div class="metric-note">${options.detail}</div>
+      <div class="metric-progress">
+        <div class="metric-progress-track">
+          <div class="metric-progress-fill" style="width:${progress}%; background:${options.tone};"></div>
+        </div>
+        <div class="metric-progress-meta">
+          <span>progres saptamanal</span>
+          <strong>${progress}%</strong>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function buildActivityRatioCard(scorecard, metrics) {
+  const ratioText = scorecard.meetings_set
+    ? `${metrics.activityRatio.toFixed(1)} contacte pentru 1 meeting`
+    : "Nu exista meetings suficiente pentru a calcula raportul.";
+  const bottleneckCopy = metrics.bottleneck?.hasBase
+    ? `Cel mai slab punct acum: ${
+        metrics.bottleneck === metrics.contactToMeeting
+          ? "Contact -> Meeting"
+          : metrics.bottleneck === metrics.meetingToOffer
+            ? "Meeting -> Oferta"
+            : "Oferta -> Semnat"
+      } (${metrics.bottleneck.value}%).`
+    : "Completeaza saptamana curenta pentru a vedea bottleneck-ul principal.";
+
+  return `
+    <article class="ratio-card-shell">
+      <div class="metric-kicker">Activity Ratio</div>
+      <div class="ratio-value">${scorecard.meetings_set ? metrics.activityRatio.toFixed(1) : "-"}</div>
+      <div class="metric-note">${ratioText}</div>
+      <div class="ratio-foot">${bottleneckCopy}</div>
+    </article>
+  `;
+}
+
+function buildLagFunnel(scorecard, metrics) {
+  const funnelStages = [
+    {
+      label: "Dream100 P1 noi",
+      value: scorecard.dream100_p1_prospects,
+      width: 100,
+      note: "punctul de intrare in palnie",
+      tone: "#2f6ea2",
+      bottleneck: false,
+    },
+    {
+      label: "Meetings stabilite",
+      value: scorecard.meetings_set,
+      width: 82,
+      note: `${metrics.contactToMeeting.hasBase ? `${metrics.contactToMeeting.value}% din prospectarea P1` : "asteapta date"}`,
+      tone: metrics.bottleneck === metrics.contactToMeeting ? "#cb5846" : "#55779e",
+      bottleneck: metrics.bottleneck === metrics.contactToMeeting,
+    },
+    {
+      label: "Oferte trimise",
+      value: scorecard.offers_sent,
+      width: 66,
+      note: `${metrics.meetingToOffer.hasBase ? `${metrics.meetingToOffer.value}% din meetings` : "asteapta date"}`,
+      tone: metrics.bottleneck === metrics.meetingToOffer ? "#cb5846" : "#c38b2a",
+      bottleneck: metrics.bottleneck === metrics.meetingToOffer,
+    },
+    {
+      label: "Contracte semnate",
+      value: scorecard.contracts_signed,
+      width: 52,
+      note: `${metrics.offerToSigned.hasBase ? `${metrics.offerToSigned.value}% din oferte` : "asteapta date"}`,
+      tone: metrics.bottleneck === metrics.offerToSigned ? "#cb5846" : "#2d8f57",
+      bottleneck: metrics.bottleneck === metrics.offerToSigned,
+    },
+  ];
+
+  const outcomeCards = [
+    {
+      icon: "workers",
+      label: "Volum muncitori semnati",
+      value: scorecard.workers_signed,
+      note: "indicator de scalabilitate",
+      tone: "#2d8f57",
+    },
+    {
+      icon: "plane",
+      label: "Muncitori livrati",
+      value: scorecard.workers_delivered,
+      note: "indicator de finalitate",
+      tone: "#c38b2a",
+    },
+  ];
+
+  return `
+    <div class="lag-funnel-stages">
+      ${funnelStages.map((stage) => `
+        <article class="lag-stage ${stage.bottleneck ? "is-bottleneck" : ""}" style="--stage-width:${stage.width}%; --stage-accent:${stage.tone};">
+          <div class="lag-stage-body">
+            <div class="lag-stage-head">
+              <span>${stage.label}</span>
+              <strong>${stage.value}</strong>
+            </div>
+            <div class="lag-stage-note">${stage.note}${stage.bottleneck ? " · bottleneck curent" : ""}</div>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+    <div class="lag-outcome-grid">
+      ${outcomeCards.map((card) => `
+        <article class="lag-outcome-card" style="--metric-accent:${card.tone};">
+          <div class="metric-icon metric-icon--lag">${scorecardIcon(card.icon)}</div>
+          <div class="lag-outcome-value">${card.value}</div>
+          <div class="lag-outcome-label">${card.label}</div>
+          <div class="metric-note">${card.note}</div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function buildScorecardTrendList(scorecards) {
+  const rows = scorecards.slice(0, 6);
+  if (!rows.length) {
+    return `<article class="empty-card">Nu exista saptamani salvate in tabela Scorecard inca.</article>`;
+  }
+
+  const maxWorkers = Math.max(...rows.map((row) => row.workers_signed), 1);
+
+  return rows.map((row) => {
+    const width = Math.max((row.workers_signed / maxWorkers) * 100, row.workers_signed ? 12 : 4);
+    return `
+      <article class="weekly-trend-row">
+        <div class="weekly-trend-head">
+          <strong>${escapeHtml(row.week_label)}</strong>
+          <span>${row.new_contract_workers_mtd} muncitori MTD</span>
+        </div>
+        <div class="weekly-trend-bar">
+          <div class="weekly-trend-fill" style="width:${width}%;"></div>
+        </div>
+        <div class="weekly-trend-copy">
+          <span>${row.dream100_p1_prospects} P1</span>
+          <span>${row.contracts_signed} contracte</span>
+          <span>${row.workers_signed} muncitori semnati</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function progressAgainstTarget(value, target) {
+  if (!target) return 0;
+  return Math.max(0, Math.min(100, Math.round((value / target) * 100)));
+}
+
+function progressAgainstMax(value, target) {
+  if (!value || !target) return 0;
+  if (value <= target) return 100;
+  return Math.max(0, Math.min(100, Math.round((target / value) * 100)));
+}
+
+function scorecardIcon(name) {
+  const icons = {
+    volume: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17h16M6 13h3l2-5 3 9 2-4h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    target: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M22 12h-3M12 22v-3M2 12h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+    speed: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 15l4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6 19h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+    phone: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h3l1 4-2 2a14 14 0 0 0 5 5l2-2 4 1v3c0 1-1 2-2 2A16 16 0 0 1 5 6c0-1 1-2 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+    field: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5 6-10a6 6 0 1 0-12 0c0 5 6 10 6 10Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="11" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`,
+    meeting: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v6M16 3v6M4 10h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+    workers: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm10 0a4 4 0 1 1 0-8 4 4 0 0 1 0 8ZM3 21c1.2-2 3-3 4-3s2.8 1 4 3M13 21c1.2-2 3-3 4-3s2.8 1 4 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    plane: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13 21 4l-5 16-3-5-5-2-5 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M13 15 21 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  };
+
+  return icons[name] || icons.target;
 }
 
 function getTodayActivities() {
@@ -1385,6 +2177,7 @@ function buildConversionCard(label, numerator, denominator) {
 }
 
 function renderTrend() {
+  if (!elements.dailyTrend) return;
   const series = getLastSevenDays();
   const maxContacts = Math.max(...series.map((day) => day.contacted), 1);
 
@@ -1907,6 +2700,25 @@ function serializeCompanyPayload(record, raw = {}) {
   }
 
   return payload;
+}
+
+function serializeScorecardPayload(record) {
+  return {
+    week_start: record.week_start,
+    week_key: record.week_key,
+    new_contract_workers_mtd: record.new_contract_workers_mtd,
+    dream100_p1_prospects: record.dream100_p1_prospects,
+    sales_velocity_days: record.sales_velocity_days,
+    cold_calls: record.cold_calls,
+    linkedin_messages: record.linkedin_messages,
+    field_visits: record.field_visits,
+    meetings_set: record.meetings_set,
+    offers_sent: record.offers_sent,
+    contracts_signed: record.contracts_signed,
+    workers_signed: record.workers_signed,
+    workers_delivered: record.workers_delivered,
+    notes: record.notes,
+  };
 }
 
 function escapeHtml(value) {

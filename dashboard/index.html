@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260421a" />
+    <link rel="stylesheet" href="./styles.css?v=20260420k" />
   </head>
   <body>
     <div class="shell">
@@ -72,8 +72,8 @@
           <strong>Zone dashboard</strong>
         </div>
         <nav class="page-nav" aria-label="Navigatie dashboard">
-          <button class="page-tab is-active" type="button" data-page-target="overview">Panou</button>
-          <button class="page-tab" type="button" data-page-target="scorecard">Scorecard</button>
+          <button class="page-tab is-active" type="button" data-page-target="scorecard">Scorecard</button>
+          <button class="page-tab" type="button" data-page-target="overview">Panou</button>
           <button class="page-tab" type="button" data-page-target="pipeline">Pipeline</button>
           <button class="page-tab" type="button" data-page-target="execution">Cadenta</button>
           <button class="page-tab" type="button" data-page-target="settings">Setari</button>
@@ -84,35 +84,56 @@
         <section class="panel span-12" data-page="scorecard">
           <div class="panel-header">
             <div>
-              <p class="section-label">Scorecard</p>
-              <h2>Ritm, conversie si progres</h2>
-              <p class="panel-copy">Pagina dedicata pentru citirea cifrelor de azi si a semnalelor comerciale din luna curenta.</p>
+              <p class="section-label">4DX Weekly Scorecard</p>
+              <h2>The Power Three</h2>
+              <p class="panel-copy">Cele trei cifre care spun daca motorul comercial accelereaza sau doar produce activitate fara contracte.</p>
+            </div>
+            <div class="scorecard-hero-meta">
+              <div class="mini-chip" id="scorecard-week-chip">Saptamana curenta</div>
+              <div class="mini-chip" id="scorecard-source-chip">Asteapta sincronizarea</div>
             </div>
           </div>
-
-          <div class="score-block">
-            <p class="score-title">Azi</p>
-            <div id="today-grid" class="score-grid"></div>
-          </div>
-
-          <div class="score-block">
-            <p class="score-title">Luna curenta</p>
-            <div id="month-grid" class="score-grid"></div>
-          </div>
+          <div id="power-three-grid" class="power-three-grid"></div>
         </section>
 
-        <section class="panel span-4" data-page="scorecard">
+        <section class="panel span-12" data-page="scorecard">
           <div class="panel-header">
             <div>
-              <p class="section-label">Conversie</p>
-              <h2>Raportul dintre etape</h2>
-              <p class="panel-copy">Vezi unde se pierde tractiunea dintre contact, oferta si contract.</p>
+              <p class="section-label">Eficienta si viteza</p>
+              <h2>Velocity si funnel efficiency</h2>
+              <p class="panel-copy">Aici vezi daca semnarea se misca repede si in ce punct din proces cade cea mai mare parte din conversie.</p>
             </div>
           </div>
-          <div id="conversion-grid" class="stack"></div>
+          <div class="velocity-layout">
+            <div id="velocity-focus-card" class="velocity-focus-card"></div>
+            <div id="funnel-grid" class="funnel-grid"></div>
+          </div>
         </section>
 
-        <section class="panel span-8" data-page="scorecard">
+        <section class="panel span-5" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Lead Measures</p>
+              <h2>Motorul saptamanii</h2>
+              <p class="panel-copy">Indicatorii pe care ii poti controla direct si care imping inainte rezultatele comerciale.</p>
+            </div>
+          </div>
+          <div id="lead-measures-grid" class="measure-grid measure-grid--lead"></div>
+          <div id="activity-ratio-card" class="ratio-card"></div>
+        </section>
+
+        <section class="panel span-7" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Lag Measures</p>
+              <h2>Pâlnia de output si bottleneck</h2>
+              <p class="panel-copy">O vedere de tip pâlnie ca sa observi rapid unde se ingusteaza vanzarile si unde conversia devine fragila.</p>
+            </div>
+          </div>
+          <div id="lag-funnel" class="lag-funnel"></div>
+        </section>
+
+        <section class="panel span-7" data-page="scorecard">
           <div class="panel-header">
             <div>
               <p class="section-label">Trend</p>
@@ -120,7 +141,88 @@
               <p class="panel-copy">Semnal de executie pentru ritmul comercial din ultima saptamana.</p>
             </div>
           </div>
-          <div id="daily-trend" class="trend-list"></div>
+          <div id="daily-trend" class="trend-list trend-list--daily"></div>
+        </section>
+
+        <section class="panel span-5" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Trend saptamanal</p>
+              <h2>Evolutia ultimelor saptamani</h2>
+              <p class="panel-copy">Istoricul saptamanal vine din tabela Scorecard din Airtable si te ajuta sa vezi trendul real de o saptamana la alta.</p>
+            </div>
+          </div>
+          <div id="scorecard-trend-list" class="trend-list trend-list--weekly"></div>
+        </section>
+
+        <section class="panel span-12" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Update manual</p>
+              <h2>Completeaza scorecard-ul de vineri</h2>
+              <p class="panel-copy">Fiecare rand din Airtable reprezinta o saptamana. Completezi cifrele o singura data si pagina se actualizeaza din aceeasi sursa.</p>
+            </div>
+          </div>
+          <form id="scorecard-form" class="scorecard-form">
+            <div class="scorecard-form-grid">
+              <label class="field">
+                <span>Week Start</span>
+                <input name="week_start" type="text" data-date-picker required placeholder="Alege luni" />
+              </label>
+              <label class="field">
+                <span>Contracte Noi MTD (muncitori)</span>
+                <input name="new_contract_workers_mtd" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Dream100 P1 noi abordate</span>
+                <input name="dream100_p1_prospects" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Sales Velocity (zile)</span>
+                <input name="sales_velocity_days" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Cold Calls</span>
+                <input name="cold_calls" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>LinkedIn Messages</span>
+                <input name="linkedin_messages" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Vizite in teren</span>
+                <input name="field_visits" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Meetings stabilite</span>
+                <input name="meetings_set" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Oferte trimise</span>
+                <input name="offers_sent" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Contracte semnate</span>
+                <input name="contracts_signed" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Muncitori semnati</span>
+                <input name="workers_signed" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Muncitori livrati</span>
+                <input name="workers_delivered" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field span-2">
+                <span>Note</span>
+                <textarea name="notes" rows="4" placeholder="Observatii de vineri, blocaje, pattern-uri sau schimbari importante"></textarea>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="secondary-button" type="submit">Salveaza scorecard-ul</button>
+            </div>
+          </form>
+          <p class="status-line" id="scorecard-form-status"></p>
         </section>
 
         <section class="panel span-12" data-page="overview">
@@ -462,6 +564,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260421a"></script>
+    <script src="./app.js?v=20260420k"></script>
   </body>
 </html>
