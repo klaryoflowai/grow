@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420s" />
+    <link rel="stylesheet" href="./styles.css?v=20260420t" />
   </head>
   <body>
     <div class="shell">
@@ -190,8 +190,9 @@
                 <input name="dream100_p1_prospects" type="number" min="0" placeholder="0" />
               </label>
               <label class="field">
-                <span>Sales Velocity (zile)</span>
-                <input name="sales_velocity_days" type="number" min="0" placeholder="0" />
+                <span>Sales Velocity (calcul automat)</span>
+                <input name="sales_velocity_days" type="number" min="0" placeholder="calcul automat" readonly />
+                <small class="field-help">Se calculeaza din Activities: prima activitate live dupa ultimul contract pana la contractul semnat din saptamana aleasa.</small>
               </label>
               <label class="field">
                 <span>Cold Calls</span>
@@ -693,6 +694,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420s"></script>
+    <script src="./app.js?v=20260420t"></script>
   </body>
 </html>

@@ -641,6 +641,12 @@ h3 {
   font-weight: 600;
 }
 
+.field-help {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 .fieldset-reset {
   margin: 0;
   padding: 0;
@@ -675,6 +681,11 @@ h3 {
   border-color: rgba(43, 109, 66, 0.28);
   box-shadow: 0 0 0 4px rgba(43, 109, 66, 0.08);
   background: #fffdf8;
+}
+
+.field input[readonly] {
+  background: rgba(245, 239, 230, 0.72);
+  color: var(--muted-strong);
 }
 
 .field .flatpickr-input {

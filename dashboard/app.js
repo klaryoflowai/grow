@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260420s";
+const appBuild = "20260420t";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -491,7 +491,7 @@ function bindEvents() {
 
     const form = event.currentTarget;
     const raw = Object.fromEntries(new FormData(form).entries());
-    const record = normalizeRow("scorecard", raw);
+    const record = applyComputedScorecardFields(normalizeRow("scorecard", raw));
 
     if (!record.week_start) {
       updateScorecardStatus("Alege mai intai saptamana pentru care actualizezi scorecard-ul.");
@@ -776,6 +776,10 @@ function hydrateScorecardForm() {
       setDateFieldValue(field, value || "");
       return;
     }
+    if (name === "sales_velocity_days") {
+      field.value = value ? value : "";
+      return;
+    }
     field.value = value ?? "";
   };
 
@@ -992,7 +996,7 @@ function selectCurrentScorecard(scorecards) {
   const currentWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
   return scorecards.find((record) => record.week_start === currentWeekStart || record.week_key === currentWeekStart)
     || scorecards[0]
-    || createEmptyScorecard(currentWeekStart);
+    || applyComputedScorecardFields(createEmptyScorecard(currentWeekStart));
 }
 
 function refreshCombinedData() {
@@ -1008,6 +1012,7 @@ function refreshCombinedData() {
     state.accounts = mergeAccounts(state.sourceData.accounts, [], state.activities);
     state.scorecards = [...state.sourceData.scorecards]
       .filter((item) => item.week_start)
+      .map((item) => applyComputedScorecardFields(item, state.activities))
       .sort((left, right) => right.week_start.localeCompare(left.week_start));
     state.scorecard = selectCurrentScorecard(state.scorecards);
     state.dailyScores = [...state.sourceData.dailyScores]
@@ -1028,6 +1033,7 @@ function refreshCombinedData() {
   state.accounts = mergeAccounts([], state.manualData.accounts, state.activities);
   state.scorecards = [...state.manualScorecards]
     .filter((item) => item.week_start)
+    .map((item) => applyComputedScorecardFields(item, state.activities))
     .sort((left, right) => right.week_start.localeCompare(left.week_start));
   state.scorecard = selectCurrentScorecard(state.scorecards);
   state.dailyScores = [...state.manualData.dailyScores]
@@ -2206,14 +2212,14 @@ function renderScorecardDashboard() {
     buildPowerThreeCard({
       eyebrow: "Sales Velocity",
       label: "Lead la Contract Semnat",
-      value: scorecard.sales_velocity_days,
+      value: metrics.velocityDays,
       suffix: "zile",
       target: scorecardTargets.powerThree.salesVelocityDays,
       tone: metrics.velocityTone,
       soft: metrics.velocitySoft,
       icon: "speed",
       inverse: true,
-      note: "media de zile de la lead la contract semnat",
+      note: "media de zile de la prima activitate live la contract semnat",
     }),
   ].join("");
 
@@ -2319,6 +2325,7 @@ function getWigMetrics(scorecard) {
 }
 
 function getScorecardMetrics(scorecard) {
+  const velocity = getVelocityMetricForScorecard(scorecard);
   const outreachTotal = scorecard.cold_calls + scorecard.linkedin_messages;
   const contactToMeeting = buildRateMetric(scorecard.meetings_set, scorecard.dream100_p1_prospects);
   const meetingToOffer = buildRateMetric(scorecard.offers_sent, scorecard.meetings_set);
@@ -2327,7 +2334,7 @@ function getScorecardMetrics(scorecard) {
   const bottleneck = [contactToMeeting, meetingToOffer, offerToSigned]
     .filter((item) => item.hasBase)
     .sort((left, right) => left.value - right.value)[0];
-  const velocityGood = scorecard.sales_velocity_days > 0 && scorecard.sales_velocity_days <= scorecardTargets.powerThree.salesVelocityDays;
+  const velocityGood = velocity.averageDays > 0 && velocity.averageDays <= scorecardTargets.powerThree.salesVelocityDays;
 
   return {
     outreachTotal,
@@ -2336,8 +2343,106 @@ function getScorecardMetrics(scorecard) {
     offerToSigned,
     activityRatio,
     bottleneck,
-    velocityTone: velocityGood ? "#2d8f57" : scorecard.sales_velocity_days ? "#c98622" : "#93a08f",
-    velocitySoft: velocityGood ? "#e5f3eb" : scorecard.sales_velocity_days ? "#f7ecd5" : "#eef1eb",
+    velocityDays: velocity.averageDays,
+    velocitySampleSize: velocity.sampleSize,
+    velocityTone: velocityGood ? "#2d8f57" : velocity.averageDays ? "#c98622" : "#93a08f",
+    velocitySoft: velocityGood ? "#e5f3eb" : velocity.averageDays ? "#f7ecd5" : "#eef1eb",
+  };
+}
+
+function isLiveActivityEntry(activity = {}) {
+  return normalizeActivity(activity.activity_type) !== "planned";
+}
+
+function buildSalesCyclesFromActivities(activities = []) {
+  const sorted = [...activities]
+    .filter((activity) => activity.company && activity.date)
+    .sort((left, right) => {
+      const leftTime = left.date?.getTime?.() || 0;
+      const rightTime = right.date?.getTime?.() || 0;
+      return leftTime - rightTime;
+    });
+
+  const cycleState = new Map();
+  const cycles = [];
+
+  sorted.forEach((activity) => {
+    if (!isLiveActivityEntry(activity)) return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    const activityDate = activity.date;
+    if (!companyKey || !activityDate) return;
+
+    const activeCycle = cycleState.get(companyKey) || {
+      leadDate: null,
+      company: activity.company,
+    };
+
+    if (!activeCycle.leadDate) {
+      activeCycle.leadDate = activityDate;
+    }
+
+    activeCycle.company = activity.company;
+
+    if (normalizeActivity(activity.activity_type) === "contract_signed") {
+      const leadDate = activeCycle.leadDate || activityDate;
+      cycles.push({
+        company: activity.company,
+        leadDate,
+        contractDate: activityDate,
+        days: Math.max(dayDiff(leadDate, activityDate), 0),
+      });
+      activeCycle.leadDate = null;
+    }
+
+    cycleState.set(companyKey, activeCycle);
+  });
+
+  return cycles;
+}
+
+function calculateSalesVelocityForWindow(activities = [], weekStart, weekEnd) {
+  const startDate = parseDate(weekStart);
+  const endDate = parseDate(weekEnd || getWeekEnd(weekStart));
+  if (!startDate || !endDate) {
+    return { averageDays: 0, sampleSize: 0 };
+  }
+
+  const cycles = buildSalesCyclesFromActivities(activities).filter((cycle) =>
+    isDateWithinInclusiveRange(cycle.contractDate, startDate, endDate)
+  );
+
+  if (!cycles.length) {
+    return { averageDays: 0, sampleSize: 0 };
+  }
+
+  const totalDays = cycles.reduce((sum, cycle) => sum + cycle.days, 0);
+  return {
+    averageDays: Math.round(totalDays / cycles.length),
+    sampleSize: cycles.length,
+  };
+}
+
+function getVelocityMetricForScorecard(scorecard) {
+  return calculateSalesVelocityForWindow(
+    state.activities,
+    scorecard.week_start,
+    scorecard.week_end || getWeekEnd(scorecard.week_start)
+  );
+}
+
+function applyComputedScorecardFields(scorecard, activities = state.activities) {
+  if (!scorecard?.week_start) return scorecard;
+  const velocity = calculateSalesVelocityForWindow(
+    activities,
+    scorecard.week_start,
+    scorecard.week_end || getWeekEnd(scorecard.week_start)
+  );
+
+  return {
+    ...scorecard,
+    week_end: scorecard.week_end || getWeekEnd(scorecard.week_start),
+    sales_velocity_days: velocity.averageDays,
   };
 }
 
@@ -2546,16 +2651,20 @@ function buildVelocityFocus(scorecard, metrics) {
     `${metrics.meetingToOffer.value}% meeting -> oferta`,
     `${metrics.offerToSigned.value}% oferta -> semnat`,
   ];
+  const velocityContext = metrics.velocitySampleSize
+    ? `Calculat automat din ${metrics.velocitySampleSize} contract${metrics.velocitySampleSize === 1 ? "" : "e"} semnate in ${scorecard.week_label || "saptamana selectata"}.`
+    : "Nu exista contracte semnate in saptamana selectata, deci media nu poate fi calculata inca.";
 
   return `
     <article class="velocity-card" style="--metric-accent:${metrics.velocityTone}; --metric-soft:${metrics.velocitySoft};">
       <div class="metric-kicker">Sales Velocity</div>
-      <div class="velocity-value">${scorecard.sales_velocity_days || "-"}</div>
-      <div class="velocity-subcopy">zile medie de la lead la contract semnat</div>
+      <div class="velocity-value">${metrics.velocityDays || "-"}</div>
+      <div class="velocity-subcopy">zile medie de la prima activitate live la contract semnat</div>
       <div class="velocity-status">
-        <span class="metric-chip">${scorecard.sales_velocity_days && scorecard.sales_velocity_days <= scorecardTargets.powerThree.salesVelocityDays ? "In target" : "Sub observatie"}</span>
+        <span class="metric-chip">${metrics.velocityDays && metrics.velocityDays <= scorecardTargets.powerThree.salesVelocityDays ? "In target" : "Sub observatie"}</span>
         <span>Target: &lt; ${scorecardTargets.powerThree.salesVelocityDays} zile</span>
       </div>
+      <div class="velocity-foot">${velocityContext}</div>
       <div class="velocity-foot">${conversionCount.join(" · ")}</div>
     </article>
   `;

@@ -9,6 +9,7 @@ const {
   normalizePeriod,
   normalizeStatus,
   normalizeString,
+  parseDate,
   stageRank,
   toIsoDate,
   toNumber,
@@ -270,6 +271,120 @@ function normalizeActivityRecord(record, config, companyNameById) {
     next_step: normalizeString(fields[config.fields.activities.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.activities.nextStepDate]),
     notes: normalizeString(fields[config.fields.activities.notes]),
+  };
+}
+
+function normalizeCompanyKey(value = "") {
+  return normalizeString(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function isLiveActivityRecord(activity = {}) {
+  return normalizeActivity(activity.activity_type) !== "planned";
+}
+
+function dayDiff(left, right) {
+  const ms = 1000 * 60 * 60 * 24;
+  const leftDate = new Date(left);
+  const rightDate = new Date(right);
+  leftDate.setHours(0, 0, 0, 0);
+  rightDate.setHours(0, 0, 0, 0);
+  return Math.floor((rightDate.getTime() - leftDate.getTime()) / ms);
+}
+
+function isDateWithinInclusiveRange(date, start, end) {
+  if (!date || !start || !end) return false;
+  const current = new Date(date);
+  const left = new Date(start);
+  const right = new Date(end);
+  current.setHours(0, 0, 0, 0);
+  left.setHours(0, 0, 0, 0);
+  right.setHours(0, 0, 0, 0);
+  return current >= left && current <= right;
+}
+
+function buildSalesCycles(activities = []) {
+  const sorted = [...activities]
+    .filter((activity) => activity.company && activity.date)
+    .sort((left, right) => {
+      const leftTime = parseDate(left.date)?.getTime() || 0;
+      const rightTime = parseDate(right.date)?.getTime() || 0;
+      return leftTime - rightTime;
+    });
+
+  const cycleState = new Map();
+  const cycles = [];
+
+  sorted.forEach((activity) => {
+    if (!isLiveActivityRecord(activity)) return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    const activityDate = parseDate(activity.date);
+    if (!companyKey || !activityDate) return;
+
+    const activeCycle = cycleState.get(companyKey) || {
+      leadDate: null,
+      company: activity.company,
+    };
+
+    if (!activeCycle.leadDate) {
+      activeCycle.leadDate = activityDate;
+    }
+
+    activeCycle.company = activity.company;
+
+    if (normalizeActivity(activity.activity_type) === "contract_signed") {
+      const leadDate = activeCycle.leadDate || activityDate;
+      cycles.push({
+        company: activity.company,
+        leadDate,
+        contractDate: activityDate,
+        days: Math.max(dayDiff(leadDate, activityDate), 0),
+      });
+      activeCycle.leadDate = null;
+    }
+
+    cycleState.set(companyKey, activeCycle);
+  });
+
+  return cycles;
+}
+
+function calculateSalesVelocityForWindow(activities = [], weekStart, weekEnd) {
+  const startDate = parseDate(weekStart);
+  const endDate = parseDate(weekEnd || getWeekEnd(weekStart));
+  if (!startDate || !endDate) {
+    return { averageDays: 0, sampleSize: 0 };
+  }
+
+  const cycles = buildSalesCycles(activities).filter((cycle) =>
+    isDateWithinInclusiveRange(cycle.contractDate, startDate, endDate)
+  );
+
+  if (!cycles.length) {
+    return { averageDays: 0, sampleSize: 0 };
+  }
+
+  const totalDays = cycles.reduce((sum, cycle) => sum + cycle.days, 0);
+  return {
+    averageDays: Math.round(totalDays / cycles.length),
+    sampleSize: cycles.length,
+  };
+}
+
+function withComputedSalesVelocity(scorecard, activities = []) {
+  const velocity = calculateSalesVelocityForWindow(
+    activities,
+    scorecard.week_start,
+    scorecard.week_end || getWeekEnd(scorecard.week_start)
+  );
+
+  return {
+    ...scorecard,
+    sales_velocity_days: velocity.averageDays,
   };
 }
 
@@ -636,6 +751,13 @@ async function upsertScorecard(payload) {
   const weekKey = weekStart;
   const weekLabel = buildWeekLabel(weekStart, weekEnd);
   const scorecardRecords = await listRecords("scorecard");
+  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const companyNameById = buildCompanyNameMap(companyRecords, config);
+  const activityRecords = await listRecords("activities");
+  const activities = activityRecords
+    .map((record) => normalizeActivityRecord(record, config, companyNameById))
+    .filter((record) => record.company && record.date);
+  const velocity = calculateSalesVelocityForWindow(activities, weekStart, weekEnd);
   const existingRecord = scorecardRecords.find((record) => {
     const normalized = normalizeScorecardRecord(record, config);
     return normalized.week_key === weekKey || normalized.week_start === weekStart;
@@ -648,7 +770,7 @@ async function upsertScorecard(payload) {
     [config.fields.scorecard.weekLabel]: weekLabel,
     [config.fields.scorecard.newContractWorkersMtd]: toNumber(payload.new_contract_workers_mtd),
     [config.fields.scorecard.dream100P1Prospects]: toNumber(payload.dream100_p1_prospects),
-    [config.fields.scorecard.salesVelocityDays]: toNumber(payload.sales_velocity_days),
+    [config.fields.scorecard.salesVelocityDays]: velocity.averageDays,
     [config.fields.scorecard.coldCalls]: toNumber(payload.cold_calls),
     [config.fields.scorecard.linkedInMessages]: toNumber(payload.linkedin_messages),
     [config.fields.scorecard.fieldVisits]: toNumber(payload.field_visits),
@@ -664,7 +786,7 @@ async function upsertScorecard(payload) {
     ? await updateRecord("scorecard", existingRecord.id, fields)
     : await createRecord("scorecard", fields);
 
-  return normalizeScorecardRecord(record, config);
+  return withComputedSalesVelocity(normalizeScorecardRecord(record, config), activities);
 }
 
 async function upsertScorecardTrend(payload) {
@@ -765,6 +887,7 @@ async function getDashboardData() {
   const targets = selectTargets(targetRecords, config);
   const scorecards = scorecardRecords
     .map((record) => normalizeScorecardRecord(record, config))
+    .map((record) => withComputedSalesVelocity(record, activities))
     .filter((record) => record.week_start)
     .sort((left, right) => right.week_start.localeCompare(left.week_start));
   const dailyScores = scorecardTrendRecords
@@ -773,7 +896,7 @@ async function getDashboardData() {
     .sort((left, right) => right.date.localeCompare(left.date));
   const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
     || scorecards[0]
-    || createEmptyScorecard(config.timezone);
+    || withComputedSalesVelocity(createEmptyScorecard(config.timezone), activities);
 
   return {
     configured: true,
