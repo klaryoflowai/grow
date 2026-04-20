@@ -7,36 +7,49 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260419h" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260420b" />
   </head>
   <body>
     <div class="shell">
       <header class="hero">
-        <div>
-          <p class="eyebrow">Grow.md Sales Scorecard</p>
-          <h1>Dashboard simplu pentru activitate, pipeline si conversie</h1>
-          <p class="hero-copy">
-            Un singur loc pentru ce conteaza zilnic: cate lead-uri ai contactat, cate meeting-uri ai mutat mai
-            departe, cate oferte ai trimis si cate contracte ai inchis.
-          </p>
+        <div class="hero-brand">
+          <div class="hero-mark">G</div>
+          <div>
+            <p class="eyebrow">Grow.md Sales Scorecard</p>
+            <h1>Panou de control pentru activitate, pipeline si conversie</h1>
+          </div>
         </div>
-        <div class="hero-side">
-          <div class="hero-pill" id="data-mode-pill">Asteapta conexiunea</div>
-          <div class="hero-pill" id="summary-chip">0 activitati inregistrate</div>
-          <div class="hero-date" id="current-date"></div>
+        <div class="hero-content">
+          <p class="hero-copy">
+            Pastrezi aceeasi logica Airtable si Vercel, dar intr-o interfata mai clara pentru ritmul zilnic:
+            captura rapida, pipeline curat, follow-up prioritizat si scorecard usor de citit in sedinte.
+          </p>
+          <div class="hero-side">
+            <div class="hero-pill" id="data-mode-pill">Asteapta conexiunea</div>
+            <div class="hero-pill" id="summary-chip">0 activitati inregistrate</div>
+            <div class="hero-date" id="current-date"></div>
+          </div>
         </div>
       </header>
 
+      <nav class="page-nav" aria-label="Navigatie dashboard">
+        <button class="page-tab is-active" type="button" data-page-target="overview">Panou</button>
+        <button class="page-tab" type="button" data-page-target="pipeline">Pipeline</button>
+        <button class="page-tab" type="button" data-page-target="execution">Cadenta</button>
+        <button class="page-tab" type="button" data-page-target="settings">Setari</button>
+      </nav>
+
       <main class="layout">
-        <section class="panel span-12">
+        <section class="panel span-12" data-page="overview">
           <div class="panel-header">
             <div>
               <p class="section-label">Captura zilnica</p>
               <h2>Adauga o activitate in 10 secunde</h2>
+              <p class="panel-copy">Salvezi touch-urile de azi fara sa iesi din fluxul comercial.</p>
             </div>
           </div>
 
@@ -98,11 +111,12 @@
           </p>
         </section>
 
-        <section class="panel span-12">
+        <section class="panel span-12" data-page="overview">
           <div class="panel-header">
             <div>
               <p class="section-label">Scorecard</p>
               <h2>Astazi si luna curenta</h2>
+              <p class="panel-copy">Citire rapida pentru volum, ritm si executie fata de target.</p>
             </div>
           </div>
 
@@ -117,31 +131,34 @@
           </div>
         </section>
 
-        <section class="panel span-4">
+        <section class="panel span-4" data-page="overview">
           <div class="panel-header">
             <div>
               <p class="section-label">Conversie</p>
               <h2>Raportul dintre etape</h2>
+              <p class="panel-copy">Vezi unde se pierde tractiunea dintre contact, oferta si contract.</p>
             </div>
           </div>
           <div id="conversion-grid" class="stack"></div>
         </section>
 
-        <section class="panel span-8">
+        <section class="panel span-8" data-page="overview">
           <div class="panel-header">
             <div>
               <p class="section-label">Trend</p>
               <h2>Ultimele 7 zile</h2>
+              <p class="panel-copy">Semnal de executie pentru ritmul comercial din ultima saptamana.</p>
             </div>
           </div>
           <div id="daily-trend" class="trend-list"></div>
         </section>
 
-        <section class="panel span-12">
+        <section class="panel span-12" data-page="pipeline">
           <div class="panel-header">
             <div>
               <p class="section-label">Pipeline simplu</p>
               <h2>Companiile care se misca acum</h2>
+              <p class="panel-copy">Aici ramane doar tracking-ul real, nu toata lista Dream 100.</p>
             </div>
             <input id="company-search" class="search-input" type="search" placeholder="Cauta companie..." />
           </div>
@@ -254,31 +271,34 @@
           </div>
         </section>
 
-        <section class="panel span-6">
+        <section class="panel span-6" data-page="execution">
           <div class="panel-header">
             <div>
               <p class="section-label">Follow-up</p>
               <h2>Ce trebuie miscat azi</h2>
+              <p class="panel-copy">Conturile care cer o actiune imediata sau au depasit urmatorul pas.</p>
             </div>
           </div>
           <div id="alerts-list" class="stack"></div>
         </section>
 
-        <section class="panel span-6">
+        <section class="panel span-6" data-page="execution">
           <div class="panel-header">
             <div>
               <p class="section-label">Activitate recenta</p>
               <h2>Ultimele actiuni salvate</h2>
+              <p class="panel-copy">Istoric scurt pentru context rapid inainte de apeluri si sedinte.</p>
             </div>
           </div>
           <div id="activities-feed" class="stack"></div>
         </section>
 
-        <section class="panel span-12">
+        <section class="panel span-12" data-page="settings">
           <div class="panel-header">
             <div>
               <p class="section-label">Configurare</p>
               <h2>Target-uri si conectarea la Airtable</h2>
+              <p class="panel-copy">Tot ce tine de target-uri si stare tehnica ramane la vedere, dar separat de executie.</p>
             </div>
           </div>
 
@@ -329,6 +349,6 @@
     <datalist id="company-options"></datalist>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260419h"></script>
+    <script src="./app.js?v=20260420b"></script>
   </body>
 </html>

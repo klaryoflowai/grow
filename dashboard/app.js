@@ -5,7 +5,7 @@ const defaultTargets = {
   contracts: 4,
 };
 
-const appBuild = "20260419h";
+const appBuild = "20260420b";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -104,6 +104,8 @@ const storageKeys = {
   manual: "grow_dashboard_manual_data",
 };
 
+const dashboardPages = new Set(["overview", "pipeline", "execution", "settings"]);
+
 const state = {
   sourceData: {
     accounts: [],
@@ -113,6 +115,7 @@ const state = {
   accounts: [],
   activities: [],
   search: "",
+  page: getPageFromHash(),
   apiEnabled: false,
   sourceMode: "fallback",
   bootstrapReady: false,
@@ -143,6 +146,8 @@ const elements = {
   connectionBadges: document.getElementById("connection-badges"),
   companyFormStatus: document.getElementById("company-form-status"),
   companyOptions: document.getElementById("company-options"),
+  pageButtons: [...document.querySelectorAll("[data-page-target]")],
+  pageSections: [...document.querySelectorAll("[data-page]")],
   saveTargets: document.getElementById("save-targets"),
   targets: {
     contacted: document.getElementById("target-contacted"),
@@ -177,6 +182,16 @@ async function init() {
 }
 
 function bindEvents() {
+  elements.pageButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setPage(button.dataset.pageTarget);
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    setPage(getPageFromHash(), { syncHash: false });
+  });
+
   elements.saveTargets.addEventListener("click", async () => {
     const payload = {
       contacted: toNumber(elements.targets.contacted.value),
@@ -940,6 +955,35 @@ function updateStatus(message) {
   }
 }
 
+function getPageFromHash() {
+  const hash = window.location.hash.replace(/^#/, "").trim();
+  return dashboardPages.has(hash) ? hash : "overview";
+}
+
+function setPage(page, options = {}) {
+  const { syncHash = true } = options;
+  state.page = dashboardPages.has(page) ? page : "overview";
+
+  if (syncHash) {
+    const nextHash = `#${state.page}`;
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, "", nextHash);
+    }
+  }
+
+  renderPage();
+}
+
+function renderPage() {
+  elements.pageButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.pageTarget === state.page);
+  });
+
+  elements.pageSections.forEach((section) => {
+    section.classList.toggle("is-hidden", section.dataset.page !== state.page);
+  });
+}
+
 function render() {
   const trackedCount = state.accounts.filter((account) => isTrackedAccount(account)).length;
   elements.dataModePill.textContent = !state.bootstrapReady
@@ -958,6 +1002,7 @@ function render() {
   renderAlerts();
   renderActivities();
   renderConnection();
+  renderPage();
 }
 
 function renderConnection() {
