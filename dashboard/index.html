@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420k" />
+    <link rel="stylesheet" href="./styles.css?v=20260420l" />
   </head>
   <body>
     <div class="shell">
@@ -242,6 +242,7 @@
             <label class="field">
               <span>Actiune</span>
               <select name="activity_type" required>
+                <option value="planned">Planificat</option>
                 <option value="contacted">Contactat</option>
                 <option value="meeting">Meeting</option>
                 <option value="offer">Oferta</option>
@@ -252,6 +253,7 @@
               <span>Rezultat</span>
               <select name="outcome">
                 <option value="">-</option>
+                <option value="planned">planned</option>
                 <option value="Am vorbit cu decidentul">Am vorbit cu decidentul</option>
                 <option value="Nu am ajuns la decident">Nu am ajuns la decident</option>
                 <option value="Nu raspunde">Nu raspunde</option>
@@ -533,6 +535,7 @@
         <label class="field">
           <span>Actiune</span>
           <select name="activity_type" required>
+            <option value="planned">Planificat</option>
             <option value="contacted">Contactat</option>
             <option value="meeting">Meeting</option>
             <option value="offer">Oferta</option>
@@ -543,6 +546,7 @@
           <span>Rezultat</span>
           <select name="outcome">
             <option value="">-</option>
+            <option value="planned">planned</option>
             <option value="Am vorbit cu decidentul">Am vorbit cu decidentul</option>
             <option value="Nu am ajuns la decident">Nu am ajuns la decident</option>
             <option value="Nu raspunde">Nu raspunde</option>
@@ -564,6 +568,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420k"></script>
+    <script src="./app.js?v=20260420l"></script>
   </body>
 </html>

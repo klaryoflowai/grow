@@ -171,6 +171,9 @@ function statusToPipelineStage(status = "") {
 }
 
 function activityToPipelineStage(activityType = "") {
+  if (normalizeActivity(activityType) === "planned") {
+    return "";
+  }
   return statusToPipelineStage(activityType);
 }
 
@@ -478,6 +481,7 @@ async function upsertCompany(payload) {
 async function touchCompanyFromActivity(activity) {
   const config = getRequiredConfig();
   const companyName = normalizeString(activity.company);
+  const plannedActivity = normalizeActivity(activity.activity_type) === "planned";
 
   if (!companyName) {
     throw new AirtableError(400, "Activitatea trebuie sa aiba companie.");
@@ -489,17 +493,21 @@ async function touchCompanyFromActivity(activity) {
     ? normalizeCompanyRecord(existingRecord, config)
     : null;
   const existingStage = existingCompany?.pipeline_stage || "";
-  const nextPipelineStage = mergePipelineStage(existingStage, activity.activity_type);
-
-  const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
-  const lastContact = dateCandidates[dateCandidates.length - 1] || "";
+  const nextPipelineStage = plannedActivity
+    ? existingStage
+    : mergePipelineStage(existingStage, activity.activity_type);
 
   const fields = {
     [config.fields.companies.company]: companyName,
-    [config.fields.companies.lastContact]: lastContact || null,
   };
 
-  if (config.fields.companies.pipelineStage) {
+  if (!plannedActivity && config.fields.companies.lastContact) {
+    const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
+    const lastContact = dateCandidates[dateCandidates.length - 1] || "";
+    fields[config.fields.companies.lastContact] = lastContact || null;
+  }
+
+  if (!plannedActivity && config.fields.companies.pipelineStage) {
     fields[config.fields.companies.pipelineStage] = nextPipelineStage || null;
     if (nextPipelineStage && nextPipelineStage !== existingStage && config.fields.companies.stageChangedDate) {
       fields[config.fields.companies.stageChangedDate] = toIsoDate(new Date());

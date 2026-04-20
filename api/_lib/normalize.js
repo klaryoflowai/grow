@@ -8,6 +8,9 @@ const stageOrder = {
 };
 
 const activityAliases = {
+  planned: "planned",
+  scheduled: "planned",
+  planificat: "planned",
   lead_new: "contacted",
   new_lead: "contacted",
   first_contact: "contacted",

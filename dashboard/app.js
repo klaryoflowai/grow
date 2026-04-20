@@ -23,10 +23,11 @@ const scorecardTargets = {
   },
 };
 
-const appBuild = "20260420k";
+const appBuild = "20260420l";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
+  planned: { label: "Planificat", color: "#7c93b7", bg: "rgba(124,147,183,0.16)" },
   contacted: { label: "Contactat", color: "#38bdf8", bg: "rgba(56,189,248,0.16)" },
   meeting: { label: "Meeting", color: "#f59e0b", bg: "rgba(245,158,11,0.16)" },
   offer: { label: "Oferta", color: "#8b5cf6", bg: "rgba(139,92,246,0.16)" },
@@ -88,6 +89,9 @@ const accountHealthTheme = {
 const lockedPipelineStages = new Set(["Contract semnat", "Parcat", "Pierdut"]);
 
 const activityAliases = {
+  planned: "planned",
+  scheduled: "planned",
+  planificat: "planned",
   lead_new: "contacted",
   new_lead: "contacted",
   first_contact: "contacted",
@@ -819,22 +823,29 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       notes: "",
     };
 
-    if (activity.date && (!existing.last_contact || activity.date > existing.last_contact)) {
+    const plannedActivity = isPlannedActivity(activity);
+
+    if (!plannedActivity && activity.date && (!existing.last_contact || activity.date > existing.last_contact)) {
       existing.last_contact = activity.date;
     }
 
     if (
+      !plannedActivity
+      && (
       activity.outcome
       && (
         !existing.last_outcome
         || !existing.last_contact
         || (activity.date && activity.date >= existing.last_contact)
       )
+      )
     ) {
       existing.last_outcome = activity.outcome;
     }
 
-    existing.pipeline_stage = mergePipelineStage(existing.pipeline_stage, activity.activity_type);
+    if (!plannedActivity) {
+      existing.pipeline_stage = mergePipelineStage(existing.pipeline_stage, activity.activity_type);
+    }
 
     if (activity.activity_type === "contract_signed" && activity.workers_delta > existing.workers) {
       existing.workers = activity.workers_delta;
@@ -873,22 +884,29 @@ function syncManualAccountFromActivity(activity) {
         notes: "",
       };
 
-  if (activity.date && (!current.last_contact || activity.date > current.last_contact)) {
+  const plannedActivity = isPlannedActivity(activity);
+
+  if (!plannedActivity && activity.date && (!current.last_contact || activity.date > current.last_contact)) {
     current.last_contact = activity.date;
   }
 
   if (
+    !plannedActivity
+    && (
     activity.outcome
     && (
       !current.last_outcome
       || !current.last_contact
       || (activity.date && activity.date >= current.last_contact)
     )
+    )
   ) {
     current.last_outcome = activity.outcome;
   }
 
-  current.pipeline_stage = mergePipelineStage(current.pipeline_stage, activity.activity_type);
+  if (!plannedActivity) {
+    current.pipeline_stage = mergePipelineStage(current.pipeline_stage, activity.activity_type);
+  }
 
   if (activity.activity_type === "contract_signed" && activity.workers_delta > current.workers) {
     current.workers = activity.workers_delta;
@@ -1011,7 +1029,7 @@ function normalizeStatus(value = "") {
   if (key === "proposal" || key === "proposal_sent" || key === "offer_sent" || key === "contract_review") {
     return "offer";
   }
-  if (activityTheme[key]) return key;
+  if (stageOrder[key] !== undefined) return key;
   return key ? "contacted" : "new";
 }
 
@@ -1056,6 +1074,9 @@ function normalizeAccountHealth(value = "") {
 }
 
 function mapActivityToPipelineStage(activityType = "") {
+  if (normalizeActivity(activityType) === "planned") {
+    return "";
+  }
   const mapping = {
     contacted: "Contactat",
     meeting: "Meeting",
@@ -1068,6 +1089,10 @@ function mapActivityToPipelineStage(activityType = "") {
 function normalizeActivity(value = "") {
   const key = value.toString().trim().toLowerCase().replace(/\s+/g, "_");
   return activityAliases[key] || "contacted";
+}
+
+function isPlannedActivity(activity = {}) {
+  return normalizeActivity(activity.activity_type) === "planned";
 }
 
 function parseDate(value) {
@@ -2397,6 +2422,7 @@ function renderExecutionSummary() {
 
 function activityLabel(type) {
   const labels = {
+    planned: "Planificat",
     contacted: "Contactat",
     meeting: "Meeting",
     offer: "Oferta",
