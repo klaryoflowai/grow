@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260420e" />
+    <link rel="stylesheet" href="./styles.css?v=20260420f" />
   </head>
   <body>
     <div class="shell">
@@ -29,9 +29,20 @@
             captura rapida, pipeline curat, follow-up prioritizat si scorecard usor de citit in sedinte.
           </p>
           <div class="hero-side">
-            <div class="hero-pill" id="data-mode-pill">Asteapta conexiunea</div>
-            <div class="hero-pill" id="summary-chip">0 activitati inregistrate</div>
-            <div class="hero-date" id="current-date"></div>
+            <article class="hero-status-card hero-status-card--primary">
+              <span class="hero-status-label">Mod date</span>
+              <strong class="hero-status-value" id="data-mode-pill">Asteapta conexiunea</strong>
+            </article>
+            <div class="hero-status-grid">
+              <article class="hero-status-card">
+                <span class="hero-status-label">Tracking</span>
+                <strong class="hero-status-value" id="summary-chip">0 activitati inregistrate</strong>
+              </article>
+              <article class="hero-status-card">
+                <span class="hero-status-label">Astazi</span>
+                <strong class="hero-status-value hero-status-value--date" id="current-date"></strong>
+              </article>
+            </div>
           </div>
         </div>
       </header>
@@ -378,6 +389,6 @@
     <datalist id="company-options"></datalist>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260420e"></script>
+    <script src="./app.js?v=20260420f"></script>
   </body>
 </html>
