@@ -670,7 +670,6 @@ async function getDashboardData() {
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
 
-  const currentPeriod = getCurrentPeriod(config.timezone);
   const normalizedScorecard = scorecardRecords.map((record) => normalizeScorecardRecord(record, config));
   const monthlyRow = normalizedScorecard.find((row) => row.type === "Lunar" && row.date && row.date.startsWith(currentPeriod));
   const dailyScores = normalizedScorecard
