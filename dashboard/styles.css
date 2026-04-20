@@ -75,7 +75,7 @@ body::before {
 .hero {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 0;
   margin-bottom: 18px;
   padding: 26px 28px;
   border-radius: 32px;
@@ -87,10 +87,25 @@ body::before {
   color: #f8f4ed;
 }
 
+.hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1 1 720px;
+  min-width: 0;
+}
+
 .hero-brand {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.hero-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .hero-mark {
@@ -111,8 +126,8 @@ body::before {
 .hero-content {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 28px;
+  align-items: stretch;
+  gap: 32px;
 }
 
 .eyebrow,
@@ -165,7 +180,46 @@ h3 {
   color: rgba(248, 244, 237, 0.76);
   font-size: 1rem;
   line-height: 1.7;
-  flex: 1 1 560px;
+}
+
+.hero-story {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.hero-highlight-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 900px;
+}
+
+.hero-highlight {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 108px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 250, 243, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.hero-highlight-label {
+  font-size: 11px;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(233, 201, 138, 0.78);
+}
+
+.hero-highlight strong {
+  font-size: 0.96rem;
+  line-height: 1.5;
+  font-weight: 600;
+  color: rgba(248, 244, 237, 0.94);
 }
 
 .hero-side {
@@ -1136,11 +1190,13 @@ td {
     flex-direction: column;
   }
 
+  .hero-main,
   .hero-side {
     width: 100%;
     flex: 1 1 auto;
   }
 
+  .hero-highlight-row,
   .hero-status-grid {
     grid-template-columns: 1fr;
   }
