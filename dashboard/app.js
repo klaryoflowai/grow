@@ -23,7 +23,29 @@ const scorecardTargets = {
   },
 };
 
-const appBuild = "20260420r";
+const wigPlan = {
+  annual: {
+    year: 2026,
+    contractsTarget: 35,
+    quarterlyDistribution: [
+      { label: "Q2", target: 5 },
+      { label: "Q3", target: 13 },
+      { label: "Q4", target: 17 },
+    ],
+  },
+  q2: {
+    label: "Rock Q2",
+    start: "2026-04-20",
+    end: "2026-06-30",
+    contractsTarget: 5,
+    minWorkersPerContract: 15,
+    prospectsPerWeek: 20,
+    meetingsPerWeek: 5,
+    followUpTarget: 100,
+  },
+};
+
+const appBuild = "20260420s";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -166,6 +188,7 @@ const elements = {
   checklistSnapshot: document.getElementById("checklist-snapshot"),
   checklistDayGrid: document.getElementById("checklist-day-grid"),
   checklistWeekGrid: document.getElementById("checklist-week-grid"),
+  wigGrid: document.getElementById("wig-grid"),
   powerThreeGrid: document.getElementById("power-three-grid"),
   velocityFocusCard: document.getElementById("velocity-focus-card"),
   funnelGrid: document.getElementById("funnel-grid"),
@@ -2143,6 +2166,7 @@ function renderScorecardDashboard() {
   const scorecard = state.scorecard || createEmptyScorecard();
   const metrics = getScorecardMetrics(scorecard);
   const historyCount = state.scorecards.length;
+  renderWigDashboard();
 
   if (elements.scorecardWeekChip) {
     elements.scorecardWeekChip.textContent = scorecard.week_label || "Saptamana curenta";
@@ -2232,6 +2256,68 @@ function renderScorecardDashboard() {
   elements.scorecardTrendList.innerHTML = buildScorecardTrendList(state.scorecards);
 }
 
+function renderWigDashboard() {
+  if (!elements.wigGrid) return;
+  const currentWeekScorecard = getCurrentWeekScorecardRecord();
+  const wigMetrics = getWigMetrics(currentWeekScorecard);
+  elements.wigGrid.innerHTML = [
+    buildAnnualWigCard(wigMetrics),
+    buildQ2RockCard(wigMetrics),
+    buildQ2DisciplineCard(currentWeekScorecard, wigMetrics),
+  ].join("");
+}
+
+function getCurrentWeekScorecardRecord() {
+  const currentWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
+  return state.scorecards.find(
+    (record) => record.week_start === currentWeekStart || record.week_key === currentWeekStart
+  ) || createEmptyScorecard(currentWeekStart);
+}
+
+function getWigMetrics(scorecard) {
+  const signedActivities = state.activities.filter(
+    (activity) => activity.activity_type === "contract_signed" && activity.date
+  );
+  const annualActivities = signedActivities.filter(
+    (activity) => activity.date.getFullYear() === wigPlan.annual.year
+  );
+  const q2Start = parseDate(wigPlan.q2.start);
+  const q2End = parseDate(wigPlan.q2.end);
+  const q2Activities = signedActivities.filter((activity) =>
+    isDateWithinInclusiveRange(activity.date, q2Start, q2End)
+  );
+  const q2QualifiedActivities = q2Activities.filter(
+    (activity) => activity.workers_delta >= wigPlan.q2.minWorkersPerContract
+  );
+  const currentWeekStart = parseDate(scorecard.week_start || getWeekStart(new Date().toISOString().slice(0, 10)));
+  const currentWeekEnd = parseDate(scorecard.week_end || getWeekEnd(scorecard.week_start));
+  const weeklyMeetings = state.activities.filter(
+    (activity) =>
+      activity.activity_type === "meeting"
+      && isDateWithinInclusiveRange(activity.date, currentWeekStart, currentWeekEnd)
+  );
+  const meetingsWithFollowUp = weeklyMeetings.filter(hasFollowUpWithin24h).length;
+  const followUpMetric = buildRateMetric(meetingsWithFollowUp, weeklyMeetings.length);
+  const daysRemainingInQ2 = q2End ? Math.max(dayDiff(q2End, new Date()), 0) : 0;
+
+  return {
+    annualContracts: annualActivities.length,
+    annualWorkers: annualActivities.reduce((sum, activity) => sum + activity.workers_delta, 0),
+    annualProgress: progressAgainstTarget(annualActivities.length, wigPlan.annual.contractsTarget),
+    q2Contracts: q2Activities.length,
+    q2QualifiedContracts: q2QualifiedActivities.length,
+    q2Workers: q2Activities.reduce((sum, activity) => sum + activity.workers_delta, 0),
+    q2Progress: progressAgainstTarget(q2QualifiedActivities.length, wigPlan.q2.contractsTarget),
+    q2AverageWorkers: q2Activities.length
+      ? q2Activities.reduce((sum, activity) => sum + activity.workers_delta, 0) / q2Activities.length
+      : 0,
+    weeklyMeetingsLogged: weeklyMeetings.length,
+    followUpMetric,
+    daysRemainingInQ2,
+    q2DateLabel: `${formatDateWithYear(q2Start)} - ${formatDateWithYear(q2End)}`,
+  };
+}
+
 function getScorecardMetrics(scorecard) {
   const outreachTotal = scorecard.cold_calls + scorecard.linkedin_messages;
   const contactToMeeting = buildRateMetric(scorecard.meetings_set, scorecard.dream100_p1_prospects);
@@ -2253,6 +2339,36 @@ function getScorecardMetrics(scorecard) {
     velocityTone: velocityGood ? "#2d8f57" : scorecard.sales_velocity_days ? "#c98622" : "#93a08f",
     velocitySoft: velocityGood ? "#e5f3eb" : scorecard.sales_velocity_days ? "#f7ecd5" : "#eef1eb",
   };
+}
+
+function isDateWithinInclusiveRange(date, start, end) {
+  if (!date || !start || !end) return false;
+  const current = new Date(date);
+  const left = new Date(start);
+  const right = new Date(end);
+  current.setHours(0, 0, 0, 0);
+  left.setHours(0, 0, 0, 0);
+  right.setHours(0, 0, 0, 0);
+  return current >= left && current <= right;
+}
+
+function hasFollowUpWithin24h(meetingActivity) {
+  if (!meetingActivity?.date) return false;
+
+  if (normalizeString(meetingActivity.next_step)) {
+    if (!meetingActivity.next_step_date) return true;
+    const delta = dayDiff(meetingActivity.next_step_date, meetingActivity.date);
+    if (delta >= 0 && delta <= 1) return true;
+  }
+
+  const meetingTime = meetingActivity.date.getTime();
+  return state.activities.some((activity) => {
+    if (!activity?.date || activity === meetingActivity) return false;
+    if (normalizeCompanyKey(activity.company) !== normalizeCompanyKey(meetingActivity.company)) return false;
+    if (normalizeActivity(activity.activity_type) === "meeting") return false;
+    const deltaMs = activity.date.getTime() - meetingTime;
+    return deltaMs >= 0 && deltaMs <= 24 * 60 * 60 * 1000;
+  });
 }
 
 function buildRateMetric(numerator, denominator) {
@@ -2297,6 +2413,129 @@ function buildPowerThreeCard(options) {
           <strong>${progress}%</strong>
         </div>
       </div>
+    </article>
+  `;
+}
+
+function buildAnnualWigCard(metrics) {
+  const quarterChips = wigPlan.annual.quarterlyDistribution
+    .map((quarter) => `<span class="metric-chip">${quarter.label}: ${quarter.target}</span>`)
+    .join("");
+
+  return `
+    <article class="power-card wig-card wig-card--annual" style="--metric-accent:#1d7a50; --metric-soft:#e5f3eb;">
+      <div class="power-card-head">
+        <div class="metric-icon">${scorecardIcon("target")}</div>
+        <div class="metric-kicker">WIG ${wigPlan.annual.year}</div>
+      </div>
+      <div class="metric-title">${wigPlan.annual.contractsTarget} contracte noi pana la final de an</div>
+      <div class="wig-number-row">
+        <div class="metric-value">${metrics.annualContracts}</div>
+        <div class="wig-number-divider">/</div>
+        <div class="wig-target-number">${wigPlan.annual.contractsTarget}</div>
+      </div>
+      <div class="metric-note">Progres live din activitatile de tip contract semnat. Ritmul anual se deschide din Q2 si accelereaza in Q3-Q4.</div>
+      <div class="metric-progress">
+        <div class="metric-progress-track">
+          <div class="metric-progress-fill" style="width:${metrics.annualProgress}%;"></div>
+        </div>
+        <div class="metric-progress-meta">
+          <span>${metrics.annualWorkers} muncitori semnati pana acum</span>
+          <strong>${metrics.annualProgress}%</strong>
+        </div>
+      </div>
+      <div class="wig-chip-row">
+        ${quarterChips}
+      </div>
+    </article>
+  `;
+}
+
+function buildQ2RockCard(metrics) {
+  const avgWorkers = metrics.q2AverageWorkers ? metrics.q2AverageWorkers.toFixed(1) : "-";
+
+  return `
+    <article class="power-card wig-card" style="--metric-accent:#c38b2a; --metric-soft:#f7ecd5;">
+      <div class="power-card-head">
+        <div class="metric-icon">${scorecardIcon("volume")}</div>
+        <div class="metric-kicker">${wigPlan.q2.label}</div>
+      </div>
+      <div class="metric-title">5 contracte cu minim ${wigPlan.q2.minWorkersPerContract} workers pana la 30 iunie</div>
+      <div class="wig-number-row">
+        <div class="metric-value">${metrics.q2QualifiedContracts}</div>
+        <div class="wig-number-divider">/</div>
+        <div class="wig-target-number">${wigPlan.q2.contractsTarget}</div>
+      </div>
+      <div class="metric-note">${metrics.q2DateLabel} · foloseste activitatile contract_signed pentru a valida contractele care respecta pragul de calitate.</div>
+      <div class="metric-progress">
+        <div class="metric-progress-track">
+          <div class="metric-progress-fill" style="width:${metrics.q2Progress}%; background:#c38b2a;"></div>
+        </div>
+        <div class="metric-progress-meta">
+          <span>${metrics.daysRemainingInQ2} zile ramase in Q2</span>
+          <strong>${metrics.q2Progress}%</strong>
+        </div>
+      </div>
+      <div class="wig-stat-grid">
+        <div class="wig-stat">
+          <strong>${metrics.q2Contracts}</strong>
+          <span>contracte semnate in Q2</span>
+        </div>
+        <div class="wig-stat">
+          <strong>${metrics.q2Workers}</strong>
+          <span>workers semnati in Q2</span>
+        </div>
+        <div class="wig-stat">
+          <strong>${avgWorkers}</strong>
+          <span>media workers / contract</span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function buildQ2DisciplineCard(scorecard, metrics) {
+  const p1Progress = progressAgainstTarget(scorecard.dream100_p1_prospects, wigPlan.q2.prospectsPerWeek);
+  const meetingProgress = progressAgainstTarget(metrics.weeklyMeetingsLogged, wigPlan.q2.meetingsPerWeek);
+  const followUpText = metrics.followUpMetric.hasBase
+    ? `${metrics.followUpMetric.numerator} / ${metrics.followUpMetric.denominator} meetings`
+    : "Fara meetings logate saptamana asta";
+
+  return `
+    <article class="power-card wig-card" style="--metric-accent:#2f6ea2; --metric-soft:#e4eef7;">
+      <div class="power-card-head">
+        <div class="metric-icon">${scorecardIcon("meeting")}</div>
+        <div class="metric-kicker">Cadenta Q2</div>
+      </div>
+      <div class="metric-title">Lead measures care imping Rock-ul</div>
+      <div class="wig-rule-list">
+        <div class="wig-rule-row">
+          <div class="wig-rule-head">
+            <span>Dream 100 P1 / saptamana</span>
+            <strong>${scorecard.dream100_p1_prospects} / ${wigPlan.q2.prospectsPerWeek}</strong>
+          </div>
+          <div class="metric-progress-track">
+            <div class="metric-progress-fill" style="width:${p1Progress}%; background:#2f6ea2;"></div>
+          </div>
+        </div>
+        <div class="wig-rule-row">
+          <div class="wig-rule-head">
+            <span>Meetings logate / saptamana</span>
+            <strong>${metrics.weeklyMeetingsLogged} / ${wigPlan.q2.meetingsPerWeek}</strong>
+          </div>
+          <div class="metric-progress-track">
+            <div class="metric-progress-fill" style="width:${meetingProgress}%; background:#5c7796;"></div>
+          </div>
+        </div>
+        <div class="wig-rule-row">
+          <div class="wig-rule-head">
+            <span>Follow-up in 24h dupa meeting</span>
+            <strong>${metrics.followUpMetric.hasBase ? `${metrics.followUpMetric.value}%` : "-"}</strong>
+          </div>
+          <div class="metric-chip">${followUpText}</div>
+        </div>
+      </div>
+      <div class="metric-note">P1 vine din Scorecard-ul saptamanii curente. Follow-up-ul de 24h este calculat live din activitatile de meeting care au next step imediat sau actiune ulterioara in 24h.</div>
     </article>
   `;
 }
@@ -3258,6 +3497,15 @@ function formatDate(date) {
   return new Intl.DateTimeFormat("ro-RO", {
     day: "2-digit",
     month: "short",
+  }).format(date);
+}
+
+function formatDateWithYear(date) {
+  if (!date) return "-";
+  return new Intl.DateTimeFormat("ro-RO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   }).format(date);
 }
 

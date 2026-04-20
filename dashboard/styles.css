@@ -557,6 +557,12 @@ h3 {
   gap: 10px;
 }
 
+.wig-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .power-three-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1006,6 +1012,16 @@ h3 {
   padding: 20px;
 }
 
+.wig-card {
+  min-height: 100%;
+}
+
+.wig-card--annual {
+  background:
+    radial-gradient(circle at top right, rgba(29, 122, 80, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(245, 239, 230, 0.94));
+}
+
 .velocity-card,
 .ratio-card-shell {
   display: flex;
@@ -1081,7 +1097,8 @@ h3 {
 .measure-value,
 .velocity-value,
 .ratio-value,
-.lag-outcome-value {
+.lag-outcome-value,
+.wig-target-number {
   font-family: "Sora", sans-serif;
   font-size: 2.2rem;
   line-height: 0.96;
@@ -1106,6 +1123,93 @@ h3 {
   color: var(--muted);
   line-height: 1.55;
   font-size: 0.9rem;
+}
+
+.wig-number-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wig-number-divider {
+  color: var(--muted);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.wig-target-number {
+  color: var(--muted-strong);
+}
+
+.wig-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wig-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.wig-stat,
+.wig-rule-row {
+  border-radius: 18px;
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.wig-stat {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wig-stat strong {
+  font-family: "Sora", sans-serif;
+  font-size: 1.22rem;
+  color: var(--forest-800);
+}
+
+.wig-stat span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.wig-rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wig-rule-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.wig-rule-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.wig-rule-head span {
+  color: var(--muted-strong);
+  font-size: 0.88rem;
+}
+
+.wig-rule-head strong {
+  font-family: "Sora", sans-serif;
+  font-size: 1rem;
+  color: var(--forest-800);
 }
 
 .metric-progress {
@@ -2153,6 +2257,7 @@ td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .wig-grid,
   .power-three-grid,
   .funnel-grid,
   .scorecard-form-grid {
@@ -2174,6 +2279,10 @@ td {
   .velocity-layout,
   .lag-outcome-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wig-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .execution-board,
@@ -2267,6 +2376,7 @@ td {
   .config-grid,
   .upload-row,
   .checklist-snapshot-grid,
+  .wig-grid,
   .power-three-grid,
   .funnel-grid,
   .scorecard-form-grid,
@@ -2321,6 +2431,10 @@ td {
   }
 
   .trend-row {
+    grid-template-columns: 1fr;
+  }
+
+  .wig-stat-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2422,6 +2536,11 @@ td {
 
   .health-choice-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wig-number-row,
+  .wig-rule-head {
+    align-items: flex-start;
   }
 
   .execution-lane-title {
