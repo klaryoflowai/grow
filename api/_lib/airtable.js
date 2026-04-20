@@ -340,6 +340,19 @@ function normalizeScorecardRecord(record, config) {
   };
 }
 
+function normalizeScorecardTrendRecord(record, config) {
+  const fields = record.fields || {};
+  return {
+    id: record.id,
+    date: toIsoDate(fields[config.fields.scorecardTrend.date]),
+    contacted: toNumber(fields[config.fields.scorecardTrend.contacted]),
+    meetings: toNumber(fields[config.fields.scorecardTrend.meetings]),
+    offers: toNumber(fields[config.fields.scorecardTrend.offers]),
+    contracts: toNumber(fields[config.fields.scorecardTrend.contracts]),
+    notes: normalizeString(fields[config.fields.scorecardTrend.notes]),
+  };
+}
+
 function selectCurrentScorecard(records, config) {
   const currentWeekStart = getCurrentWeekStart(config.timezone);
   const normalized = records
@@ -664,6 +677,7 @@ async function getDashboardData() {
       companies: [],
       activities: [],
       targets: { period: currentPeriod, ...defaultTargets },
+      dailyScores: [],
       scorecards: [],
       scorecard: createEmptyScorecard(config.timezone),
       connection: {
@@ -681,6 +695,7 @@ async function getDashboardData() {
   const activityRecords = await listRecords("activities");
   let targetRecords = [];
   let scorecardRecords = [];
+  let scorecardTrendRecords = [];
 
   try {
     targetRecords = await listRecords("targets");
@@ -699,6 +714,16 @@ async function getDashboardData() {
     }
   }
 
+  try {
+    scorecardTrendRecords = await listRecords("scorecardTrend");
+  } catch (error) {
+    if (error.status === 404) {
+      warnings.push("Tabela Scorecard Trend nu a fost gasita. Trendul zilnic foloseste fallback din Activities.");
+    } else {
+      throw error;
+    }
+  }
+
   const companyNameById = buildCompanyNameMap(companyRecords, config);
   const companies = companyRecords
     .map((record) => normalizeCompanyRecord(record, config))
@@ -711,6 +736,10 @@ async function getDashboardData() {
     .map((record) => normalizeScorecardRecord(record, config))
     .filter((record) => record.week_start)
     .sort((left, right) => right.week_start.localeCompare(left.week_start));
+  const dailyScores = scorecardTrendRecords
+    .map((record) => normalizeScorecardTrendRecord(record, config))
+    .filter((record) => record.date)
+    .sort((left, right) => right.date.localeCompare(left.date));
   const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
     || scorecards[0]
     || createEmptyScorecard(config.timezone);
@@ -720,6 +749,7 @@ async function getDashboardData() {
     companies,
     activities,
     targets,
+    dailyScores,
     scorecards,
     scorecard,
     connection: {

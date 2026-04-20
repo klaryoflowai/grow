@@ -16,14 +16,19 @@ The model is intentionally split in two:
 - `Activities` = everything that happened
 - `Companies` = where the account stands now
 
-The scorecard still works with only 4 core activity types:
+The operational scorecard still works with only 4 core activity types:
 
 - `contacted`
 - `meeting`
 - `offer`
 - `contract_signed`
 
-Everything in the scorecard, trend, and conversion cards is built on top of these 4 values.
+The pipeline conversion cards and execution summaries are built on top of these 4 values.
+
+The dedicated weekly scorecard page now uses two Airtable tables:
+
+- `Scorecard` = one row per week
+- `Scorecard Trend` = one row per day
 
 The richer activity log stores:
 
@@ -80,6 +85,8 @@ Tables expected by default:
 - `Companies`
 - `Activities`
 - `Targets`
+- `Scorecard`
+- `Scorecard Trend`
 
 Default field names are documented in:
 
@@ -111,6 +118,28 @@ Recommended Airtable fields:
 - `Targets -> Meetings Target`
 - `Targets -> Offers Target`
 - `Targets -> Contracts Target`
+- `Scorecard -> Week Start`
+- `Scorecard -> Week End`
+- `Scorecard -> Week Key`
+- `Scorecard -> Week Label`
+- `Scorecard -> New Contract Workers MTD`
+- `Scorecard -> Dream100 P1 Prospects`
+- `Scorecard -> Sales Velocity Days`
+- `Scorecard -> Cold Calls`
+- `Scorecard -> LinkedIn Messages`
+- `Scorecard -> Field Visits`
+- `Scorecard -> Meetings Set`
+- `Scorecard -> Offers Sent`
+- `Scorecard -> Contracts Signed`
+- `Scorecard -> Workers Signed`
+- `Scorecard -> Workers Delivered`
+- `Scorecard -> Notes`
+- `Scorecard Trend -> Date`
+- `Scorecard Trend -> Contacted`
+- `Scorecard Trend -> Meetings`
+- `Scorecard Trend -> Offers`
+- `Scorecard Trend -> Contracts`
+- `Scorecard Trend -> Notes`
 
 Recommended Romanian pipeline options:
 
@@ -206,5 +235,7 @@ Until Vercel and Airtable are configured:
 - activities are stored in browser localStorage
 - company updates are stored in browser localStorage
 - targets are stored in browser localStorage
+- weekly scorecards are stored in browser localStorage
+- daily trend falls back to `Activities` if `Scorecard Trend` is not available
 
 You can export or clear the fallback memory from the UI.

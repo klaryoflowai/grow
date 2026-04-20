@@ -23,7 +23,7 @@ const scorecardTargets = {
   },
 };
 
-const appBuild = "20260420m";
+const appBuild = "20260420n";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -545,7 +545,9 @@ async function refreshData(options = {}) {
       ? payload.scorecards.map((row) => normalizeRow("scorecard", row))
       : [];
 
-    state.dailyScores = Array.isArray(payload.dailyScores) ? payload.dailyScores : [];
+    state.dailyScores = Array.isArray(payload.dailyScores)
+      ? payload.dailyScores.map((row) => normalizeRow("dailyScores", row))
+      : [];
 
     if (payload.targets) {
       state.targets = normalizeTargets(payload.targets);
@@ -571,6 +573,7 @@ async function refreshData(options = {}) {
     state.connection = null;
     state.warnings = [];
     state.sourceData = { accounts: [], activities: [], scorecards: [] };
+    state.dailyScores = [];
     state.targets = loadTargets();
     refreshCombinedData();
     hydrateScorecardForm();
@@ -975,6 +978,18 @@ function upsertManualScorecard(record) {
 }
 
 function normalizeRow(kind, row) {
+  if (kind === "dailyScores") {
+    return {
+      id: row.id || "",
+      date: row.date || "",
+      contacted: toNumber(row.contacted || row.contacts || 0),
+      meetings: toNumber(row.meetings || row.meeting || 0),
+      offers: toNumber(row.offers || row.offer || 0),
+      contracts: toNumber(row.contracts || row.contract_signed || row.contractSigned || 0),
+      notes: row.notes || "",
+    };
+  }
+
   if (kind === "accounts") {
     return {
       company: row.company || row.name || "",
@@ -1556,6 +1571,10 @@ function renderConnection() {
     chips.push(`<div class="mini-chip">Scorecard: ${escapeHtml(tables.scorecard)}</div>`);
   }
 
+  if (tables.scorecardTrend) {
+    chips.push(`<div class="mini-chip">Scorecard Trend: ${escapeHtml(tables.scorecardTrend)}</div>`);
+  }
+
   chips.push(`<div class="mini-chip">Build: ${appBuild}</div>`);
   chips.push(`<div class="mini-chip">Host: ${escapeHtml(window.location.host)}</div>`);
 
@@ -1572,7 +1591,7 @@ function renderConnection() {
     .join("");
 
   elements.connectionCopy.textContent = state.apiEnabled
-    ? "Baza Grow este conectata. Formularele de mai sus scriu direct in Airtable prin endpoint-urile Vercel."
+    ? "Baza Grow este conectata. Formularele scriu direct in Airtable, iar trendul zilnic poate veni din tabela Scorecard Trend."
     : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile, target-urile si scorecard-ul saptamanal.";
 
   elements.connectionBadges.innerHTML = `

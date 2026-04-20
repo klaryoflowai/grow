@@ -1,9 +1,15 @@
 # Airtable Schema: Scorecard
 
-Foloseste o singura tabela `Scorecard`.
+Foloseste o tabela separata `Scorecard` pentru datele saptamanale.
 
-Nu este nevoie de o tabela separata pentru `Scorecard Trend`.
-Trendul saptamanal vine natural din faptul ca fiecare rand reprezinta o saptamana.
+Aceasta tabela alimenteaza:
+
+- `The Power Three`
+- `Velocity si funnel efficiency`
+- `Lead Measures`
+- `Pâlnia de output si bottleneck`
+- `Evolutia ultimelor saptamani`
+- formularul `Completeaza scorecard-ul de vineri`
 
 ## Structura recomandata
 
@@ -31,11 +37,10 @@ Trendul saptamanal vine natural din faptul ca fiecare rand reprezinta o saptaman
 - Un rand = o saptamana.
 - `Week Start` este cheia operationala principala.
 - Dashboard-ul cauta saptamana curenta dupa `Week Start` / `Week Key`.
-- Istoricul pentru trendul saptamanal se construieste din ultimele randuri din aceasta tabela.
+- Daca salvezi din formularul de vineri, randul este creat sau actualizat in aceasta tabela.
 
-## Date live in Scorecard
+## Ce NU intra aici
 
-Pagina `Scorecard` foloseste doua surse diferite:
+Nu pune datele zilnice in `Scorecard`.
 
-- `Ultimele 7 zile` vine din activitatile zilnice deja salvate in dashboard / Airtable.
-- `Evolutia ultimelor saptamani` vine din tabela `Scorecard`.
+Pentru panoul `Ultimele 7 zile`, foloseste tabela separata `Scorecard Trend`.

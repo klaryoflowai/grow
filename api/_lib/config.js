@@ -26,12 +26,14 @@ function getAirtableConfig() {
       activities: readEnv("AIRTABLE_TABLE_ACTIVITIES", "Activities"),
       targets: readEnv("AIRTABLE_TABLE_TARGETS", "Targets"),
       scorecard: readEnv("AIRTABLE_TABLE_SCORECARD", "Scorecard"),
+      scorecardTrend: readEnv("AIRTABLE_TABLE_SCORECARD_TREND", "Scorecard Trend"),
     },
     views: {
       companies: readEnv("AIRTABLE_VIEW_COMPANIES"),
       activities: readEnv("AIRTABLE_VIEW_ACTIVITIES"),
       targets: readEnv("AIRTABLE_VIEW_TARGETS"),
       scorecard: readEnv("AIRTABLE_VIEW_SCORECARD"),
+      scorecardTrend: readEnv("AIRTABLE_VIEW_SCORECARD_TREND"),
     },
     fields: {
       companies: {
@@ -82,6 +84,14 @@ function getAirtableConfig() {
         workersSigned: readEnv("AIRTABLE_FIELD_SCORECARD_WORKERS_SIGNED", "Workers Signed"),
         workersDelivered: readEnv("AIRTABLE_FIELD_SCORECARD_WORKERS_DELIVERED", "Workers Delivered"),
         notes: readEnv("AIRTABLE_FIELD_SCORECARD_NOTES", "Notes"),
+      },
+      scorecardTrend: {
+        date: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_DATE", "Date"),
+        contacted: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_CONTACTED", "Contacted"),
+        meetings: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_MEETINGS", "Meetings"),
+        offers: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_OFFERS", "Offers"),
+        contracts: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_CONTRACTS", "Contracts"),
+        notes: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_NOTES", "Notes"),
       },
     },
     modes: {
