@@ -23,7 +23,7 @@ const scorecardTargets = {
   },
 };
 
-const appBuild = "20260420l";
+const appBuild = "20260420m";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -851,11 +851,11 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       existing.workers = activity.workers_delta;
     }
 
-    if (activity.next_step) {
+    if (activity.next_step && !normalizeString(existing.next_step)) {
       existing.next_step = activity.next_step;
     }
 
-    if (activity.next_step_date) {
+    if (activity.next_step_date && !existing.next_step_date) {
       existing.next_step_date = activity.next_step_date;
     }
 
@@ -863,7 +863,10 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
   });
 
   const activityKeys = new Set(activities.filter((a) => a.company).map((a) => a.company.toLowerCase()));
-  return [...merged.values()].filter((account) => activityKeys.has(account.company.toLowerCase()));
+  return [...merged.values()].filter((account) => {
+    const key = account.company.toLowerCase();
+    return isTrackedAccount(account) || activityKeys.has(key);
+  });
 }
 
 function syncManualAccountFromActivity(activity) {
