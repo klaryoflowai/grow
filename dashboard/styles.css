@@ -1395,6 +1395,13 @@ td {
   gap: 14px;
 }
 
+.mobile-log-form textarea {
+  resize: none;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .mobile-log-form .primary-button {
   margin-top: 4px;
   width: 100%;
