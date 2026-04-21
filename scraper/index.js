@@ -40,6 +40,18 @@ const VOLUME_EXCLUDE = [
   "1 persoană", "o persoană", "un angajat", "1 post", "singur angajat",
 ];
 
+// Titluri/fraze care indică că persoana CAUTĂ loc de muncă, nu angajează
+const JOBSEEKER_EXCLUDE = [
+  "caut de lucru", "caut lucru", "caut un loc", "caut serviciu",
+  "îmi caut", "imi caut", "disponibil pentru", "mă ofer", "ma ofer",
+  "ofer servicii", "ofer munca", "ofer muncă",
+];
+
+function isJobOffer(titlu, descriere = "") {
+  const text = `${titlu} ${descriere}`.toLowerCase();
+  return !JOBSEEKER_EXCLUDE.some((kw) => text.includes(kw));
+}
+
 function matchesVolumeFilter(titlu, descriere = "") {
   const text = `${titlu} ${descriere}`.toLowerCase();
   if (VOLUME_EXCLUDE.some((kw) => text.includes(kw.toLowerCase()))) return false;
@@ -176,6 +188,7 @@ async function scrapeCategory(page, category) {
 
     const validCards = jobCards.filter((c) => c.url && c.titlu && c.titlu.length > 3);
     for (const card of validCards) {
+      if (!isJobOffer(card.titlu)) continue;
       if (!matchesVolumeFilter(card.titlu)) continue;
       leads.push({ ...card, industrie: category.industrie });
     }
