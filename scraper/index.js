@@ -5,14 +5,35 @@ import { notify } from "./telegram.js";
 
 // URL-uri reale de pe rabota.md
 const CATEGORIES = [
+  // Construcții
   { url: "https://www.rabota.md/ro/jobs-moldova-Construcții;", industrie: "Construcții" },
-  { url: "https://www.rabota.md/ro/jobs-moldova-Muncitori", industrie: "Construcții" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-muncitori", industrie: "Construcții" },
   { url: "https://www.rabota.md/ro/jobs-moldova-zidari", industrie: "Construcții" },
   { url: "https://www.rabota.md/ro/jobs-moldova-mesteri", industrie: "Construcții" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-tencuitori", industrie: "Construcții" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-finisori", industrie: "Construcții" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-zugravi", industrie: "Construcții" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-dulgheri", industrie: "Construcții" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-betonisti", industrie: "Construcții" },
+  // Producție
   { url: "https://www.rabota.md/ro/jobs-moldova-Producție;", industrie: "Producție" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-sudori", industrie: "Producție" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-lacatusi", industrie: "Producție" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-operatori", industrie: "Producție" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-ambalatori", industrie: "Producție" },
+  // Depozitare / Logistică
   { url: "https://www.rabota.md/ro/jobs-moldova-Depozitare;", industrie: "Depozitare" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-hamali", industrie: "Depozitare" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-sortatori", industrie: "Depozitare" },
+  // Necalificați — transversal tuturor industriilor
+  { url: "https://www.rabota.md/ro/jobs-moldova-necalificati", industrie: "Construcții" },
+  // Agricultură
   { url: "https://www.rabota.md/ro/jobs-moldova-Agricultură;", industrie: "Agricultură" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-culegatori", industrie: "Agricultură" },
+  // HoReCa
   { url: "https://www.rabota.md/ro/jobs-moldova-HoReCa;", industrie: "HoReCa" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-bucatari", industrie: "HoReCa" },
+  { url: "https://www.rabota.md/ro/jobs-moldova-ospatari", industrie: "HoReCa" },
 ];
 
 const VOLUME_EXCLUDE = [
