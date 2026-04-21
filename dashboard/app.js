@@ -3430,8 +3430,8 @@ function renderAlerts() {
       key: "today",
       eyebrow: "Astazi",
       title: "Azi",
-      copy: "Conturile care au next step exact azi.",
-      empty: "Nu ai next step-uri programate pentru azi.",
+      copy: "Conturile care au next step exact azi sau trebuie reactivate azi.",
+      empty: "Nu ai next step-uri sau reactivari programate pentru azi.",
       tone: "#c98622",
       soft: "#f7ecd5",
       items: queues.today,
@@ -3440,8 +3440,8 @@ function renderAlerts() {
       key: "overdue",
       eyebrow: "Urgent",
       title: "Intarziate",
-      copy: "Conturile unde termenul pentru next step a fost depasit.",
-      empty: "Nu exista conturi intarziate acum.",
+      copy: "Conturile unde termenul pentru next step sau reactivare a fost depasit.",
+      empty: "Nu exista conturi sau reactivari intarziate acum.",
       tone: "#cb5846",
       soft: "#fbe8e4",
       items: queues.overdue,
@@ -3492,9 +3492,9 @@ function renderExecutionSummary() {
 
   elements.executionSummary.innerHTML = buildStats([
     {
-      label: "Next step azi",
+      label: "Azi",
       value: queues.today.length,
-      meta: "conturi programate pentru azi",
+      meta: "next step-uri si reactivari pentru azi",
       color: "#c98622",
       variant: "today",
       eyebrow: "Cadenta",
@@ -3504,7 +3504,7 @@ function renderExecutionSummary() {
     {
       label: "Intarziate",
       value: queues.overdue.length,
-      meta: "next step depasit",
+      meta: "next step sau reactivare depasita",
       color: "#cb5846",
       variant: "today",
       eyebrow: "Cadenta",
@@ -3551,6 +3551,13 @@ function statusLabel(type) {
 }
 
 function buildAlertCopy(account, now) {
+  if (isStandbyAccount(account) && account.reactivation_date) {
+    const delta = dayDiff(account.reactivation_date, now);
+    if (delta > 0) return `reactivare intarziata cu ${delta} zile`;
+    if (delta === 0) return "reactivare azi";
+    return `reactivare in ${Math.abs(delta)} zile`;
+  }
+
   if (account.next_step_date) {
     const delta = dayDiff(account.next_step_date, now);
     if (delta > 0) return `next step intarziat cu ${delta} zile`;
@@ -3565,6 +3572,9 @@ function getExecutionQueues(now = new Date()) {
   const openTrackedAccounts = state.accounts
     .filter((account) => isTrackedAccount(account))
     .filter((account) => isPipelineOpen(account.pipeline_stage));
+  const standbyTrackedAccounts = state.accounts
+    .filter((account) => isTrackedAccount(account))
+    .filter((account) => isStandbyAccount(account));
 
   const overdue = [];
   const today = [];
@@ -3586,6 +3596,17 @@ function getExecutionQueues(now = new Date()) {
     }
   });
 
+  standbyTrackedAccounts.forEach((account) => {
+    if (!account.reactivation_date) return;
+
+    const delta = dayDiff(account.reactivation_date, now);
+    if (delta > 0) {
+      overdue.push(account);
+    } else if (delta === 0) {
+      today.push(account);
+    }
+  });
+
   const all = [...overdue, ...today, ...stale].sort((left, right) => {
     const leftPriority = getAlertState(left, now).priority;
     const rightPriority = getAlertState(right, now).priority;
@@ -3601,6 +3622,31 @@ function getExecutionQueues(now = new Date()) {
 }
 
 function getAlertState(account, now = new Date()) {
+  if (isStandbyAccount(account) && account.reactivation_date) {
+    const delta = dayDiff(account.reactivation_date, now);
+    if (delta > 0) {
+      return {
+        eyebrow: "Reactivare",
+        badge: delta === 1 ? "1 zi peste reactivare" : `${delta} zile peste reactivare`,
+        copy: buildAlertCopy(account, now),
+        tone: "#cb5846",
+        soft: "#fbe8e4",
+        priority: 320 + delta,
+      };
+    }
+
+    if (delta === 0) {
+      return {
+        eyebrow: "Reactivare",
+        badge: "Azi",
+        copy: buildAlertCopy(account, now),
+        tone: "#c98622",
+        soft: "#f7ecd5",
+        priority: 220,
+      };
+    }
+  }
+
   if (account.next_step_date) {
     const delta = dayDiff(account.next_step_date, now);
     if (delta > 0) {
@@ -3659,10 +3705,23 @@ function buildAlertCard(account) {
   const metaChips = [
     buildThemedPill(account.pipeline_stage || "Fara stadiu", pipelineTheme),
     buildHealthPill(account.account_health),
+    account.standby_reason ? `<span class="execution-meta-pill">Standby: ${escapeHtml(account.standby_reason)}</span>` : "",
     account.workers ? `<span class="execution-meta-pill">${account.workers} muncitori</span>` : "",
   ].filter(Boolean);
 
   const detailText = account.last_outcome ? escapeHtml(account.last_outcome) : "";
+
+  const footerLeft = isStandbyAccount(account) && account.reactivation_date
+    ? `Data reactivare: ${formatDate(account.reactivation_date)}`
+    : account.next_step_date
+      ? `Data next step: ${formatDate(account.next_step_date)}`
+      : `Ultimul touch: ${formatDate(account.last_contact)}`;
+
+  const footerRight = account.next_step
+    ? escapeHtml(account.next_step)
+    : isStandbyAccount(account)
+      ? "Fara pas de reactivare notat"
+      : "Fara next step notat";
 
   return `
     <article class="execution-card execution-card--alert" style="--execution-accent:${alertState.tone}; --execution-soft:${alertState.soft};">
@@ -3675,8 +3734,8 @@ function buildAlertCard(account) {
       ${metaChips.length ? `<div class="execution-chip-row">${metaChips.join("")}</div>` : ""}
       ${detailText ? `<div class="execution-note">${detailText}</div>` : ""}
       <div class="execution-footer">
-        <span>${account.next_step_date ? `Data next step: ${formatDate(account.next_step_date)}` : `Ultimul touch: ${formatDate(account.last_contact)}`}</span>
-        <span>${account.next_step ? escapeHtml(account.next_step) : "Fara next step notat"}</span>
+        <span>${footerLeft}</span>
+        <span>${footerRight}</span>
       </div>
     </article>
   `;
