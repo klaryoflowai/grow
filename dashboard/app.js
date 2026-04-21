@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421e";
+const appBuild = "20260421f";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -3323,7 +3323,7 @@ function renderPipeline() {
             }
           </td>
           <td>${escapeHtml(account.last_outcome || "-")}</td>
-          <td>${renderPlannedActivityCell(plannedActivity)}</td>
+          <td>${renderPlannedActivityCell(plannedActivity, account)}</td>
           <td>${formatDate(account.last_contact)}</td>
           <td>${escapeHtml(formatNextStep(account))}</td>
         </tr>
@@ -3689,9 +3689,25 @@ function buildLatestPlannedActivityIndex(activities = []) {
   return index;
 }
 
-function renderPlannedActivityCell(activity) {
+function renderPlannedActivityCell(activity, account = {}) {
   if (!activity) {
-    return `<span class="table-muted">-</span>`;
+    const fallbackPlan = normalizeString(account.next_step);
+    if (!fallbackPlan) {
+      return `<span class="table-muted">-</span>`;
+    }
+
+    const fallbackMeta = [];
+    if (account.next_step_date) {
+      fallbackMeta.push(formatDate(account.next_step_date));
+    }
+    fallbackMeta.push("din tracking companie");
+
+    return `
+      <div class="planned-cell">
+        <div class="planned-cell-title">${escapeHtml(fallbackPlan)}</div>
+        <div class="company-meta">${escapeHtml(fallbackMeta.join(" · "))}</div>
+      </div>
+    `;
   }
 
   const rawOutcome = normalizeString(activity.outcome);
