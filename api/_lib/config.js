@@ -42,6 +42,7 @@ function getAirtableConfig() {
         pipelineStage: readEnv("AIRTABLE_FIELD_COMPANY_PIPELINE_STAGE", "Stadiu Pipeline"),
         accountHealth: readEnv("AIRTABLE_FIELD_COMPANY_ACCOUNT_HEALTH", "Sanatate Cont"),
         workers: readEnv("AIRTABLE_FIELD_COMPANY_WORKERS", "Potential Workers"),
+        leadDate: readEnv("AIRTABLE_FIELD_COMPANY_LEAD_DATE", "Lead Date"),
         lastContact: readEnv("AIRTABLE_FIELD_COMPANY_LAST_CONTACT", "Last Contact"),
         nextStep: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP", "Next Step"),
         nextStepDate: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP_DATE", "Next Step Date"),

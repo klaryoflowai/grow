@@ -100,6 +100,7 @@ Recommended Airtable fields:
 - `Companies -> Stadiu Pipeline`
 - `Companies -> Sanatate Cont`
 - `Companies -> Potential Workers`
+- `Companies -> Lead Date`
 - `Companies -> Last Contact`
 - `Companies -> Next Step`
 - `Companies -> Next Step Date`

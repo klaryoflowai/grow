@@ -1574,6 +1574,18 @@ td {
   color: var(--text);
 }
 
+.company-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.company-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .status-pill,
 .mini-chip {
   display: inline-flex;

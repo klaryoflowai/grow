@@ -206,6 +206,20 @@ function decodeAccountHealth(value = "") {
   return accountHealthFromAirtableMap[raw] || raw;
 }
 
+function isMissingFieldError(error, fieldName = "") {
+  const message = normalizeString(error?.message).toLowerCase();
+  const normalizedField = normalizeString(fieldName).toLowerCase();
+  return Boolean(
+    normalizedField
+    && message.includes(normalizedField)
+    && (
+      message.includes("unknown field")
+      || message.includes("does not exist")
+      || message.includes("cannot find field")
+    )
+  );
+}
+
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
@@ -219,6 +233,9 @@ function normalizeCompanyRecord(record, config) {
       config.fields.companies.accountHealth ? fields[config.fields.companies.accountHealth] : ""
     ),
     workers: toNumber(fields[config.fields.companies.workers]),
+    lead_date: toIsoDate(
+      config.fields.companies.leadDate ? fields[config.fields.companies.leadDate] : ""
+    ),
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.companies.nextStepDate]),
@@ -351,6 +368,48 @@ function buildSalesCycles(activities = []) {
   });
 
   return cycles;
+}
+
+function buildLeadDateIndex(activities = []) {
+  const sorted = [...activities]
+    .filter((activity) => activity.company && activity.date)
+    .sort((left, right) => {
+      const leftTime = parseDate(left.date)?.getTime() || 0;
+      const rightTime = parseDate(right.date)?.getTime() || 0;
+      return leftTime - rightTime;
+    });
+
+  const leadState = new Map();
+
+  sorted.forEach((activity) => {
+    if (!isLiveActivityRecord(activity)) return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    const activityDate = parseDate(activity.date);
+    if (!companyKey || !activityDate) return;
+
+    const entry = leadState.get(companyKey) || {
+      currentLeadDate: null,
+      lastLeadDate: null,
+    };
+
+    if (!entry.currentLeadDate) {
+      entry.currentLeadDate = activityDate;
+    }
+
+    if (normalizeActivity(activity.activity_type) === "contract_signed") {
+      entry.lastLeadDate = entry.currentLeadDate || activityDate;
+      entry.currentLeadDate = null;
+    }
+
+    leadState.set(companyKey, entry);
+  });
+
+  return new Map(
+    [...leadState.entries()]
+      .map(([companyKey, entry]) => [companyKey, toIsoDate(entry.currentLeadDate || entry.lastLeadDate)])
+      .filter(([, leadDate]) => leadDate)
+  );
 }
 
 function calculateSalesVelocityForWindow(activities = [], weekStart, weekEnd) {
@@ -540,6 +599,12 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.workers] = 0;
   }
 
+  if ("lead_date" in payload && config.fields.companies.leadDate) {
+    fields[config.fields.companies.leadDate] = payload.lead_date ? toIsoDate(payload.lead_date) : null;
+  } else if (!existingRecord && config.fields.companies.leadDate) {
+    fields[config.fields.companies.leadDate] = null;
+  }
+
   if ("last_contact" in payload) {
     fields[config.fields.companies.lastContact] = payload.last_contact ? toIsoDate(payload.last_contact) : null;
   } else if (!existingRecord) {
@@ -578,8 +643,18 @@ async function upsertCompany(payload) {
       : await createRecord("companies", fields);
   } catch (error) {
     const workersField = config.fields.companies.workers;
+    const leadDateField = config.fields.companies.leadDate;
     const workersValueProvided = Object.prototype.hasOwnProperty.call(fields, workersField);
     const workersRejected = workersField && error.message?.includes(`Field "${workersField}" cannot accept the provided value`);
+    const leadDateMissing = leadDateField && isMissingFieldError(error, leadDateField);
+
+    if (leadDateMissing) {
+      delete fields[leadDateField];
+      record = existingRecord
+        ? await updateRecord("companies", existingRecord.id, fields)
+        : await createRecord("companies", fields);
+      return normalizeCompanyRecord(record, config);
+    }
 
     if (!workersValueProvided || !workersRejected) {
       throw error;
@@ -591,7 +666,15 @@ async function upsertCompany(payload) {
         ? await updateRecord("companies", existingRecord.id, fields)
         : await createRecord("companies", fields);
     } catch (fallbackError) {
+      const leadDateMissingOnFallback = leadDateField && isMissingFieldError(fallbackError, leadDateField);
       const stringWorkersRejected = fallbackError.message?.includes(`Field "${workersField}" cannot accept the provided value`);
+      if (leadDateMissingOnFallback) {
+        delete fields[leadDateField];
+        record = existingRecord
+          ? await updateRecord("companies", existingRecord.id, fields)
+          : await createRecord("companies", fields);
+        return normalizeCompanyRecord(record, config);
+      }
       if (!stringWorkersRejected) {
         throw fallbackError;
       }
@@ -629,6 +712,14 @@ async function touchCompanyFromActivity(activity) {
     [config.fields.companies.company]: companyName,
   };
 
+  if (!plannedActivity && config.fields.companies.leadDate) {
+    const activityLeadDate = activity.date ? toIsoDate(activity.date) : "";
+    const existingLeadDate = existingCompany?.lead_date || "";
+    if (activityLeadDate && (!existingLeadDate || activityLeadDate < existingLeadDate)) {
+      fields[config.fields.companies.leadDate] = activityLeadDate;
+    }
+  }
+
   if (!plannedActivity && config.fields.companies.lastContact) {
     const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
     const lastContact = dateCandidates[dateCandidates.length - 1] || "";
@@ -650,9 +741,23 @@ async function touchCompanyFromActivity(activity) {
     fields[config.fields.companies.nextStepDate] = activity.next_step_date ? toIsoDate(activity.next_step_date) : null;
   }
 
-  const record = existingRecord
-    ? await updateRecord("companies", existingRecord.id, fields)
-    : await createRecord("companies", fields);
+  let record;
+
+  try {
+    record = existingRecord
+      ? await updateRecord("companies", existingRecord.id, fields)
+      : await createRecord("companies", fields);
+  } catch (error) {
+    const leadDateField = config.fields.companies.leadDate;
+    if (!leadDateField || !isMissingFieldError(error, leadDateField)) {
+      throw error;
+    }
+
+    delete fields[leadDateField];
+    record = existingRecord
+      ? await updateRecord("companies", existingRecord.id, fields)
+      : await createRecord("companies", fields);
+  }
 
   return {
     record,
@@ -884,6 +989,11 @@ async function getDashboardData() {
   const activities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
+  const derivedLeadDates = buildLeadDateIndex(activities);
+  const hydratedCompanies = companies.map((company) => ({
+    ...company,
+    lead_date: company.lead_date || derivedLeadDates.get(normalizeCompanyKey(company.company)) || "",
+  }));
   const targets = selectTargets(targetRecords, config);
   const scorecards = scorecardRecords
     .map((record) => normalizeScorecardRecord(record, config))
@@ -900,7 +1010,7 @@ async function getDashboardData() {
 
   return {
     configured: true,
-    companies,
+    companies: hydratedCompanies,
     activities,
     targets,
     dailyScores,

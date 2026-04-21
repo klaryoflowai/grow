@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260420t";
+const appBuild = "20260421a";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -583,7 +583,7 @@ function bindEvents() {
 
     const company = resolution.company;
     const confirmed = window.confirm(
-      `Resetez tracking-ul pentru ${company}? Vor fi golite stadiul, sanatatea contului, ultimul contact si next step-ul.`
+      `Resetez tracking-ul pentru ${company}? Vor fi golite stadiul, sanatatea contului, lead date, ultimul contact si next step-ul.`
     );
 
     if (!confirmed) return;
@@ -592,6 +592,7 @@ function bindEvents() {
       company,
       pipeline_stage: "",
       account_health: "",
+      lead_date: "",
       last_contact: "",
       next_step: "",
       next_step_date: "",
@@ -1059,6 +1060,7 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       account_health: "",
       last_outcome: "",
       workers: 0,
+      lead_date: null,
       last_contact: null,
       next_step: "",
       next_step_date: null,
@@ -1105,8 +1107,12 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
     merged.set(key, existing);
   });
 
+  const derivedLeadDates = buildLeadDateIndexFromActivities(activities);
   const activityKeys = new Set(activities.filter((a) => a.company).map((a) => a.company.toLowerCase()));
-  return [...merged.values()].filter((account) => {
+  return [...merged.values()].map((account) => ({
+    ...account,
+    lead_date: account.lead_date || derivedLeadDates.get(normalizeCompanyKey(account.company)) || null,
+  })).filter((account) => {
     const key = account.company.toLowerCase();
     return isTrackedAccount(account) || activityKeys.has(key);
   });
@@ -1123,6 +1129,7 @@ function syncManualAccountFromActivity(activity) {
         account_health: "",
         last_outcome: "",
         workers: 0,
+        lead_date: null,
         last_contact: null,
         next_step: "",
         next_step_date: null,
@@ -1131,6 +1138,10 @@ function syncManualAccountFromActivity(activity) {
       };
 
   const plannedActivity = isPlannedActivity(activity);
+
+  if (!plannedActivity && activity.date && (!current.lead_date || activity.date < current.lead_date)) {
+    current.lead_date = activity.date;
+  }
 
   if (!plannedActivity && activity.date && (!current.last_contact || activity.date > current.last_contact)) {
     current.last_contact = activity.date;
@@ -1197,6 +1208,7 @@ function clearManualAccountTracking(companyName) {
     pipeline_stage: "",
     account_health: "",
     last_outcome: "",
+    lead_date: null,
     last_contact: null,
     next_step: "",
     next_step_date: null,
@@ -1251,6 +1263,7 @@ function normalizeRow(kind, row) {
       account_health: normalizeAccountHealth(row.account_health || row.accountHealth || row.health),
       last_outcome: row.last_outcome || row.lastOutcome || "",
       workers: toNumber(row.workers || row.potential_volume || row.workers_requested || 0),
+      lead_date: parseDate(row.lead_date || row.leadDate),
       last_contact: parseDate(row.last_contact || row.date),
       next_step: row.next_step || "",
       next_step_date: parseDate(row.next_step_date),
@@ -2401,6 +2414,48 @@ function buildSalesCyclesFromActivities(activities = []) {
   return cycles;
 }
 
+function buildLeadDateIndexFromActivities(activities = []) {
+  const sorted = [...activities]
+    .filter((activity) => activity.company && activity.date)
+    .sort((left, right) => {
+      const leftTime = left.date?.getTime?.() || 0;
+      const rightTime = right.date?.getTime?.() || 0;
+      return leftTime - rightTime;
+    });
+
+  const leadState = new Map();
+
+  sorted.forEach((activity) => {
+    if (!isLiveActivityEntry(activity)) return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    const activityDate = activity.date;
+    if (!companyKey || !activityDate) return;
+
+    const entry = leadState.get(companyKey) || {
+      currentLeadDate: null,
+      lastLeadDate: null,
+    };
+
+    if (!entry.currentLeadDate) {
+      entry.currentLeadDate = activityDate;
+    }
+
+    if (normalizeActivity(activity.activity_type) === "contract_signed") {
+      entry.lastLeadDate = entry.currentLeadDate || activityDate;
+      entry.currentLeadDate = null;
+    }
+
+    leadState.set(companyKey, entry);
+  });
+
+  return new Map(
+    [...leadState.entries()]
+      .map(([companyKey, entry]) => [companyKey, entry.currentLeadDate || entry.lastLeadDate || null])
+      .filter(([, leadDate]) => Boolean(leadDate))
+  );
+}
+
 function calculateSalesVelocityForWindow(activities = [], weekStart, weekEnd) {
   const startDate = parseDate(weekStart);
   const endDate = parseDate(weekEnd || getWeekEnd(weekStart));
@@ -3236,7 +3291,16 @@ function renderPipeline() {
       const health = accountHealthTheme[account.account_health] || null;
       return `
         <tr>
-          <td><div class="company-name">${escapeHtml(account.company)}</div></td>
+          <td>
+            <div class="company-cell">
+              <div class="company-name">${escapeHtml(account.company)}</div>
+              ${
+                account.lead_date
+                  ? `<div class="company-meta">Lead din ${escapeHtml(formatDateWithYear(account.lead_date))}</div>`
+                  : ""
+              }
+            </div>
+          </td>
           <td>
             <span class="status-pill" style="color:${pipelineStage.color}; background:${pipelineStage.bg}; border-color:${pipelineStage.color}33;">
               ${escapeHtml(account.pipeline_stage || "-")}
@@ -3698,6 +3762,10 @@ function serializeCompanyPayload(record, raw = {}) {
 
   if (raw.workers !== undefined && raw.workers !== "") {
     payload.workers = record.workers;
+  }
+
+  if (raw.lead_date !== undefined) {
+    payload.lead_date = record.lead_date ? record.lead_date.toISOString().slice(0, 10) : "";
   }
 
   if (raw.last_contact !== undefined) {
