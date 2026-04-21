@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421h";
+const appBuild = "20260421i";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -167,6 +167,7 @@ const state = {
   scorecards: [],
   scorecard: createEmptyScorecard(),
   search: "",
+  standbyFilter: "all",
   page: getPageFromHash(),
   apiEnabled: false,
   sourceMode: "fallback",
@@ -215,6 +216,7 @@ const elements = {
   scorecardFormStatus: document.getElementById("scorecard-form-status"),
   dailyTrendFormStatus: document.getElementById("daily-trend-form-status"),
   companyOptions: document.getElementById("company-options"),
+  standbyFilterButtons: [...document.querySelectorAll("[data-standby-filter]")],
   pageButtons: [...document.querySelectorAll("[data-page-target]")],
   pageSections: [...document.querySelectorAll("[data-page]")],
   saveTargets: document.getElementById("save-targets"),
@@ -397,6 +399,13 @@ function bindEvents() {
   elements.companySearch.addEventListener("input", (event) => {
     state.search = event.target.value.trim().toLowerCase();
     renderPipeline();
+  });
+
+  elements.standbyFilterButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.standbyFilter = button.dataset.standbyFilter || "all";
+      renderPipeline();
+    });
   });
 
   elements.companyInputs.forEach((input) => {
@@ -3382,27 +3391,38 @@ function compareStandbyAccounts(left = {}, right = {}) {
 function renderStandbyTable(standbyAccounts = []) {
   if (!elements.standbyTableBody || !elements.standbyChip) return;
 
+  const totalCount = standbyAccounts.length;
+  const filteredStandbyAccounts = standbyAccounts.filter((account) => matchesStandbyFilter(account, state.standbyFilter));
+  const visibleCount = filteredStandbyAccounts.length;
   const dueCount = standbyAccounts.filter((account) => {
     if (!account.reactivation_date) return false;
     return dayDiff(account.reactivation_date, new Date()) >= 0;
   }).length;
 
-  elements.standbyChip.textContent = dueCount
-    ? `${standbyAccounts.length} standby · ${dueCount} de reactivat`
-    : `${standbyAccounts.length} standby`;
+  elements.standbyFilterButtons.forEach((button) => {
+    button.classList.toggle("is-active", (button.dataset.standbyFilter || "all") === state.standbyFilter);
+  });
 
-  if (!standbyAccounts.length) {
+  const countLabel = visibleCount === totalCount
+    ? `${totalCount} standby`
+    : `${visibleCount}/${totalCount} standby`;
+
+  elements.standbyChip.textContent = dueCount
+    ? `${countLabel} · ${dueCount} de reactivat`
+    : countLabel;
+
+  if (!filteredStandbyAccounts.length) {
     elements.standbyTableBody.innerHTML = `
       <tr>
         <td colspan="4">
-          <div class="empty-card">Nu exista lead-uri in standby in acest moment.</div>
+          <div class="empty-card">${getStandbyEmptyMessage(state.standbyFilter, totalCount)}</div>
         </td>
       </tr>
     `;
     return;
   }
 
-  elements.standbyTableBody.innerHTML = standbyAccounts
+  elements.standbyTableBody.innerHTML = filteredStandbyAccounts
     .map((account) => `
       <tr>
         <td>
@@ -3421,6 +3441,48 @@ function renderStandbyTable(standbyAccounts = []) {
       </tr>
     `)
     .join("");
+}
+
+function matchesStandbyFilter(account = {}, filter = "all", now = new Date()) {
+  if (filter === "today") {
+    return Boolean(account.reactivation_date && dayDiff(account.reactivation_date, now) === 0);
+  }
+
+  if (filter === "week") {
+    if (!account.reactivation_date) return false;
+    const weekStart = parseDate(getWeekStart(now.toISOString().slice(0, 10)));
+    const weekEnd = parseDate(getWeekEnd(now.toISOString().slice(0, 10)));
+    if (!weekStart || !weekEnd) return false;
+    const current = new Date(account.reactivation_date);
+    current.setHours(0, 0, 0, 0);
+    return current >= weekStart && current <= weekEnd;
+  }
+
+  if (filter === "no_date") {
+    return !account.reactivation_date;
+  }
+
+  return true;
+}
+
+function getStandbyEmptyMessage(filter = "all", totalCount = 0) {
+  if (!totalCount) {
+    return "Nu exista lead-uri in standby in acest moment.";
+  }
+
+  if (filter === "today") {
+    return "Nu exista lead-uri de reactivat azi.";
+  }
+
+  if (filter === "week") {
+    return "Nu exista lead-uri de reactivat in aceasta saptamana.";
+  }
+
+  if (filter === "no_date") {
+    return "Nu exista lead-uri in standby fara data de reactivare.";
+  }
+
+  return "Nu exista lead-uri in standby pentru filtrul ales.";
 }
 
 function renderAlerts() {

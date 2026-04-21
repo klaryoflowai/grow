@@ -1509,6 +1509,38 @@ h3 {
   min-height: 220px;
 }
 
+.standby-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+
+.standby-filter-button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 250, 0.82);
+  color: var(--muted-strong);
+  padding: 9px 14px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.standby-filter-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(43, 109, 66, 0.22);
+}
+
+.standby-filter-button.is-active {
+  background: var(--forest-700);
+  border-color: var(--forest-700);
+  color: #f9f6f0;
+  box-shadow: 0 12px 24px rgba(31, 73, 44, 0.14);
+}
+
 .pipeline-stat-card {
   display: flex;
   flex-direction: column;

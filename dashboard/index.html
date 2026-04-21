@@ -560,6 +560,12 @@
                   <div id="standby-chip" class="mini-chip">0 standby</div>
                 </div>
                 <p class="panel-copy">Lead-urile parcate ies din statisticile curente. Le revezi aici cand vine data de reactivare sau cand vrei sa le reincalzesti.</p>
+                <div class="standby-filter-row">
+                  <button class="standby-filter-button is-active" type="button" data-standby-filter="all">Toate</button>
+                  <button class="standby-filter-button" type="button" data-standby-filter="today">Azi</button>
+                  <button class="standby-filter-button" type="button" data-standby-filter="week">Saptamana asta</button>
+                  <button class="standby-filter-button" type="button" data-standby-filter="no_date">Fara data</button>
+                </div>
                 <div class="table-wrap standby-table-wrap">
                   <table>
                     <thead>
@@ -740,6 +746,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260421h"></script>
+    <script src="./app.js?v=20260421i"></script>
   </body>
 </html>
