@@ -8,6 +8,9 @@ const stageOrder = {
 };
 
 const activityAliases = {
+  planned: "planned",
+  scheduled: "planned",
+  planificat: "planned",
   lead_new: "contacted",
   new_lead: "contacted",
   first_contact: "contacted",
@@ -87,6 +90,59 @@ function getCurrentPeriod(timezone = "Europe/Chisinau") {
   return year && month ? `${year}-${month}` : new Date().toISOString().slice(0, 7);
 }
 
+function getCurrentWeekStart(timezone = "Europe/Chisinau") {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = Number(parts.find((part) => part.type === "year")?.value || 0);
+  const month = Number(parts.find((part) => part.type === "month")?.value || 0);
+  const day = Number(parts.find((part) => part.type === "day")?.value || 0);
+  const current = new Date(Date.UTC(year, month - 1, day));
+  const mondayOffset = (current.getUTCDay() + 6) % 7;
+  current.setUTCDate(current.getUTCDate() - mondayOffset);
+  return current.toISOString().slice(0, 10);
+}
+
+function getWeekStart(value) {
+  const date = parseDate(value);
+  if (!date) return "";
+  const current = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const mondayOffset = (current.getUTCDay() + 6) % 7;
+  current.setUTCDate(current.getUTCDate() - mondayOffset);
+  return current.toISOString().slice(0, 10);
+}
+
+function getWeekEnd(value) {
+  const weekStart = getWeekStart(value);
+  const date = parseDate(weekStart);
+  if (!date) return "";
+  date.setUTCDate(date.getUTCDate() + 6);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildWeekLabel(weekStart, weekEnd, locale = "ro-RO") {
+  const startDate = parseDate(weekStart);
+  const endDate = parseDate(weekEnd || getWeekEnd(weekStart));
+  if (!startDate || !endDate) return "";
+
+  const start = new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "short",
+  }).format(startDate);
+
+  const end = new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(endDate);
+
+  return `${start} - ${end}`;
+}
+
 function normalizePeriod(value, timezone = "Europe/Chisinau") {
   const raw = normalizeString(value);
   if (!raw) return getCurrentPeriod(timezone);
@@ -98,7 +154,11 @@ function normalizePeriod(value, timezone = "Europe/Chisinau") {
 }
 
 module.exports = {
+  buildWeekLabel,
+  getCurrentWeekStart,
   getCurrentPeriod,
+  getWeekEnd,
+  getWeekStart,
   normalizeActivity,
   normalizePeriod,
   normalizeStatus,

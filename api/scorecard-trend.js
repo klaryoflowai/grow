@@ -1,4 +1,4 @@
-const { getDashboardData, upsertScorecard } = require("./_lib/airtable");
+const { getDashboardData, upsertScorecardTrend } = require("./_lib/airtable");
 const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
 
 module.exports = async function handler(request, response) {
@@ -7,16 +7,15 @@ module.exports = async function handler(request, response) {
     if (request.method === "GET") {
       const data = await getDashboardData();
       response.status(200).json({
-        scorecard: data.scorecard,
-        scorecards: data.scorecards,
+        dailyScores: data.dailyScores,
       });
       return;
     }
 
     if (request.method === "PUT" || request.method === "PATCH") {
       const payload = await readJsonBody(request);
-      const scorecard = await upsertScorecard(payload);
-      response.status(200).json({ scorecard });
+      const dailyScore = await upsertScorecardTrend(payload);
+      response.status(200).json({ dailyScore });
       return;
     }
 

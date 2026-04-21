@@ -1,10 +1,15 @@
 const { defaultTargets, getAirtableConfig, isConfigured } = require("./config");
 const {
+  buildWeekLabel,
+  getCurrentWeekStart,
   getCurrentPeriod,
+  getWeekEnd,
+  getWeekStart,
   normalizeActivity,
   normalizePeriod,
   normalizeStatus,
   normalizeString,
+  parseDate,
   stageRank,
   toIsoDate,
   toNumber,
@@ -167,6 +172,9 @@ function statusToPipelineStage(status = "") {
 }
 
 function activityToPipelineStage(activityType = "") {
+  if (normalizeActivity(activityType) === "planned") {
+    return "";
+  }
   return statusToPipelineStage(activityType);
 }
 
@@ -198,6 +206,20 @@ function decodeAccountHealth(value = "") {
   return accountHealthFromAirtableMap[raw] || raw;
 }
 
+function isMissingFieldError(error, fieldName = "") {
+  const message = normalizeString(error?.message).toLowerCase();
+  const normalizedField = normalizeString(fieldName).toLowerCase();
+  return Boolean(
+    normalizedField
+    && message.includes(normalizedField)
+    && (
+      message.includes("unknown field")
+      || message.includes("does not exist")
+      || message.includes("cannot find field")
+    )
+  );
+}
+
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
@@ -211,9 +233,18 @@ function normalizeCompanyRecord(record, config) {
       config.fields.companies.accountHealth ? fields[config.fields.companies.accountHealth] : ""
     ),
     workers: toNumber(fields[config.fields.companies.workers]),
+    lead_date: toIsoDate(
+      config.fields.companies.leadDate ? fields[config.fields.companies.leadDate] : ""
+    ),
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.companies.nextStepDate]),
+    standby_reason: normalizeString(
+      config.fields.companies.standbyReason ? fields[config.fields.companies.standbyReason] : ""
+    ),
+    reactivation_date: toIsoDate(
+      config.fields.companies.reactivationDate ? fields[config.fields.companies.reactivationDate] : ""
+    ),
     stage_changed_date: toIsoDate(
       config.fields.companies.stageChangedDate ? fields[config.fields.companies.stageChangedDate] : ""
     ),
@@ -255,6 +286,7 @@ function normalizeActivityRecord(record, config, companyNameById) {
 
   return {
     id: record.id,
+    created_at: normalizeString(record.createdTime),
     date: toIsoDate(fields[config.fields.activities.date]),
     company: resolveActivityCompany(fields, config, companyNameById),
     activity_type: normalizeActivity(fields[config.fields.activities.type]),
@@ -263,6 +295,162 @@ function normalizeActivityRecord(record, config, companyNameById) {
     next_step: normalizeString(fields[config.fields.activities.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.activities.nextStepDate]),
     notes: normalizeString(fields[config.fields.activities.notes]),
+  };
+}
+
+function normalizeCompanyKey(value = "") {
+  return normalizeString(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function isLiveActivityRecord(activity = {}) {
+  return normalizeActivity(activity.activity_type) !== "planned";
+}
+
+function dayDiff(left, right) {
+  const ms = 1000 * 60 * 60 * 24;
+  const leftDate = new Date(left);
+  const rightDate = new Date(right);
+  leftDate.setHours(0, 0, 0, 0);
+  rightDate.setHours(0, 0, 0, 0);
+  return Math.floor((rightDate.getTime() - leftDate.getTime()) / ms);
+}
+
+function isDateWithinInclusiveRange(date, start, end) {
+  if (!date || !start || !end) return false;
+  const current = new Date(date);
+  const left = new Date(start);
+  const right = new Date(end);
+  current.setHours(0, 0, 0, 0);
+  left.setHours(0, 0, 0, 0);
+  right.setHours(0, 0, 0, 0);
+  return current >= left && current <= right;
+}
+
+function buildSalesCycles(activities = []) {
+  const sorted = [...activities]
+    .filter((activity) => activity.company && activity.date)
+    .sort((left, right) => {
+      const leftTime = parseDate(left.date)?.getTime() || 0;
+      const rightTime = parseDate(right.date)?.getTime() || 0;
+      return leftTime - rightTime;
+    });
+
+  const cycleState = new Map();
+  const cycles = [];
+
+  sorted.forEach((activity) => {
+    if (!isLiveActivityRecord(activity)) return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    const activityDate = parseDate(activity.date);
+    if (!companyKey || !activityDate) return;
+
+    const activeCycle = cycleState.get(companyKey) || {
+      leadDate: null,
+      company: activity.company,
+    };
+
+    if (!activeCycle.leadDate) {
+      activeCycle.leadDate = activityDate;
+    }
+
+    activeCycle.company = activity.company;
+
+    if (normalizeActivity(activity.activity_type) === "contract_signed") {
+      const leadDate = activeCycle.leadDate || activityDate;
+      cycles.push({
+        company: activity.company,
+        leadDate,
+        contractDate: activityDate,
+        days: Math.max(dayDiff(leadDate, activityDate), 0),
+      });
+      activeCycle.leadDate = null;
+    }
+
+    cycleState.set(companyKey, activeCycle);
+  });
+
+  return cycles;
+}
+
+function buildLeadDateIndex(activities = []) {
+  const sorted = [...activities]
+    .filter((activity) => activity.company && activity.date)
+    .sort((left, right) => {
+      const leftTime = parseDate(left.date)?.getTime() || 0;
+      const rightTime = parseDate(right.date)?.getTime() || 0;
+      return leftTime - rightTime;
+    });
+
+  const leadState = new Map();
+
+  sorted.forEach((activity) => {
+    if (!isLiveActivityRecord(activity)) return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    const activityDate = parseDate(activity.date);
+    if (!companyKey || !activityDate) return;
+
+    const entry = leadState.get(companyKey) || {
+      currentLeadDate: null,
+      lastLeadDate: null,
+    };
+
+    if (!entry.currentLeadDate) {
+      entry.currentLeadDate = activityDate;
+    }
+
+    if (normalizeActivity(activity.activity_type) === "contract_signed") {
+      entry.lastLeadDate = entry.currentLeadDate || activityDate;
+      entry.currentLeadDate = null;
+    }
+
+    leadState.set(companyKey, entry);
+  });
+
+  return new Map(
+    [...leadState.entries()]
+      .map(([companyKey, entry]) => [companyKey, toIsoDate(entry.currentLeadDate || entry.lastLeadDate)])
+      .filter(([, leadDate]) => leadDate)
+  );
+}
+
+function calculateSalesVelocityForWindow(activities = [], weekStart, weekEnd) {
+  const startDate = parseDate(weekStart);
+  const endDate = parseDate(weekEnd || getWeekEnd(weekStart));
+  if (!startDate || !endDate) {
+    return { averageDays: 0, sampleSize: 0 };
+  }
+
+  const cycles = buildSalesCycles(activities).filter((cycle) =>
+    isDateWithinInclusiveRange(cycle.contractDate, startDate, endDate)
+  );
+
+  if (!cycles.length) {
+    return { averageDays: 0, sampleSize: 0 };
+  }
+
+  const totalDays = cycles.reduce((sum, cycle) => sum + cycle.days, 0);
+  return {
+    averageDays: Math.round(totalDays / cycles.length),
+    sampleSize: cycles.length,
+  };
+}
+
+function withComputedSalesVelocity(scorecard, activities = []) {
+  const velocity = calculateSalesVelocityForWindow(
+    activities,
+    scorecard.week_start,
+    scorecard.week_end || getWeekEnd(scorecard.week_start)
+  );
+
+  return {
+    ...scorecard,
+    sales_velocity_days: velocity.averageDays,
   };
 }
 
@@ -276,6 +464,87 @@ function normalizeTargetsRecord(record, config) {
     offers: toNumber(fields[config.fields.targets.offers]),
     contracts: toNumber(fields[config.fields.targets.contracts]),
   };
+}
+
+function createEmptyScorecard(timezone = "Europe/Chisinau") {
+  const weekStart = getCurrentWeekStart(timezone);
+  const weekEnd = getWeekEnd(weekStart);
+  return {
+    id: "",
+    week_start: weekStart,
+    week_end: weekEnd,
+    week_key: weekStart,
+    week_label: buildWeekLabel(weekStart, weekEnd),
+    new_contract_workers_mtd: 0,
+    dream100_p1_prospects: 0,
+    sales_velocity_days: 0,
+    cold_calls: 0,
+    linkedin_messages: 0,
+    field_visits: 0,
+    meetings_set: 0,
+    offers_sent: 0,
+    contracts_signed: 0,
+    workers_signed: 0,
+    workers_delivered: 0,
+    notes: "",
+  };
+}
+
+function normalizeScorecardRecord(record, config) {
+  const fields = record.fields || {};
+  const weekStart = getWeekStart(
+    fields[config.fields.scorecard.weekStart]
+    || fields[config.fields.scorecard.weekKey]
+  );
+  const weekEnd = toIsoDate(fields[config.fields.scorecard.weekEnd]) || getWeekEnd(weekStart);
+  const weekKey = normalizeString(fields[config.fields.scorecard.weekKey]) || weekStart;
+  const weekLabel = normalizeString(fields[config.fields.scorecard.weekLabel]) || buildWeekLabel(weekStart, weekEnd);
+
+  return {
+    id: record.id,
+    week_start: weekStart,
+    week_end: weekEnd,
+    week_key: weekKey,
+    week_label: weekLabel,
+    new_contract_workers_mtd: toNumber(fields[config.fields.scorecard.newContractWorkersMtd]),
+    dream100_p1_prospects: toNumber(fields[config.fields.scorecard.dream100P1Prospects]),
+    sales_velocity_days: toNumber(fields[config.fields.scorecard.salesVelocityDays]),
+    cold_calls: toNumber(fields[config.fields.scorecard.coldCalls]),
+    linkedin_messages: toNumber(fields[config.fields.scorecard.linkedInMessages]),
+    field_visits: toNumber(fields[config.fields.scorecard.fieldVisits]),
+    meetings_set: toNumber(fields[config.fields.scorecard.meetingsSet]),
+    offers_sent: toNumber(fields[config.fields.scorecard.offersSent]),
+    contracts_signed: toNumber(fields[config.fields.scorecard.contractsSigned]),
+    workers_signed: toNumber(fields[config.fields.scorecard.workersSigned]),
+    workers_delivered: toNumber(fields[config.fields.scorecard.workersDelivered]),
+    notes: normalizeString(fields[config.fields.scorecard.notes]),
+  };
+}
+
+function normalizeScorecardTrendRecord(record, config) {
+  const fields = record.fields || {};
+  return {
+    id: record.id,
+    date: toIsoDate(fields[config.fields.scorecardTrend.date]),
+    contacted: toNumber(fields[config.fields.scorecardTrend.contacted]),
+    meetings: toNumber(fields[config.fields.scorecardTrend.meetings]),
+    offers: toNumber(fields[config.fields.scorecardTrend.offers]),
+    contracts: toNumber(fields[config.fields.scorecardTrend.contracts]),
+    notes: normalizeString(fields[config.fields.scorecardTrend.notes]),
+  };
+}
+
+function selectCurrentScorecard(records, config) {
+  const currentWeekStart = getCurrentWeekStart(config.timezone);
+  const normalized = records
+    .map((record) => normalizeScorecardRecord(record, config))
+    .filter((record) => record.week_start);
+
+  const sorted = normalized.sort((left, right) => right.week_start.localeCompare(left.week_start));
+
+  return sorted.find((record) => record.week_start === currentWeekStart || record.week_key === currentWeekStart)
+    || sorted[0]
+    || createEmptyScorecard(config.timezone);
 }
 
 function selectTargets(records, config) {
@@ -337,6 +606,12 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.workers] = 0;
   }
 
+  if ("lead_date" in payload && config.fields.companies.leadDate) {
+    fields[config.fields.companies.leadDate] = payload.lead_date ? toIsoDate(payload.lead_date) : null;
+  } else if (!existingRecord && config.fields.companies.leadDate) {
+    fields[config.fields.companies.leadDate] = null;
+  }
+
   if ("last_contact" in payload) {
     fields[config.fields.companies.lastContact] = payload.last_contact ? toIsoDate(payload.last_contact) : null;
   } else if (!existingRecord) {
@@ -353,6 +628,14 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.nextStepDate] = payload.next_step_date ? toIsoDate(payload.next_step_date) : null;
   } else if (!existingRecord) {
     fields[config.fields.companies.nextStepDate] = null;
+  }
+
+  if ("standby_reason" in payload && config.fields.companies.standbyReason) {
+    fields[config.fields.companies.standbyReason] = normalizeString(payload.standby_reason);
+  }
+
+  if ("reactivation_date" in payload && config.fields.companies.reactivationDate) {
+    fields[config.fields.companies.reactivationDate] = payload.reactivation_date ? toIsoDate(payload.reactivation_date) : null;
   }
 
   if ("sector" in payload) {
@@ -375,8 +658,18 @@ async function upsertCompany(payload) {
       : await createRecord("companies", fields);
   } catch (error) {
     const workersField = config.fields.companies.workers;
+    const leadDateField = config.fields.companies.leadDate;
     const workersValueProvided = Object.prototype.hasOwnProperty.call(fields, workersField);
     const workersRejected = workersField && error.message?.includes(`Field "${workersField}" cannot accept the provided value`);
+    const leadDateMissing = leadDateField && isMissingFieldError(error, leadDateField);
+
+    if (leadDateMissing) {
+      delete fields[leadDateField];
+      record = existingRecord
+        ? await updateRecord("companies", existingRecord.id, fields)
+        : await createRecord("companies", fields);
+      return normalizeCompanyRecord(record, config);
+    }
 
     if (!workersValueProvided || !workersRejected) {
       throw error;
@@ -388,7 +681,15 @@ async function upsertCompany(payload) {
         ? await updateRecord("companies", existingRecord.id, fields)
         : await createRecord("companies", fields);
     } catch (fallbackError) {
+      const leadDateMissingOnFallback = leadDateField && isMissingFieldError(fallbackError, leadDateField);
       const stringWorkersRejected = fallbackError.message?.includes(`Field "${workersField}" cannot accept the provided value`);
+      if (leadDateMissingOnFallback) {
+        delete fields[leadDateField];
+        record = existingRecord
+          ? await updateRecord("companies", existingRecord.id, fields)
+          : await createRecord("companies", fields);
+        return normalizeCompanyRecord(record, config);
+      }
       if (!stringWorkersRejected) {
         throw fallbackError;
       }
@@ -406,6 +707,7 @@ async function upsertCompany(payload) {
 async function touchCompanyFromActivity(activity) {
   const config = getRequiredConfig();
   const companyName = normalizeString(activity.company);
+  const plannedActivity = normalizeActivity(activity.activity_type) === "planned";
 
   if (!companyName) {
     throw new AirtableError(400, "Activitatea trebuie sa aiba companie.");
@@ -417,17 +719,33 @@ async function touchCompanyFromActivity(activity) {
     ? normalizeCompanyRecord(existingRecord, config)
     : null;
   const existingStage = existingCompany?.pipeline_stage || "";
-  const nextPipelineStage = mergePipelineStage(existingStage, activity.activity_type);
-
-  const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
-  const lastContact = dateCandidates[dateCandidates.length - 1] || "";
+  const nextPipelineStage = plannedActivity
+    ? existingStage
+    : mergePipelineStage(existingStage, activity.activity_type);
 
   const fields = {
     [config.fields.companies.company]: companyName,
-    [config.fields.companies.lastContact]: lastContact || null,
   };
 
-  if (config.fields.companies.pipelineStage) {
+  if (!plannedActivity && config.fields.companies.leadDate) {
+    const activityLeadDate = activity.date ? toIsoDate(activity.date) : "";
+    const existingLeadDate = existingCompany?.lead_date || "";
+    if (activityLeadDate && (!existingLeadDate || activityLeadDate < existingLeadDate)) {
+      fields[config.fields.companies.leadDate] = activityLeadDate;
+    }
+  }
+
+  if (!plannedActivity && config.fields.companies.lastContact) {
+    const dateCandidates = [existingCompany?.last_contact, activity.date]
+      .filter(Boolean)
+      .map((value) => new Date(value))
+      .filter((value) => !Number.isNaN(value.getTime()))
+      .sort((left, right) => left.getTime() - right.getTime());
+    const lastContact = dateCandidates[dateCandidates.length - 1] || null;
+    fields[config.fields.companies.lastContact] = lastContact ? toIsoDate(lastContact) : null;
+  }
+
+  if (!plannedActivity && config.fields.companies.pipelineStage) {
     fields[config.fields.companies.pipelineStage] = nextPipelineStage || null;
     if (nextPipelineStage && nextPipelineStage !== existingStage && config.fields.companies.stageChangedDate) {
       fields[config.fields.companies.stageChangedDate] = toIsoDate(new Date());
@@ -442,9 +760,23 @@ async function touchCompanyFromActivity(activity) {
     fields[config.fields.companies.nextStepDate] = activity.next_step_date ? toIsoDate(activity.next_step_date) : null;
   }
 
-  const record = existingRecord
-    ? await updateRecord("companies", existingRecord.id, fields)
-    : await createRecord("companies", fields);
+  let record;
+
+  try {
+    record = existingRecord
+      ? await updateRecord("companies", existingRecord.id, fields)
+      : await createRecord("companies", fields);
+  } catch (error) {
+    const leadDateField = config.fields.companies.leadDate;
+    if (!leadDateField || !isMissingFieldError(error, leadDateField)) {
+      throw error;
+    }
+
+    delete fields[leadDateField];
+    record = existingRecord
+      ? await updateRecord("companies", existingRecord.id, fields)
+      : await createRecord("companies", fields);
+  }
 
   return {
     record,
@@ -501,12 +833,6 @@ async function createActivity(payload) {
   const createdRecord = await createRecord("activities", fields);
   const companyNameById = new Map([[touched.record.id, touched.normalized.company]]);
 
-  try {
-    await upsertDailyScore(activity.activity_type, activity.workers_delta);
-  } catch {
-    // daily scorecard is non-critical — don't fail the activity save
-  }
-
   return {
     activity: normalizeActivityRecord(createdRecord, config, companyNameById),
     company: touched.normalized,
@@ -537,97 +863,90 @@ async function upsertTargets(payload) {
   return normalizeTargetsRecord(record, config);
 }
 
-function normalizeScorecardRecord(record, config) {
-  const fields = record.fields || {};
-  const f = config.fields.scorecard;
-  return {
-    id: record.id,
-    type: normalizeString(fields[f.type]),
-    date: toIsoDate(fields[f.date]),
-    targetContacted: toNumber(fields[f.targetContacted]),
-    targetMeetings: toNumber(fields[f.targetMeetings]),
-    targetOffers: toNumber(fields[f.targetOffers]),
-    targetContracts: toNumber(fields[f.targetContracts]),
-    contacted: toNumber(fields[f.contacted]),
-    meetings: toNumber(fields[f.meetings]),
-    offers: toNumber(fields[f.offers]),
-    contracts: toNumber(fields[f.contracts]),
-    workers: toNumber(fields[f.workers]),
-  };
-}
-
-async function upsertScorecardTargets(payload) {
+async function upsertScorecard(payload) {
   const config = getRequiredConfig();
-  const currentPeriod = getCurrentPeriod(config.timezone);
-  const monthDate = `${currentPeriod}-01`;
-  const f = config.fields.scorecard;
+  const weekStart = getWeekStart(payload.week_start || payload.week_key || getCurrentWeekStart(config.timezone));
 
-  let scorecardRecords = [];
-  try {
-    scorecardRecords = await listRecords("scorecard");
-  } catch (error) {
-    if (error.status !== 404) throw error;
+  if (!weekStart) {
+    throw new AirtableError(400, "Scorecard-ul are nevoie de Week Start.");
   }
 
-  const existingMonthly = scorecardRecords.find((record) => {
-    const norm = normalizeScorecardRecord(record, config);
-    return norm.type === "Lunar" && norm.date && norm.date.startsWith(currentPeriod);
+  const weekEnd = getWeekEnd(weekStart);
+  const weekKey = weekStart;
+  const weekLabel = buildWeekLabel(weekStart, weekEnd);
+  const scorecardRecords = await listRecords("scorecard");
+  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const companyNameById = buildCompanyNameMap(companyRecords, config);
+  const activityRecords = await listRecords("activities");
+  const activities = activityRecords
+    .map((record) => normalizeActivityRecord(record, config, companyNameById))
+    .filter((record) => record.company && record.date);
+  const velocity = calculateSalesVelocityForWindow(activities, weekStart, weekEnd);
+  const existingRecord = scorecardRecords.find((record) => {
+    const normalized = normalizeScorecardRecord(record, config);
+    return normalized.week_key === weekKey || normalized.week_start === weekStart;
   });
 
   const fields = {
-    [f.type]: "Lunar",
-    [f.date]: monthDate,
-    [f.targetContacted]: toNumber(payload.contacted),
-    [f.targetMeetings]: toNumber(payload.meetings),
-    [f.targetOffers]: toNumber(payload.offers),
-    [f.targetContracts]: toNumber(payload.contracts),
+    [config.fields.scorecard.weekStart]: weekStart,
+    [config.fields.scorecard.weekEnd]: weekEnd,
+    [config.fields.scorecard.weekKey]: weekKey,
+    [config.fields.scorecard.weekLabel]: weekLabel,
+    [config.fields.scorecard.newContractWorkersMtd]: toNumber(payload.new_contract_workers_mtd),
+    [config.fields.scorecard.dream100P1Prospects]: toNumber(payload.dream100_p1_prospects),
+    [config.fields.scorecard.salesVelocityDays]: velocity.averageDays,
+    [config.fields.scorecard.coldCalls]: toNumber(payload.cold_calls),
+    [config.fields.scorecard.linkedInMessages]: toNumber(payload.linkedin_messages),
+    [config.fields.scorecard.fieldVisits]: toNumber(payload.field_visits),
+    [config.fields.scorecard.meetingsSet]: toNumber(payload.meetings_set),
+    [config.fields.scorecard.offersSent]: toNumber(payload.offers_sent),
+    [config.fields.scorecard.contractsSigned]: toNumber(payload.contracts_signed),
+    [config.fields.scorecard.workersSigned]: toNumber(payload.workers_signed),
+    [config.fields.scorecard.workersDelivered]: toNumber(payload.workers_delivered),
+    [config.fields.scorecard.notes]: normalizeString(payload.notes),
   };
 
-  const record = existingMonthly
-    ? await updateRecord("scorecard", existingMonthly.id, fields)
+  const record = existingRecord
+    ? await updateRecord("scorecard", existingRecord.id, fields)
     : await createRecord("scorecard", fields);
 
-  return normalizeScorecardRecord(record, config);
+  return withComputedSalesVelocity(normalizeScorecardRecord(record, config), activities);
 }
 
-async function upsertDailyScore(activityType, workersCount = 0) {
+async function upsertScorecardTrend(payload) {
   const config = getRequiredConfig();
-  const today = toIsoDate(new Date());
-  const f = config.fields.scorecard;
+  const date = toIsoDate(payload.date || new Date());
 
-  let scorecardRecords = [];
-  try {
-    scorecardRecords = await listRecords("scorecard");
-  } catch (error) {
-    if (error.status !== 404) throw error;
+  if (!date) {
+    throw new AirtableError(400, "Trendul zilnic are nevoie de Data.");
   }
 
-  const existingDaily = scorecardRecords.find((record) => {
-    const norm = normalizeScorecardRecord(record, config);
-    return norm.type === "Zilnic" && norm.date === today;
+  const trendRecords = await listRecords("scorecardTrend");
+  const existingRecord = trendRecords.find((record) => {
+    const normalized = normalizeScorecardTrendRecord(record, config);
+    return normalized.date === date;
   });
 
-  const current = existingDaily ? normalizeScorecardRecord(existingDaily, config) : null;
-  const fields = { [f.type]: "Zilnic", [f.date]: today };
+  const fields = {
+    [config.fields.scorecardTrend.date]: date,
+    [config.fields.scorecardTrend.contacted]: toNumber(payload.contacted),
+    [config.fields.scorecardTrend.meetings]: toNumber(payload.meetings),
+    [config.fields.scorecardTrend.offers]: toNumber(payload.offers),
+    [config.fields.scorecardTrend.contracts]: toNumber(payload.contracts),
+    [config.fields.scorecardTrend.notes]: normalizeString(payload.notes),
+  };
 
-  if (activityType === "contacted") fields[f.contacted] = (current?.contacted || 0) + 1;
-  else if (activityType === "meeting") fields[f.meetings] = (current?.meetings || 0) + 1;
-  else if (activityType === "offer") fields[f.offers] = (current?.offers || 0) + 1;
-  else if (activityType === "contract_signed") {
-    fields[f.contracts] = (current?.contracts || 0) + 1;
-    if (workersCount > 0) fields[f.workers] = (current?.workers || 0) + workersCount;
-  }
+  const record = existingRecord
+    ? await updateRecord("scorecardTrend", existingRecord.id, fields)
+    : await createRecord("scorecardTrend", fields);
 
-  if (existingDaily) {
-    await updateRecord("scorecard", existingDaily.id, fields);
-  } else {
-    await createRecord("scorecard", fields);
-  }
+  return normalizeScorecardTrendRecord(record, config);
 }
 
 async function getDashboardData() {
   const config = getAirtableConfig();
   const currentPeriod = getCurrentPeriod(config.timezone);
+  const currentWeekStart = getCurrentWeekStart(config.timezone);
 
   if (!isConfigured(config)) {
     return {
@@ -635,6 +954,9 @@ async function getDashboardData() {
       companies: [],
       activities: [],
       targets: { period: currentPeriod, ...defaultTargets },
+      dailyScores: [],
+      scorecards: [],
+      scorecard: createEmptyScorecard(config.timezone),
       connection: {
         baseId: config.baseId || "",
         timezone: config.timezone,
@@ -650,6 +972,7 @@ async function getDashboardData() {
   const activityRecords = await listRecords("activities");
   let targetRecords = [];
   let scorecardRecords = [];
+  let scorecardTrendRecords = [];
 
   try {
     targetRecords = await listRecords("targets");
@@ -661,7 +984,21 @@ async function getDashboardData() {
   try {
     scorecardRecords = await listRecords("scorecard");
   } catch (error) {
-    if (error.status !== 404) throw error;
+    if (error.status === 404) {
+      warnings.push("Tabela Scorecard nu a fost gasita. Creeaza tabela Scorecard pentru noua pagina 4DX.");
+    } else {
+      throw error;
+    }
+  }
+
+  try {
+    scorecardTrendRecords = await listRecords("scorecardTrend");
+  } catch (error) {
+    if (error.status === 404) {
+      warnings.push("Tabela Scorecard Trend nu a fost gasita. Trendul zilnic foloseste fallback din Activities.");
+    } else {
+      throw error;
+    }
   }
 
   const companyNameById = buildCompanyNameMap(companyRecords, config);
@@ -671,28 +1008,33 @@ async function getDashboardData() {
   const activities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
-
-  const normalizedScorecard = scorecardRecords.map((record) => normalizeScorecardRecord(record, config));
-  const monthlyRow = normalizedScorecard.find((row) => row.type === "Lunar" && row.date && row.date.startsWith(currentPeriod));
-  const dailyScores = normalizedScorecard
-    .filter((row) => row.type === "Zilnic")
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
-
-  const targets = monthlyRow
-    ? {
-        contacted: monthlyRow.targetContacted || defaultTargets.contacted,
-        meetings: monthlyRow.targetMeetings || defaultTargets.meetings,
-        offers: monthlyRow.targetOffers || defaultTargets.offers,
-        contracts: monthlyRow.targetContracts || defaultTargets.contracts,
-      }
-    : selectTargets(targetRecords, config);
+  const derivedLeadDates = buildLeadDateIndex(activities);
+  const hydratedCompanies = companies.map((company) => ({
+    ...company,
+    lead_date: company.lead_date || derivedLeadDates.get(normalizeCompanyKey(company.company)) || "",
+  }));
+  const targets = selectTargets(targetRecords, config);
+  const scorecards = scorecardRecords
+    .map((record) => normalizeScorecardRecord(record, config))
+    .map((record) => withComputedSalesVelocity(record, activities))
+    .filter((record) => record.week_start)
+    .sort((left, right) => right.week_start.localeCompare(left.week_start));
+  const dailyScores = scorecardTrendRecords
+    .map((record) => normalizeScorecardTrendRecord(record, config))
+    .filter((record) => record.date)
+    .sort((left, right) => right.date.localeCompare(left.date));
+  const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
+    || scorecards[0]
+    || withComputedSalesVelocity(createEmptyScorecard(config.timezone), activities);
 
   return {
     configured: true,
-    companies,
+    companies: hydratedCompanies,
     activities,
     targets,
     dailyScores,
+    scorecards,
+    scorecard,
     connection: {
       baseId: config.baseId,
       timezone: config.timezone,
@@ -708,6 +1050,7 @@ module.exports = {
   createActivity,
   getDashboardData,
   upsertCompany,
+  upsertScorecard,
+  upsertScorecardTrend,
   upsertTargets,
-  upsertScorecardTargets,
 };

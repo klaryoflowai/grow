@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260421a" />
+    <link rel="stylesheet" href="./styles.css?v=20260421c" />
   </head>
   <body>
     <div class="shell">
@@ -44,7 +44,7 @@
           </div>
           <div class="hero-side">
             <article class="hero-pacing-card" id="pacing-card">
-              <div class="hero-pacing-label">Ritm zilnic</div>
+              <div class="hero-pacing-label">Contactate / target lunar</div>
               <div class="hero-pacing-number">—</div>
               <div class="hero-pacing-status">Se incarca...</div>
             </article>
@@ -72,8 +72,9 @@
           <strong>Zone dashboard</strong>
         </div>
         <nav class="page-nav" aria-label="Navigatie dashboard">
-          <button class="page-tab is-active" type="button" data-page-target="overview">Panou</button>
-          <button class="page-tab" type="button" data-page-target="scorecard">Scorecard</button>
+          <button class="page-tab is-active" type="button" data-page-target="scorecard">Scorecard</button>
+          <button class="page-tab" type="button" data-page-target="checklist">Checklist</button>
+          <button class="page-tab" type="button" data-page-target="overview">Panou</button>
           <button class="page-tab" type="button" data-page-target="pipeline">Pipeline</button>
           <button class="page-tab" type="button" data-page-target="execution">Cadenta</button>
           <button class="page-tab" type="button" data-page-target="settings">Setari</button>
@@ -84,43 +85,244 @@
         <section class="panel span-12" data-page="scorecard">
           <div class="panel-header">
             <div>
-              <p class="section-label">Scorecard</p>
-              <h2>Ritm, conversie si progres</h2>
-              <p class="panel-copy">Pagina dedicata pentru citirea cifrelor de azi si a semnalelor comerciale din luna curenta.</p>
+              <p class="section-label">North Star</p>
+              <h2>WIG anual si Rock Q2</h2>
+              <p class="panel-copy">Stratul strategic de deasupra scorecard-ului saptamanal: vezi tinta anuala, checkpoint-ul din Q2 si disciplina care impinge inchiderile.</p>
             </div>
           </div>
-
-          <div class="score-block">
-            <p class="score-title">Azi</p>
-            <div id="today-grid" class="score-grid"></div>
-          </div>
-
-          <div class="score-block">
-            <p class="score-title">Luna curenta</p>
-            <div id="month-grid" class="score-grid"></div>
-          </div>
+          <div id="wig-grid" class="wig-grid"></div>
         </section>
 
-        <section class="panel span-4" data-page="scorecard">
+        <section class="panel span-12" data-page="scorecard">
           <div class="panel-header">
             <div>
-              <p class="section-label">Conversie</p>
-              <h2>Raportul dintre etape</h2>
-              <p class="panel-copy">Vezi unde se pierde tractiunea dintre contact, oferta si contract.</p>
+              <p class="section-label">4DX Weekly Scorecard</p>
+              <h2>The Power Three</h2>
+              <p class="panel-copy">Cele trei cifre care spun daca motorul comercial accelereaza sau doar produce activitate fara contracte.</p>
+            </div>
+            <div class="scorecard-hero-meta">
+              <div class="mini-chip" id="scorecard-week-chip">Saptamana curenta</div>
+              <div class="mini-chip" id="scorecard-source-chip">Asteapta sincronizarea</div>
             </div>
           </div>
-          <div id="conversion-grid" class="stack"></div>
+          <div id="power-three-grid" class="power-three-grid"></div>
         </section>
 
-        <section class="panel span-8" data-page="scorecard">
+        <section class="panel span-12" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Eficienta si viteza</p>
+              <h2>Velocity si funnel efficiency</h2>
+              <p class="panel-copy">Aici vezi daca semnarea se misca repede si in ce punct din proces cade cea mai mare parte din conversie.</p>
+            </div>
+          </div>
+          <div class="velocity-layout">
+            <div id="velocity-focus-card" class="velocity-focus-card"></div>
+            <div id="funnel-grid" class="funnel-grid"></div>
+          </div>
+        </section>
+
+        <section class="panel span-5" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Lead Measures</p>
+              <h2>Motorul saptamanii</h2>
+              <p class="panel-copy">Indicatorii pe care ii poti controla direct si care imping inainte rezultatele comerciale.</p>
+            </div>
+          </div>
+          <div id="lead-measures-grid" class="measure-grid measure-grid--lead"></div>
+          <div id="activity-ratio-card" class="ratio-card"></div>
+        </section>
+
+        <section class="panel span-7" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Lag Measures</p>
+              <h2>Pâlnia de output si bottleneck</h2>
+              <p class="panel-copy">O vedere de tip pâlnie ca sa observi rapid unde se ingusteaza vanzarile si unde conversia devine fragila.</p>
+            </div>
+          </div>
+          <div id="lag-funnel" class="lag-funnel"></div>
+        </section>
+
+        <section class="panel span-7" data-page="scorecard">
           <div class="panel-header">
             <div>
               <p class="section-label">Trend</p>
               <h2>Ultimele 7 zile</h2>
-              <p class="panel-copy">Semnal de executie pentru ritmul comercial din ultima saptamana.</p>
+              <p class="panel-copy">Semnal de executie pentru ritmul comercial din ultima saptamana, preluat din tabela Scorecard Trend.</p>
             </div>
           </div>
-          <div id="daily-trend" class="trend-list"></div>
+          <div id="daily-trend" class="trend-list trend-list--daily"></div>
+        </section>
+
+        <section class="panel span-5" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Trend saptamanal</p>
+              <h2>Evolutia ultimelor saptamani</h2>
+              <p class="panel-copy">Istoricul saptamanal vine din tabela Scorecard din Airtable si te ajuta sa vezi trendul real de o saptamana la alta.</p>
+            </div>
+          </div>
+          <div id="scorecard-trend-list" class="trend-list trend-list--weekly"></div>
+        </section>
+
+        <section class="panel span-12" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Update manual</p>
+              <h2>Completeaza scorecard-ul de vineri</h2>
+              <p class="panel-copy">Fiecare rand din Airtable reprezinta o saptamana. Completezi cifrele o singura data si pagina se actualizeaza din aceeasi sursa.</p>
+            </div>
+          </div>
+          <form id="scorecard-form" class="scorecard-form">
+            <div class="scorecard-form-grid">
+              <label class="field">
+                <span>Week Start</span>
+                <input name="week_start" type="text" data-date-picker required placeholder="Alege luni" />
+              </label>
+              <label class="field">
+                <span>Contracte Noi MTD (muncitori)</span>
+                <input name="new_contract_workers_mtd" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Dream100 P1 noi abordate</span>
+                <input name="dream100_p1_prospects" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Sales Velocity (calcul automat)</span>
+                <input name="sales_velocity_days" type="number" min="0" placeholder="calcul automat" readonly />
+                <small class="field-help">Se calculeaza din Activities. Lead Date ramane memorat in Companies pentru claritate operationala.</small>
+              </label>
+              <label class="field">
+                <span>Cold Calls</span>
+                <input name="cold_calls" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>LinkedIn Messages</span>
+                <input name="linkedin_messages" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Vizite in teren</span>
+                <input name="field_visits" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Meetings stabilite</span>
+                <input name="meetings_set" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Oferte trimise</span>
+                <input name="offers_sent" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Contracte semnate</span>
+                <input name="contracts_signed" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Muncitori semnati</span>
+                <input name="workers_signed" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Muncitori livrati</span>
+                <input name="workers_delivered" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field span-2">
+                <span>Note</span>
+                <textarea name="notes" rows="4" placeholder="Observatii de vineri, blocaje, pattern-uri sau schimbari importante"></textarea>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="secondary-button" type="submit">Salveaza scorecard-ul</button>
+            </div>
+          </form>
+          <p class="status-line" id="scorecard-form-status"></p>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Operating system</p>
+              <h2>Checklist de executie zilnica si saptamanala</h2>
+              <p class="panel-copy">Aceasta pagina tine intr-un singur loc ritmul de lucru, regulile si punctele din dashboard sau Airtable care trebuie atinse ca sa nu cauti printre tabele.</p>
+            </div>
+          </div>
+          <div id="checklist-snapshot" class="checklist-snapshot-grid"></div>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Ritual zilnic</p>
+              <h2>Ce faci de dimineata pana la final de zi</h2>
+              <p class="panel-copy">Fiecare card iti spune ce verifici, unde salvezi si ce pagina deschizi mai departe.</p>
+            </div>
+          </div>
+          <div id="checklist-day-grid" class="checklist-grid"></div>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Final de zi in browser</p>
+              <h2>Salveaza ziua direct in Scorecard Trend</h2>
+              <p class="panel-copy">Formularul preia automat cifrele din activitatile salvate pentru data aleasa. Daca exista deja o zi salvata, incarca valorile din Airtable sau din fallback-ul local.</p>
+            </div>
+          </div>
+          <div class="checklist-trend-layout">
+            <div class="checklist-trend-card">
+              <h3>Ce face aceasta zona</h3>
+              <p class="helper">Inchizi ziua direct din dashboard, fara sa mai mergi in Airtable pentru randul zilnic.</p>
+              <div class="checklist-trend-bullets">
+                <article class="note-card">Precompleteaza Contactate, Meetings, Oferte si Contracte din activitatile tale salvate.</article>
+                <article class="note-card">Daca pentru acea data exista deja un rand in Scorecard Trend, formularul incarca valorile existente.</article>
+                <article class="note-card">Cand Airtable este live, scrie in tabela Scorecard Trend. Daca nu, retine local pana la reconectare.</article>
+              </div>
+            </div>
+            <form id="daily-trend-form" class="scorecard-form checklist-trend-form">
+              <div class="scorecard-form-grid">
+                <label class="field">
+                  <span>Data</span>
+                  <input name="date" type="text" data-date-picker required placeholder="Alege data" />
+                </label>
+                <label class="field">
+                  <span>Contactate</span>
+                  <input name="contacted" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Meetings</span>
+                  <input name="meetings" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Oferte</span>
+                  <input name="offers" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Contracte</span>
+                  <input name="contracts" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field span-2">
+                  <span>Note</span>
+                  <textarea name="notes" rows="4" placeholder="Observatii de final de zi: blocaje, follow-up-uri sensibile, ce trebuie protejat maine"></textarea>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button id="hydrate-daily-trend" class="ghost-button" type="button">Preia din activitatile zilei</button>
+                <button class="secondary-button" type="submit">Salveaza ziua</button>
+              </div>
+              <p class="status-line" id="daily-trend-form-status"></p>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel span-12" data-page="checklist">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Ritual saptamanal</p>
+              <h2>Luni, mijloc de saptamana si Friday review</h2>
+              <p class="panel-copy">Ritmul scurt pentru a tine pipeline-ul in miscare si scorecard-ul curat.</p>
+            </div>
+          </div>
+          <div id="checklist-week-grid" class="checklist-grid checklist-grid--weekly"></div>
         </section>
 
         <section class="panel span-12" data-page="overview">
@@ -128,9 +330,10 @@
             <div>
               <p class="section-label">Captura zilnica</p>
               <h2>Adauga o activitate in 10 secunde</h2>
-              <p class="panel-copy">Salvezi touch-urile de azi fara sa iesi din fluxul comercial.</p>
+              <p class="panel-copy">Aici salvezi doar touch-urile reale. Schimbarile de stadiu, volum sau standby raman in formularul de companie.</p>
             </div>
           </div>
+          <p class="helper workflow-note">Regula simpla: touch real = Quick Log. Corectie de cont = Update companie.</p>
 
           <form id="activity-form" class="quick-form">
             <label class="field">
@@ -181,6 +384,20 @@
                   <span>Data next step</span>
                   <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
                 </label>
+                <label class="field">
+                  <span>Stadiu pipeline dupa touch</span>
+                  <select name="pipeline_stage">
+                    <option value="">Nu schimb</option>
+                    <option value="Necontactat">Necontactat</option>
+                    <option value="Contactat">Contactat</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Oferta">Oferta</option>
+                    <option value="Negociere">Negociere</option>
+                    <option value="Contract semnat">Contract semnat</option>
+                    <option value="Parcat">Parcat</option>
+                    <option value="Pierdut">Pierdut</option>
+                  </select>
+                </label>
                 <label class="field form-details-notes">
                   <span>Note</span>
                   <input name="notes" type="text" placeholder="ex: follow-up luni, cere oferta finala" />
@@ -200,7 +417,7 @@
             <div>
               <p class="section-label">Pipeline simplu</p>
               <h2>Companiile care se misca acum</h2>
-              <p class="panel-copy">Aici ramane doar tracking-ul real, nu toata lista Dream 100.</p>
+              <p class="panel-copy">Aici corectezi doar stadiul real al contului, potentialul si urmatorul pas. Touch-urile se logheaza in Panou.</p>
             </div>
             <input id="company-search" class="search-input" type="search" placeholder="Cauta companie..." />
           </div>
@@ -215,6 +432,7 @@
                   </div>
                   <div class="mini-chip">Tracking live</div>
                 </div>
+                <p class="helper pipeline-form-helper">Foloseste formularul acesta doar pentru corectii de cont: stadiu, volum, next step sau standby. Apelurile si mesajele merg in Quick Log, iar campurile lasate goale nu rescriu datele existente.</p>
                 <label class="field">
                   <span>Companie</span>
                   <input
@@ -229,7 +447,7 @@
                 <label class="field">
                   <span>Stadiu pipeline</span>
                   <select name="pipeline_stage">
-                    <option value="">-</option>
+                    <option value="">Nu schimb</option>
                     <option value="Necontactat">Necontactat</option>
                     <option value="Contactat">Contactat</option>
                     <option value="Meeting">Meeting</option>
@@ -240,59 +458,81 @@
                     <option value="Pierdut">Pierdut</option>
                   </select>
                 </label>
-                <fieldset class="field fieldset-reset">
-                  <legend>Sanatate cont</legend>
-                  <div class="health-choice-grid">
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Verde" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-verde"></span>
-                        <span>Verde</span>
-                      </span>
-                    </label>
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Galben" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-galben"></span>
-                        <span>Galben</span>
-                      </span>
-                    </label>
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Rosu" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-rosu"></span>
-                        <span>Rosu</span>
-                      </span>
-                    </label>
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Gri" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-gri"></span>
-                        <span>Gri</span>
-                      </span>
-                    </label>
-                  </div>
-                </fieldset>
                 <div class="pipeline-form-grid">
                   <label class="field">
                     <span>Potential muncitori</span>
                     <input name="workers" type="number" min="0" placeholder="0" />
                   </label>
                   <label class="field">
-                    <span>Ultimul contact</span>
-                    <input name="last_contact" type="text" data-date-picker placeholder="Alege data" />
+                    <span>Urmatorul pas</span>
+                    <input name="next_step" type="text" placeholder="ex: call Ilona luni 10:00" />
                   </label>
                   <label class="field">
-                    <span>Next step</span>
-                    <input name="next_step" type="text" placeholder="ex: call luni 10:00" />
-                  </label>
-                  <label class="field">
-                    <span>Data next step</span>
+                    <span>Data urmatorului pas</span>
                     <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
                   </label>
                 </div>
+                <details class="form-details mini-form-details">
+                  <summary>Standby si semnal de risc</summary>
+                  <div class="form-details-grid">
+                    <label class="field">
+                      <span>Motiv standby</span>
+                      <select name="standby_reason">
+                        <option value="">-</option>
+                        <option value="Nu au nevoie acum">Nu au nevoie acum</option>
+                        <option value="Nu doresc acum">Nu doresc acum</option>
+                        <option value="Nu doresc in principiu">Nu doresc in principiu</option>
+                        <option value="Revenim in 1 luna">Revenim in 1 luna</option>
+                        <option value="Revenim in 3 luni">Revenim in 3 luni</option>
+                        <option value="Revenim in 6 luni">Revenim in 6 luni</option>
+                        <option value="Buget blocat">Buget blocat</option>
+                        <option value="Sezonal">Sezonal</option>
+                        <option value="Contact nepotrivit">Contact nepotrivit</option>
+                        <option value="Monitorizare pasiva">Monitorizare pasiva</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Data reactivare</span>
+                      <input name="reactivation_date" type="text" data-date-picker placeholder="Alege data" />
+                    </label>
+                    <fieldset class="field fieldset-reset form-details-notes">
+                      <legend>Sanatate cont</legend>
+                      <div class="health-choice-grid">
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Verde" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-verde"></span>
+                            <span>Verde</span>
+                          </span>
+                        </label>
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Galben" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-galben"></span>
+                            <span>Galben</span>
+                          </span>
+                        </label>
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Rosu" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-rosu"></span>
+                            <span>Rosu</span>
+                          </span>
+                        </label>
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Gri" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-gri"></span>
+                            <span>Gri</span>
+                          </span>
+                        </label>
+                      </div>
+                    </fieldset>
+                  </div>
+                  <p class="helper">Cand un lead intra pe pauza, pune-l pe <strong>Parcat</strong>, alege motivul si data de reactivare. Ultimul touch vine automat din activitatile logate.</p>
+                </details>
                 <div class="form-actions">
-                  <button class="secondary-button" type="submit">Salveaza compania</button>
+                  <button class="secondary-button" type="submit">Salveaza schimbarile</button>
                   <button id="reset-account" class="ghost-button" type="button">Reseteaza tracking-ul</button>
                 </div>
                 <p class="status-line" id="company-form-status"></p>
@@ -306,7 +546,9 @@
                     <p class="section-label">Monitorizare</p>
                     <h3>Snapshot pipeline</h3>
                   </div>
+                  <div class="mini-chip">Sortare: urgenta</div>
                 </div>
+                <p class="helper">Ordine implicita: intarziate, azi, fara next step, apoi viitor. In interiorul fiecarei grupe, urca stadiile mai avansate si conturile cu potential mai mare.</p>
                 <div id="pipeline-summary" class="summary-row"></div>
               </div>
               <div class="table-wrap pipeline-table-wrap">
@@ -318,11 +560,40 @@
                       <th>Sanatate</th>
                       <th>Ultimul rezultat</th>
                       <th>Ultimul touch</th>
-                      <th>Next step</th>
+                      <th>Urmatorul pas</th>
                     </tr>
                   </thead>
                   <tbody id="accounts-table-body"></tbody>
                 </table>
+              </div>
+              <div class="pipeline-overview-card">
+                <div class="pipeline-card-head">
+                  <div>
+                    <p class="section-label">Standby</p>
+                    <h3>Reactivare ulterioara</h3>
+                  </div>
+                  <div id="standby-chip" class="mini-chip">0 standby</div>
+                </div>
+                <p class="panel-copy">Lead-urile parcate ies din statisticile curente. Le revezi aici cand vine data de reactivare sau cand vrei sa le reincalzesti.</p>
+                <div class="standby-filter-row">
+                  <button class="standby-filter-button is-active" type="button" data-standby-filter="all">Toate</button>
+                  <button class="standby-filter-button" type="button" data-standby-filter="today">Azi</button>
+                  <button class="standby-filter-button" type="button" data-standby-filter="week">Saptamana asta</button>
+                  <button class="standby-filter-button" type="button" data-standby-filter="no_date">Fara data</button>
+                </div>
+                <div class="table-wrap standby-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Companie</th>
+                        <th>Motiv standby</th>
+                        <th>Data reactivare</th>
+                        <th>Urmatorul pas</th>
+                      </tr>
+                    </thead>
+                    <tbody id="standby-table-body"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -339,18 +610,18 @@
           <div id="execution-summary" class="summary-row execution-summary-grid"></div>
         </section>
 
-        <section class="panel span-7" data-page="execution">
+        <section class="panel span-12" data-page="execution">
           <div class="panel-header">
             <div>
               <p class="section-label">Follow-up</p>
               <h2>Ce trebuie miscat azi</h2>
-              <p class="panel-copy">Conturile care cer o actiune imediata sau au depasit urmatorul pas.</p>
+              <p class="panel-copy">Vezi separat ce ai azi, ce a ramas in urma si ce s-a racit in pipeline.</p>
             </div>
           </div>
           <div id="alerts-list" class="stack execution-list"></div>
         </section>
 
-        <section class="panel span-5" data-page="execution">
+        <section class="panel span-12" data-page="execution">
           <div class="panel-header">
             <div>
               <p class="section-label">Activitate recenta</p>
@@ -374,7 +645,7 @@
             <div class="config-card">
               <h3>Target-uri lunare</h3>
               <p class="helper">
-                Daca Airtable este conectat, salvarea merge in tabela Scorecard (rand Lunar pentru luna curenta).
+                Daca Airtable este conectat, salvarea merge direct in tabela Targets pentru luna curenta.
               </p>
               <div class="mini-grid">
                 <label class="field">
@@ -424,6 +695,10 @@
         <button class="mobile-log-close ghost-button" id="mobile-log-close" type="button" aria-label="Inchide">✕</button>
       </div>
       <form id="mobile-activity-form" class="mobile-log-form">
+        <div class="mobile-log-intro">
+          <strong>Salveaza touch-ul real si lasa urmatorul pas din acelasi ecran.</strong>
+          <span>Daca s-a schimbat etapa in realitate, poti sincroniza si pipeline-ul companiei.</span>
+        </div>
         <label class="field">
           <span>Companie</span>
           <input name="company" type="text" list="company-options" autocomplete="off" placeholder="Companie" required />
@@ -456,12 +731,34 @@
           <span>Nota</span>
           <textarea name="notes" rows="2" placeholder="Comentariu scurt (optional)"></textarea>
         </label>
+        <label class="field">
+          <span>Next step</span>
+          <input name="next_step" type="text" placeholder="ex: suna joi, trimite oferta" />
+        </label>
+        <label class="field">
+          <span>Data next step</span>
+          <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
+        </label>
+        <label class="field">
+          <span>Stadiu pipeline dupa touch</span>
+          <select name="pipeline_stage">
+            <option value="">Nu schimb</option>
+            <option value="Necontactat">Necontactat</option>
+            <option value="Contactat">Contactat</option>
+            <option value="Meeting">Meeting</option>
+            <option value="Oferta">Oferta</option>
+            <option value="Negociere">Negociere</option>
+            <option value="Contract semnat">Contract semnat</option>
+            <option value="Parcat">Parcat</option>
+            <option value="Pierdut">Pierdut</option>
+          </select>
+        </label>
         <button class="primary-button" type="submit">Salveaza</button>
       </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260421a"></script>
+    <script src="./app.js?v=20260421k"></script>
   </body>
 </html>
