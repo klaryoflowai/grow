@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421j";
+const appBuild = "20260421k";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -3269,19 +3269,98 @@ function getLastSevenDays() {
   return rows;
 }
 
+function getActivePipelineSortMeta(account = {}, now = new Date()) {
+  const nextStepTime = account.next_step_date ? account.next_step_date.getTime() : Number.POSITIVE_INFINITY;
+  const lastTouchTime = account.last_contact ? account.last_contact.getTime() : 0;
+  const stageRank = pipelineStageValueRank(account.pipeline_stage);
+  const workers = toNumber(account.workers);
+
+  if (account.next_step_date) {
+    const delta = dayDiff(account.next_step_date, now);
+
+    if (delta > 0) {
+      return {
+        bucket: 0,
+        bucketLabel: "Intarziat",
+        primaryValue: nextStepTime,
+        stageRank,
+        workers,
+        lastTouchTime,
+      };
+    }
+
+    if (delta === 0) {
+      return {
+        bucket: 1,
+        bucketLabel: "Azi",
+        primaryValue: stageRank,
+        stageRank,
+        workers,
+        lastTouchTime,
+      };
+    }
+
+    return {
+      bucket: 3,
+      bucketLabel: "Viitor",
+      primaryValue: nextStepTime,
+      stageRank,
+      workers,
+      lastTouchTime,
+    };
+  }
+
+  return {
+    bucket: 2,
+    bucketLabel: "Fara next step",
+    primaryValue: account.last_contact ? dayDiff(account.last_contact, now) : Number.POSITIVE_INFINITY,
+    stageRank,
+    workers,
+    lastTouchTime,
+  };
+}
+
+function compareActivePipelineAccounts(left = {}, right = {}, now = new Date()) {
+  const leftMeta = getActivePipelineSortMeta(left, now);
+  const rightMeta = getActivePipelineSortMeta(right, now);
+
+  if (leftMeta.bucket !== rightMeta.bucket) {
+    return leftMeta.bucket - rightMeta.bucket;
+  }
+
+  if (leftMeta.bucket === 0 || leftMeta.bucket === 3) {
+    if (leftMeta.primaryValue !== rightMeta.primaryValue) {
+      return leftMeta.primaryValue - rightMeta.primaryValue;
+    }
+  } else if (leftMeta.bucket === 2) {
+    if (leftMeta.primaryValue !== rightMeta.primaryValue) {
+      return rightMeta.primaryValue - leftMeta.primaryValue;
+    }
+  }
+
+  if (leftMeta.stageRank !== rightMeta.stageRank) {
+    return rightMeta.stageRank - leftMeta.stageRank;
+  }
+
+  if (leftMeta.workers !== rightMeta.workers) {
+    return rightMeta.workers - leftMeta.workers;
+  }
+
+  if (leftMeta.lastTouchTime !== rightMeta.lastTouchTime) {
+    return leftMeta.lastTouchTime - rightMeta.lastTouchTime;
+  }
+
+  return left.company.localeCompare(right.company, "ro");
+}
+
 function renderPipeline() {
   const trackedAccounts = state.accounts.filter((account) => isTrackedAccount(account));
   const latestPlannedByCompany = buildLatestPlannedActivityIndex(state.activities);
   const filteredAccounts = trackedAccounts
-    .filter((account) => !state.search || account.company.toLowerCase().includes(state.search))
-    .sort((left, right) => {
-      const stageDiff = pipelineStageValueRank(right.pipeline_stage) - pipelineStageValueRank(left.pipeline_stage);
-      if (stageDiff !== 0) return stageDiff;
-      const leftTime = left.last_contact ? left.last_contact.getTime() : 0;
-      const rightTime = right.last_contact ? right.last_contact.getTime() : 0;
-      return rightTime - leftTime;
-    });
-  const activeAccounts = filteredAccounts.filter((account) => isPipelineOpen(account.pipeline_stage));
+    .filter((account) => !state.search || account.company.toLowerCase().includes(state.search));
+  const activeAccounts = filteredAccounts
+    .filter((account) => isPipelineOpen(account.pipeline_stage))
+    .sort((left, right) => compareActivePipelineAccounts(left, right));
   const standbyAccounts = filteredAccounts
     .filter((account) => isStandbyAccount(account))
     .sort(compareStandbyAccounts);
