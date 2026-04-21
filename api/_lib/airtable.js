@@ -736,9 +736,13 @@ async function touchCompanyFromActivity(activity) {
   }
 
   if (!plannedActivity && config.fields.companies.lastContact) {
-    const dateCandidates = [existingCompany?.last_contact, activity.date].filter(Boolean).sort();
-    const lastContact = dateCandidates[dateCandidates.length - 1] || "";
-    fields[config.fields.companies.lastContact] = lastContact || null;
+    const dateCandidates = [existingCompany?.last_contact, activity.date]
+      .filter(Boolean)
+      .map((value) => new Date(value))
+      .filter((value) => !Number.isNaN(value.getTime()))
+      .sort((left, right) => left.getTime() - right.getTime());
+    const lastContact = dateCandidates[dateCandidates.length - 1] || null;
+    fields[config.fields.companies.lastContact] = lastContact ? toIsoDate(lastContact) : null;
   }
 
   if (!plannedActivity && config.fields.companies.pipelineStage) {
