@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421d";
+const appBuild = "20260421e";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -3236,6 +3236,7 @@ function getLastSevenDays() {
 
 function renderPipeline() {
   const trackedAccounts = state.accounts.filter((account) => isTrackedAccount(account));
+  const latestPlannedByCompany = buildLatestPlannedActivityIndex(state.activities);
   const activeAccounts = trackedAccounts
     .filter((account) => !state.search || account.company.toLowerCase().includes(state.search))
     .sort((left, right) => {
@@ -3281,7 +3282,7 @@ function renderPipeline() {
   if (!activeAccounts.length) {
     elements.accountsTableBody.innerHTML = `
       <tr>
-        <td colspan="6">
+        <td colspan="7">
           <div class="empty-card">Nu exista companii cu tracking activ inca. Prima activitate sau primul update de companie le va adauga aici.</div>
         </td>
       </tr>
@@ -3296,6 +3297,7 @@ function renderPipeline() {
         bg: "rgba(148,163,184,0.14)",
       };
       const health = accountHealthTheme[account.account_health] || null;
+      const plannedActivity = latestPlannedByCompany.get(normalizeCompanyKey(account.company));
       return `
         <tr>
           <td>
@@ -3321,6 +3323,7 @@ function renderPipeline() {
             }
           </td>
           <td>${escapeHtml(account.last_outcome || "-")}</td>
+          <td>${renderPlannedActivityCell(plannedActivity)}</td>
           <td>${formatDate(account.last_contact)}</td>
           <td>${escapeHtml(formatNextStep(account))}</td>
         </tr>
@@ -3670,6 +3673,55 @@ function formatNextStep(account) {
     parts.push(formatDate(account.next_step_date));
   }
   return parts.filter(Boolean).join(" · ") || "-";
+}
+
+function buildLatestPlannedActivityIndex(activities = []) {
+  const index = new Map();
+
+  activities.forEach((activity) => {
+    if (!activity.company || !isPlannedActivity(activity)) return;
+    const key = normalizeCompanyKey(activity.company);
+    if (!index.has(key)) {
+      index.set(key, activity);
+    }
+  });
+
+  return index;
+}
+
+function renderPlannedActivityCell(activity) {
+  if (!activity) {
+    return `<span class="table-muted">-</span>`;
+  }
+
+  const rawOutcome = normalizeString(activity.outcome);
+  const genericPlannedOutcome = rawOutcome.toLowerCase() === "planificat";
+  const primary = !genericPlannedOutcome && rawOutcome
+    ? rawOutcome
+    : normalizeString(activity.next_step) || "Activitate planificata";
+
+  const meta = [];
+
+  if (activity.next_step && primary !== activity.next_step) {
+    meta.push(activity.next_step);
+  }
+
+  if (activity.next_step_date) {
+    meta.push(formatDate(activity.next_step_date));
+  } else if (activity.date) {
+    meta.push(`notat ${formatDate(activity.date)}`);
+  }
+
+  return `
+    <div class="planned-cell">
+      <div class="planned-cell-title">${escapeHtml(primary)}</div>
+      ${
+        meta.length
+          ? `<div class="company-meta">${escapeHtml(meta.join(" · "))}</div>`
+          : ""
+      }
+    </div>
+  `;
 }
 
 function formatDate(date) {

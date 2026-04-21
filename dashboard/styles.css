@@ -1586,6 +1586,23 @@ td {
   line-height: 1.35;
 }
 
+.planned-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.planned-cell-title {
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.table-muted {
+  color: var(--muted);
+}
+
 .status-pill,
 .mini-chip {
   display: inline-flex;
