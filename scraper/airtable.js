@@ -19,6 +19,28 @@ async function request(method, path, body) {
   return res.json();
 }
 
+// Retries write requests by stripping unknown fields when Airtable returns 422
+async function requestWithFallback(method, path, body) {
+  let current = body;
+  const stripped = [];
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      return await request(method, path, current);
+    } catch (e) {
+      const m = e.message.match(/UNKNOWN_FIELD_NAME.*?"([^"]+)"/);
+      if (!m) throw e;
+      const badField = m[1];
+      stripped.push(badField);
+      current = JSON.parse(JSON.stringify(current));
+      for (const rec of current.records || []) {
+        delete rec.fields?.[badField];
+      }
+      console.warn(`  Airtable: câmpul "${badField}" lipsește din tabel — ignorat.`);
+    }
+  }
+  throw new Error("Prea multe câmpuri necunoscute în Airtable");
+}
+
 export async function listLeads() {
   const records = [];
   let offset;
@@ -33,12 +55,12 @@ export async function listLeads() {
 }
 
 export async function createLead(fields) {
-  const data = await request("POST", "", { records: [{ fields }] });
+  const data = await requestWithFallback("POST", "", { records: [{ fields }] });
   return data.records?.[0];
 }
 
 export async function updateLead(id, fields) {
-  const data = await request("PATCH", "", { records: [{ id, fields }] });
+  const data = await requestWithFallback("PATCH", "", { records: [{ id, fields }] });
   return data.records?.[0];
 }
 
