@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260421b" />
+    <link rel="stylesheet" href="./styles.css?v=20260421c" />
   </head>
   <body>
     <div class="shell">
@@ -330,9 +330,10 @@
             <div>
               <p class="section-label">Captura zilnica</p>
               <h2>Adauga o activitate in 10 secunde</h2>
-              <p class="panel-copy">Salvezi touch-urile de azi fara sa iesi din fluxul comercial.</p>
+              <p class="panel-copy">Aici salvezi doar touch-urile reale. Schimbarile de stadiu, volum sau standby raman in formularul de companie.</p>
             </div>
           </div>
+          <p class="helper workflow-note">Regula simpla: touch real = Quick Log. Corectie de cont = Update companie.</p>
 
           <form id="activity-form" class="quick-form">
             <label class="field">
@@ -342,7 +343,6 @@
             <label class="field">
               <span>Actiune</span>
               <select name="activity_type" required>
-                <option value="planned">Planificat</option>
                 <option value="contacted">Contactat</option>
                 <option value="meeting">Meeting</option>
                 <option value="offer">Oferta</option>
@@ -353,7 +353,6 @@
               <span>Rezultat</span>
               <select name="outcome">
                 <option value="">-</option>
-                <option value="planned">planned</option>
                 <option value="Am vorbit cu decidentul">Am vorbit cu decidentul</option>
                 <option value="Nu am ajuns la decident">Nu am ajuns la decident</option>
                 <option value="Nu raspunde">Nu raspunde</option>
@@ -385,6 +384,20 @@
                   <span>Data next step</span>
                   <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
                 </label>
+                <label class="field">
+                  <span>Stadiu pipeline dupa touch</span>
+                  <select name="pipeline_stage">
+                    <option value="">Nu schimb</option>
+                    <option value="Necontactat">Necontactat</option>
+                    <option value="Contactat">Contactat</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Oferta">Oferta</option>
+                    <option value="Negociere">Negociere</option>
+                    <option value="Contract semnat">Contract semnat</option>
+                    <option value="Parcat">Parcat</option>
+                    <option value="Pierdut">Pierdut</option>
+                  </select>
+                </label>
                 <label class="field form-details-notes">
                   <span>Note</span>
                   <input name="notes" type="text" placeholder="ex: follow-up luni, cere oferta finala" />
@@ -404,7 +417,7 @@
             <div>
               <p class="section-label">Pipeline simplu</p>
               <h2>Companiile care se misca acum</h2>
-              <p class="panel-copy">Aici ramane doar tracking-ul real, nu toata lista Dream 100.</p>
+              <p class="panel-copy">Aici corectezi doar stadiul real al contului, potentialul si urmatorul pas. Touch-urile se logheaza in Panou.</p>
             </div>
             <input id="company-search" class="search-input" type="search" placeholder="Cauta companie..." />
           </div>
@@ -419,6 +432,7 @@
                   </div>
                   <div class="mini-chip">Tracking live</div>
                 </div>
+                <p class="helper pipeline-form-helper">Foloseste formularul acesta doar pentru corectii de cont: stadiu, volum, next step sau standby. Apelurile si mesajele merg in Quick Log, iar campurile lasate goale nu rescriu datele existente.</p>
                 <label class="field">
                   <span>Companie</span>
                   <input
@@ -433,7 +447,7 @@
                 <label class="field">
                   <span>Stadiu pipeline</span>
                   <select name="pipeline_stage">
-                    <option value="">-</option>
+                    <option value="">Nu schimb</option>
                     <option value="Necontactat">Necontactat</option>
                     <option value="Contactat">Contactat</option>
                     <option value="Meeting">Meeting</option>
@@ -446,68 +460,8 @@
                 </label>
                 <div class="pipeline-form-grid">
                   <label class="field">
-                    <span>Motiv standby</span>
-                    <select name="standby_reason">
-                      <option value="">-</option>
-                      <option value="Nu au nevoie acum">Nu au nevoie acum</option>
-                      <option value="Nu doresc acum">Nu doresc acum</option>
-                      <option value="Nu doresc in principiu">Nu doresc in principiu</option>
-                      <option value="Revenim in 1 luna">Revenim in 1 luna</option>
-                      <option value="Revenim in 3 luni">Revenim in 3 luni</option>
-                      <option value="Revenim in 6 luni">Revenim in 6 luni</option>
-                      <option value="Buget blocat">Buget blocat</option>
-                      <option value="Sezonal">Sezonal</option>
-                      <option value="Contact nepotrivit">Contact nepotrivit</option>
-                      <option value="Monitorizare pasiva">Monitorizare pasiva</option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    <span>Data reactivare</span>
-                    <input name="reactivation_date" type="text" data-date-picker placeholder="Alege data" />
-                  </label>
-                </div>
-                <p class="helper">Cand un lead intra pe pauza, pune-l pe <strong>Parcat</strong>, alege motivul si data de reactivare. Nu va mai aparea in pipeline-ul activ.</p>
-                <fieldset class="field fieldset-reset">
-                  <legend>Sanatate cont</legend>
-                  <div class="health-choice-grid">
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Verde" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-verde"></span>
-                        <span>Verde</span>
-                      </span>
-                    </label>
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Galben" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-galben"></span>
-                        <span>Galben</span>
-                      </span>
-                    </label>
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Rosu" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-rosu"></span>
-                        <span>Rosu</span>
-                      </span>
-                    </label>
-                    <label class="health-choice">
-                      <input type="radio" name="account_health" value="Gri" />
-                      <span class="health-choice-card">
-                        <span class="health-dot health-gri"></span>
-                        <span>Gri</span>
-                      </span>
-                    </label>
-                  </div>
-                </fieldset>
-                <div class="pipeline-form-grid">
-                  <label class="field">
                     <span>Potential muncitori</span>
                     <input name="workers" type="number" min="0" placeholder="0" />
-                  </label>
-                  <label class="field">
-                    <span>Ultimul contact</span>
-                    <input name="last_contact" type="text" data-date-picker placeholder="Alege data" />
                   </label>
                   <label class="field">
                     <span>Urmatorul pas</span>
@@ -518,8 +472,67 @@
                     <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
                   </label>
                 </div>
+                <details class="form-details mini-form-details">
+                  <summary>Standby si semnal de risc</summary>
+                  <div class="form-details-grid">
+                    <label class="field">
+                      <span>Motiv standby</span>
+                      <select name="standby_reason">
+                        <option value="">-</option>
+                        <option value="Nu au nevoie acum">Nu au nevoie acum</option>
+                        <option value="Nu doresc acum">Nu doresc acum</option>
+                        <option value="Nu doresc in principiu">Nu doresc in principiu</option>
+                        <option value="Revenim in 1 luna">Revenim in 1 luna</option>
+                        <option value="Revenim in 3 luni">Revenim in 3 luni</option>
+                        <option value="Revenim in 6 luni">Revenim in 6 luni</option>
+                        <option value="Buget blocat">Buget blocat</option>
+                        <option value="Sezonal">Sezonal</option>
+                        <option value="Contact nepotrivit">Contact nepotrivit</option>
+                        <option value="Monitorizare pasiva">Monitorizare pasiva</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Data reactivare</span>
+                      <input name="reactivation_date" type="text" data-date-picker placeholder="Alege data" />
+                    </label>
+                    <fieldset class="field fieldset-reset form-details-notes">
+                      <legend>Sanatate cont</legend>
+                      <div class="health-choice-grid">
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Verde" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-verde"></span>
+                            <span>Verde</span>
+                          </span>
+                        </label>
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Galben" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-galben"></span>
+                            <span>Galben</span>
+                          </span>
+                        </label>
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Rosu" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-rosu"></span>
+                            <span>Rosu</span>
+                          </span>
+                        </label>
+                        <label class="health-choice">
+                          <input type="radio" name="account_health" value="Gri" />
+                          <span class="health-choice-card">
+                            <span class="health-dot health-gri"></span>
+                            <span>Gri</span>
+                          </span>
+                        </label>
+                      </div>
+                    </fieldset>
+                  </div>
+                  <p class="helper">Cand un lead intra pe pauza, pune-l pe <strong>Parcat</strong>, alege motivul si data de reactivare. Ultimul touch vine automat din activitatile logate.</p>
+                </details>
                 <div class="form-actions">
-                  <button class="secondary-button" type="submit">Salveaza compania</button>
+                  <button class="secondary-button" type="submit">Salveaza schimbarile</button>
                   <button id="reset-account" class="ghost-button" type="button">Reseteaza tracking-ul</button>
                 </div>
                 <p class="status-line" id="company-form-status"></p>
@@ -681,8 +694,8 @@
       </div>
       <form id="mobile-activity-form" class="mobile-log-form">
         <div class="mobile-log-intro">
-          <strong>Salveaza touch-ul si pune urmatorul pas din acelasi ecran.</strong>
-          <span>Daca s-a schimbat etapa reala, poti actualiza si pipeline-ul companiei.</span>
+          <strong>Salveaza touch-ul real si lasa urmatorul pas din acelasi ecran.</strong>
+          <span>Daca s-a schimbat etapa in realitate, poti sincroniza si pipeline-ul companiei.</span>
         </div>
         <label class="field">
           <span>Companie</span>
@@ -691,7 +704,6 @@
         <label class="field">
           <span>Actiune</span>
           <select name="activity_type" required>
-            <option value="planned">Planificat</option>
             <option value="contacted">Contactat</option>
             <option value="meeting">Meeting</option>
             <option value="offer">Oferta</option>
@@ -702,7 +714,6 @@
           <span>Rezultat</span>
           <select name="outcome">
             <option value="">-</option>
-            <option value="planned">planned</option>
             <option value="Am vorbit cu decidentul">Am vorbit cu decidentul</option>
             <option value="Nu am ajuns la decident">Nu am ajuns la decident</option>
             <option value="Nu raspunde">Nu raspunde</option>
@@ -746,6 +757,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260421i"></script>
+    <script src="./app.js?v=20260421j"></script>
   </body>
 </html>

@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421i";
+const appBuild = "20260421j";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -469,12 +469,17 @@ function bindEvents() {
     raw.company = resolution.company;
     const record = normalizeRow("accounts", raw);
     if (!record.company) return;
+    const companyPatch = buildCompanyUpdatePatch(record, raw);
+    if (Object.keys(companyPatch).length === 1) {
+      updateStatus("Alege macar un camp pe care vrei sa-l schimbi pentru compania selectata.");
+      return;
+    }
 
     if (state.apiEnabled) {
       try {
         await apiJson("/api/companies", {
           method: "PATCH",
-          body: serializeCompanyPayload(record, raw),
+          body: serializeCompanyPayload(companyPatch),
         });
         await refreshData({ silent: true });
         updateStatus(`Compania ${record.company} a fost actualizata in Airtable.`);
@@ -483,7 +488,7 @@ function bindEvents() {
         return;
       }
     } else {
-      upsertManualAccount(record);
+      upsertManualAccount(companyPatch);
       persistManualData();
       refreshCombinedData();
       updateStatus(`Compania ${record.company} a fost actualizata local.`);
@@ -870,14 +875,12 @@ function setDefaultFormDates() {
   const today = new Date().toISOString().slice(0, 10);
   const activityDate = elements.forms.activity?.querySelector('input[name="date"]');
   const activityNextStepDate = elements.forms.activity?.querySelector('input[name="next_step_date"]');
-  const accountLastContact = elements.forms.account?.querySelector('input[name="last_contact"]');
   const accountNextStepDate = elements.forms.account?.querySelector('input[name="next_step_date"]');
   const scorecardWeekStart = elements.forms.scorecard?.querySelector('input[name="week_start"]');
   const dailyTrendDate = elements.forms.dailyTrend?.querySelector('input[name="date"]');
 
   if (activityDate && !activityDate.value) setDateFieldValue(activityDate, today);
   if (activityNextStepDate && !activityNextStepDate.value) setDateFieldValue(activityNextStepDate, "");
-  if (accountLastContact && !accountLastContact.value) setDateFieldValue(accountLastContact, today);
   if (accountNextStepDate && !accountNextStepDate.value) setDateFieldValue(accountNextStepDate, "");
   if (scorecardWeekStart && !scorecardWeekStart.value) setDateFieldValue(scorecardWeekStart, getWeekStart(today));
   if (dailyTrendDate && !dailyTrendDate.value) setDateFieldValue(dailyTrendDate, today);
@@ -2000,7 +2003,7 @@ function renderChecklist() {
       steps: [
         "Dupa fiecare apel, mesaj sau meeting real, salveaza touch-ul in aceeasi zi.",
         "Daca nu ai ajuns la decident, marcheaza outcome-ul real: Nu am ajuns la decident, Nu raspunde, Revino mai tarziu.",
-        "Pentru activitatile doar planificate, foloseste Planificat; nu le amesteca cu executia reala.",
+        "Daca discutia ramane deschisa, lasa obligatoriu si next step cu data.",
         "Cand alegi compania, foloseste sugestiile existente ca sa eviti duplicatele.",
       ],
       sources: [
@@ -2066,7 +2069,7 @@ function renderChecklist() {
       rules: [
         "Niciun touch real fara log in aceeasi zi.",
         "Niciun next step fara data atunci cand deal-ul ramane deschis.",
-        "Planned inseamna planificat, nu realizat.",
+        "Quick Log este doar pentru touch-uri reale, nu pentru intentii.",
         "Stadiul din pipeline se schimba doar cand realitatea s-a schimbat.",
         "Alege compania din sugestii ca sa nu creezi duplicate.",
       ],
@@ -4030,16 +4033,73 @@ async function apiJson(url, options = {}) {
 function buildCompanyPatchFromActivityRaw(raw, record) {
   const payload = { company: record.company };
   let shouldSync = false;
+  const requestedPipelineStage = normalizeString(raw.pipeline_stage);
 
-  if (raw.pipeline_stage !== undefined) {
-    const pipelineStage = normalizePipelineStage(raw.pipeline_stage);
+  if (requestedPipelineStage) {
+    const pipelineStage = normalizePipelineStage(requestedPipelineStage);
     if (pipelineStage) {
       payload.pipeline_stage = pipelineStage;
+      if (pipelineStage !== "Parcat") {
+        payload.standby_reason = "";
+        payload.reactivation_date = "";
+      }
       shouldSync = true;
     }
   }
 
   return shouldSync ? payload : null;
+}
+
+function buildCompanyUpdatePatch(record, raw = {}) {
+  const payload = {
+    company: record.company,
+  };
+
+  const requestedPipelineStage = normalizeString(raw.pipeline_stage);
+  const hasNextStepInput = normalizeString(raw.next_step) !== "" || normalizeString(raw.next_step_date) !== "";
+  const hasStandbyInput = normalizeString(raw.standby_reason) !== "" || normalizeString(raw.reactivation_date) !== "";
+  const shouldClearStandby = Boolean(requestedPipelineStage && record.pipeline_stage !== "Parcat");
+  const shouldSyncStandby = shouldClearStandby || hasStandbyInput;
+
+  if (requestedPipelineStage) {
+    payload.pipeline_stage = record.pipeline_stage;
+  }
+
+  if (raw.account_health !== undefined) {
+    payload.account_health = record.account_health;
+  }
+
+  if (raw.workers !== undefined && raw.workers !== "") {
+    payload.workers = record.workers;
+  }
+
+  if (raw.lead_date !== undefined && raw.lead_date !== "") {
+    payload.lead_date = record.lead_date;
+  }
+
+  if (raw.last_contact !== undefined && raw.last_contact !== "") {
+    payload.last_contact = record.last_contact;
+  }
+
+  if (hasNextStepInput) {
+    payload.next_step = record.next_step;
+    payload.next_step_date = record.next_step_date;
+  }
+
+  if (shouldSyncStandby) {
+    payload.standby_reason = shouldClearStandby ? "" : record.standby_reason;
+    payload.reactivation_date = shouldClearStandby ? null : record.reactivation_date;
+  }
+
+  if (raw.sector !== undefined && raw.sector !== "") {
+    payload.sector = record.sector;
+  }
+
+  if (raw.notes !== undefined && raw.notes !== "") {
+    payload.notes = record.notes;
+  }
+
+  return payload;
 }
 
 function serializeActivityPayload(record) {
@@ -4055,55 +4115,52 @@ function serializeActivityPayload(record) {
   };
 }
 
-function serializeCompanyPayload(record, raw = {}) {
+function serializeCompanyPayload(record) {
   const payload = {
     company: record.company,
   };
 
-  if (raw.pipeline_stage !== undefined) {
+  if ("pipeline_stage" in record) {
     payload.pipeline_stage = record.pipeline_stage;
   }
 
-  if (raw.account_health !== undefined) {
+  if ("account_health" in record) {
     payload.account_health = record.account_health;
   }
 
-  if (raw.workers !== undefined && raw.workers !== "") {
+  if ("workers" in record) {
     payload.workers = record.workers;
   }
 
-  if (raw.lead_date !== undefined) {
+  if ("lead_date" in record) {
     payload.lead_date = record.lead_date ? record.lead_date.toISOString().slice(0, 10) : "";
   }
 
-  if (raw.last_contact !== undefined) {
+  if ("last_contact" in record) {
     payload.last_contact = record.last_contact ? record.last_contact.toISOString().slice(0, 10) : "";
   }
 
-  if (raw.next_step !== undefined) {
+  if ("next_step" in record) {
     payload.next_step = record.next_step;
   }
 
-  if (raw.next_step_date !== undefined) {
+  if ("next_step_date" in record) {
     payload.next_step_date = record.next_step_date ? record.next_step_date.toISOString().slice(0, 10) : "";
   }
 
-  const hasStandbyContext = normalizeString(raw.standby_reason) !== ""
-    || normalizeString(raw.reactivation_date) !== "";
-
-  if (hasStandbyContext && raw.standby_reason !== undefined) {
+  if ("standby_reason" in record) {
     payload.standby_reason = record.standby_reason;
   }
 
-  if (hasStandbyContext && raw.reactivation_date !== undefined) {
+  if ("reactivation_date" in record) {
     payload.reactivation_date = record.reactivation_date ? record.reactivation_date.toISOString().slice(0, 10) : "";
   }
 
-  if (raw.sector !== undefined) {
+  if ("sector" in record) {
     payload.sector = record.sector;
   }
 
-  if (raw.notes !== undefined) {
+  if ("notes" in record) {
     payload.notes = record.notes;
   }
 

@@ -845,6 +845,11 @@ h3 {
   line-height: 1.55;
 }
 
+.workflow-note,
+.pipeline-form-helper {
+  margin: -2px 0 4px;
+}
+
 #status-message,
 #company-form-status {
   min-height: 22px;
@@ -2049,6 +2054,10 @@ td {
 
 .quick-form-details {
   grid-column: 1 / -1;
+}
+
+.mini-form-details {
+  margin-top: 0;
 }
 
 .checklist-snapshot-grid {
