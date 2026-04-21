@@ -46,18 +46,31 @@ async function scrapeCategory(page, category) {
 
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
     } catch (e) {
       console.error(`  Eroare navigare: ${e.message}`);
       break;
     }
 
+    // Debug: logam URL-ul final (dupa redirect) si titlul paginii
+    const finalUrl = page.url();
+    const title = await page.title();
+    console.log(`  URL final: ${finalUrl}`);
+    console.log(`  Titlu pagina: ${title}`);
+
+    // Debug: logam primele 5 clase de elemente pentru a intelege structura HTML
+    const topClasses = await page.evaluate(() => {
+      const els = Array.from(document.querySelectorAll("main *[class]")).slice(0, 30);
+      return [...new Set(els.map((el) => el.className.split(" ")[0]).filter(Boolean))].slice(0, 15);
+    });
+    console.log(`  Clase gasite in <main>:`, topClasses.join(", "));
+
     // Detectăm cardurile de anunțuri — selectori comuni pe rabota.md
     const cards = await page.$$eval(
-      "article.job-item, .vacancy-item, .job-card, [class*='vacancy'], [class*='job-list'] li",
+      "article.job-item, .vacancy-item, .job-card, [class*='vacancy'], [class*='job-list'] li, li[class*='job'], div[class*='job-item'], div[class*='listing']",
       (els) =>
         els.map((el) => {
-          const titleEl = el.querySelector("h2, h3, .title, [class*='title'], a[href*='/job']");
+          const titleEl = el.querySelector("h2, h3, .title, [class*='title'], a[href*='/job'], a[href*='/vacanta'], a[href*='/anunt']");
           const companyEl = el.querySelector(".company, [class*='company'], [class*='employer']");
           const dateEl = el.querySelector("time, .date, [class*='date'], [datetime]");
           const linkEl = el.querySelector("a[href*='/job'], a[href*='/vacancy']");
@@ -129,6 +142,8 @@ async function main() {
   );
   console.log(`${existingByUrl.size} lead-uri existente în Airtable.`);
 
+  // Descoperim categoriile corecte de pe pagina principala
+  console.log("\nDescopar URL-urile categoriilor de pe rabota.md...");
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     userAgent:
@@ -137,6 +152,16 @@ async function main() {
     extraHTTPHeaders: { "Accept-Language": "ro-RO,ro;q=0.9,en;q=0.8" },
   });
   const page = await context.newPage();
+
+  // Descoperim structura reala a site-ului
+  await page.goto("https://www.rabota.md/ro", { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.waitForTimeout(2000);
+  console.log("Titlu pagina principala:", await page.title());
+  const categoryLinks = await page.evaluate(() => {
+    const links = Array.from(document.querySelectorAll("a[href*='locuri-de-munca'], a[href*='vacanta'], a[href*='categori']"));
+    return [...new Set(links.map((a) => a.href))].slice(0, 20);
+  });
+  console.log("Linkuri categorii gasite:", categoryLinks);
 
   let nou = 0;
   let actualizat = 0;
