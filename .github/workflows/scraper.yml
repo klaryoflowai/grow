@@ -38,3 +38,11 @@ jobs:
           AIRTABLE_TABLE_LEADS: ${{ secrets.AIRTABLE_TABLE_LEADS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Upload debug screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: scraper/debug/
+          if-no-files-found: ignore

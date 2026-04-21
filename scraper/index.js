@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { writeFileSync, mkdirSync } from "fs";
 import { listLeads, createLead, updateLead, isConfigured } from "./airtable.js";
 import { notify } from "./telegram.js";
 
@@ -52,18 +53,41 @@ async function scrapeCategory(page, category) {
       break;
     }
 
-    // Debug: logam URL-ul final (dupa redirect) si titlul paginii
+    // Debug: logam URL-ul final si titlul paginii
     const finalUrl = page.url();
     const title = await page.title();
     console.log(`  URL final: ${finalUrl}`);
     console.log(`  Titlu pagina: ${title}`);
 
-    // Debug: logam primele 5 clase de elemente pentru a intelege structura HTML
-    const topClasses = await page.evaluate(() => {
-      const els = Array.from(document.querySelectorAll("main *[class]")).slice(0, 30);
-      return [...new Set(els.map((el) => el.className.split(" ")[0]).filter(Boolean))].slice(0, 15);
-    });
-    console.log(`  Clase gasite in <main>:`, topClasses.join(", "));
+    // Debug: salvam screenshot si HTML pentru prima categorie, prima pagina
+    if (pageNum === 1) {
+      try {
+        mkdirSync("debug", { recursive: true });
+        const slug = category.industrie.replace(/[^a-z]/gi, "_");
+        await page.screenshot({ path: `debug/${slug}.png`, fullPage: false });
+        const html = await page.content();
+        writeFileSync(`debug/${slug}.html`, html.slice(0, 8000));
+        console.log(`  Screenshot si HTML salvate in debug/${slug}.*`);
+
+        // Logam primele clase CSS din body
+        const topClasses = await page.evaluate(() => {
+          const els = Array.from(document.querySelectorAll("body *[class]")).slice(0, 50);
+          return [...new Set(els.map((el) => el.className.toString().split(/\s+/)[0]).filter(Boolean))].slice(0, 20);
+        });
+        console.log(`  Clase CSS gasite:`, topClasses.join(", "));
+
+        // Logam toate link-urile care contin /job sau /vacan
+        const jobLinks = await page.evaluate(() =>
+          Array.from(document.querySelectorAll("a[href]"))
+            .map((a) => a.href)
+            .filter((h) => /job|vacan|anunt|munca/i.test(h))
+            .slice(0, 10)
+        );
+        console.log(`  Link-uri anunturi gasite:`, jobLinks);
+      } catch (e) {
+        console.log(`  Debug save error: ${e.message}`);
+      }
+    }
 
     // Detectăm cardurile de anunțuri — selectori comuni pe rabota.md
     const cards = await page.$$eval(
