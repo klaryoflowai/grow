@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421c";
+const appBuild = "20260421d";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -264,6 +264,7 @@ async function submitActivityFromRaw(raw, form) {
   }
   raw.company = resolution.company;
   const record = normalizeRow("activities", raw);
+  record.created_at = record.created_at || new Date();
   if (!record.company || !record.date) return false;
   const companyPatchPayload = buildCompanyPatchFromActivityRaw(raw, record);
 
@@ -1004,11 +1005,7 @@ function refreshCombinedData() {
   if (state.apiEnabled) {
     state.activities = [...state.sourceData.activities]
       .filter((item) => item.company || item.date)
-      .sort((left, right) => {
-        const leftTime = left.date ? left.date.getTime() : 0;
-        const rightTime = right.date ? right.date.getTime() : 0;
-        return rightTime - leftTime;
-      });
+      .sort(compareActivitiesReverseChronologically);
 
     state.accounts = mergeAccounts(state.sourceData.accounts, [], state.activities);
     state.scorecards = [...state.sourceData.scorecards]
@@ -1025,11 +1022,7 @@ function refreshCombinedData() {
 
   state.activities = [...state.manualData.activities]
     .filter((item) => item.company || item.date)
-    .sort((left, right) => {
-      const leftTime = left.date ? left.date.getTime() : 0;
-      const rightTime = right.date ? right.date.getTime() : 0;
-        return rightTime - leftTime;
-      });
+    .sort(compareActivitiesReverseChronologically);
 
   state.accounts = mergeAccounts([], state.manualData.accounts, state.activities);
   state.scorecards = [...state.manualScorecards]
@@ -1045,13 +1038,14 @@ function refreshCombinedData() {
 
 function mergeAccounts(sourceAccounts, manualAccounts, activities) {
   const merged = new Map();
+  const orderedActivities = [...activities].sort(compareActivitiesChronologically);
 
   [...sourceAccounts, ...manualAccounts].forEach((account) => {
     if (!account.company) return;
     merged.set(account.company.toLowerCase(), { ...account });
   });
 
-  activities.forEach((activity) => {
+  orderedActivities.forEach((activity) => {
     if (!activity.company) return;
     const key = activity.company.toLowerCase();
     const existing = merged.get(key) || {
@@ -1070,21 +1064,11 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
 
     const plannedActivity = isPlannedActivity(activity);
 
-    if (!plannedActivity && activity.date && (!existing.last_contact || activity.date > existing.last_contact)) {
+    if (!plannedActivity && activity.date) {
       existing.last_contact = activity.date;
     }
 
-    if (
-      !plannedActivity
-      && (
-      activity.outcome
-      && (
-        !existing.last_outcome
-        || !existing.last_contact
-        || (activity.date && activity.date >= existing.last_contact)
-      )
-      )
-    ) {
+    if (!plannedActivity && activity.outcome) {
       existing.last_outcome = activity.outcome;
     }
 
@@ -1096,11 +1080,11 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       existing.workers = activity.workers_delta;
     }
 
-    if (activity.next_step && !normalizeString(existing.next_step)) {
+    if (activity.next_step) {
       existing.next_step = activity.next_step;
     }
 
-    if (activity.next_step_date && !existing.next_step_date) {
+    if (activity.next_step_date) {
       existing.next_step_date = activity.next_step_date;
     }
 
@@ -1298,6 +1282,7 @@ function normalizeRow(kind, row) {
 
   return {
     date: parseDate(row.date),
+    created_at: parseDate(row.created_at || row.createdAt || row.created_time || row.createdTime),
     company: row.company || row.account || "",
     activity_type: normalizeActivity(row.activity_type || row.type || row.status),
     outcome: row.outcome || row.result || "",
@@ -1384,6 +1369,28 @@ function parseDate(value) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getActivityDateValue(activity = {}) {
+  return activity.date ? activity.date.getTime() : 0;
+}
+
+function getActivityCreatedValue(activity = {}) {
+  return activity.created_at ? activity.created_at.getTime() : 0;
+}
+
+function compareActivitiesChronologically(left = {}, right = {}) {
+  const dateDiff = getActivityDateValue(left) - getActivityDateValue(right);
+  if (dateDiff !== 0) return dateDiff;
+
+  const createdDiff = getActivityCreatedValue(left) - getActivityCreatedValue(right);
+  if (createdDiff !== 0) return createdDiff;
+
+  return 0;
+}
+
+function compareActivitiesReverseChronologically(left = {}, right = {}) {
+  return compareActivitiesChronologically(right, left);
 }
 
 function getWeekStart(value) {

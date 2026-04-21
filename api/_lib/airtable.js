@@ -280,6 +280,7 @@ function normalizeActivityRecord(record, config, companyNameById) {
 
   return {
     id: record.id,
+    created_at: normalizeString(record.createdTime),
     date: toIsoDate(fields[config.fields.activities.date]),
     company: resolveActivityCompany(fields, config, companyNameById),
     activity_type: normalizeActivity(fields[config.fields.activities.type]),
