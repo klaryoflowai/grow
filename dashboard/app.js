@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421b";
+const appBuild = "20260421c";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -1807,7 +1807,7 @@ function renderPacingCard() {
   elements.pacingCard.style.setProperty("--pacing-bg", pacingBg);
   elements.pacingCard.style.setProperty("--pacing-color", statusColor);
   elements.pacingCard.innerHTML = `
-    <div class="hero-pacing-label">Ritm zilnic</div>
+    <div class="hero-pacing-label">Contactate / target lunar</div>
     <div class="hero-pacing-number" style="color:${statusColor};">${monthlyCounts.contacted}<span class="hero-pacing-target"> / ${target}</span></div>
     <div class="hero-pacing-status">
       Azi: <strong>${todayCounts.contacted}</strong> contacte · <strong>${todayCounts.meeting}</strong> meetings
