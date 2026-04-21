@@ -239,6 +239,12 @@ function normalizeCompanyRecord(record, config) {
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.companies.nextStepDate]),
+    standby_reason: normalizeString(
+      config.fields.companies.standbyReason ? fields[config.fields.companies.standbyReason] : ""
+    ),
+    reactivation_date: toIsoDate(
+      config.fields.companies.reactivationDate ? fields[config.fields.companies.reactivationDate] : ""
+    ),
     stage_changed_date: toIsoDate(
       config.fields.companies.stageChangedDate ? fields[config.fields.companies.stageChangedDate] : ""
     ),
@@ -622,6 +628,14 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.nextStepDate] = payload.next_step_date ? toIsoDate(payload.next_step_date) : null;
   } else if (!existingRecord) {
     fields[config.fields.companies.nextStepDate] = null;
+  }
+
+  if ("standby_reason" in payload && config.fields.companies.standbyReason) {
+    fields[config.fields.companies.standbyReason] = normalizeString(payload.standby_reason);
+  }
+
+  if ("reactivation_date" in payload && config.fields.companies.reactivationDate) {
+    fields[config.fields.companies.reactivationDate] = payload.reactivation_date ? toIsoDate(payload.reactivation_date) : null;
   }
 
   if ("sector" in payload) {

@@ -444,6 +444,29 @@
                     <option value="Pierdut">Pierdut</option>
                   </select>
                 </label>
+                <div class="pipeline-form-grid">
+                  <label class="field">
+                    <span>Motiv standby</span>
+                    <select name="standby_reason">
+                      <option value="">-</option>
+                      <option value="Nu au nevoie acum">Nu au nevoie acum</option>
+                      <option value="Nu doresc acum">Nu doresc acum</option>
+                      <option value="Nu doresc in principiu">Nu doresc in principiu</option>
+                      <option value="Revenim in 1 luna">Revenim in 1 luna</option>
+                      <option value="Revenim in 3 luni">Revenim in 3 luni</option>
+                      <option value="Revenim in 6 luni">Revenim in 6 luni</option>
+                      <option value="Buget blocat">Buget blocat</option>
+                      <option value="Sezonal">Sezonal</option>
+                      <option value="Contact nepotrivit">Contact nepotrivit</option>
+                      <option value="Monitorizare pasiva">Monitorizare pasiva</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Data reactivare</span>
+                    <input name="reactivation_date" type="text" data-date-picker placeholder="Alege data" />
+                  </label>
+                </div>
+                <p class="helper">Cand un lead intra pe pauza, pune-l pe <strong>Parcat</strong>, alege motivul si data de reactivare. Nu va mai aparea in pipeline-ul activ.</p>
                 <fieldset class="field fieldset-reset">
                   <legend>Sanatate cont</legend>
                   <div class="health-choice-grid">
@@ -527,6 +550,29 @@
                   </thead>
                   <tbody id="accounts-table-body"></tbody>
                 </table>
+              </div>
+              <div class="pipeline-overview-card">
+                <div class="pipeline-card-head">
+                  <div>
+                    <p class="section-label">Standby</p>
+                    <h3>Reactivare ulterioara</h3>
+                  </div>
+                  <div id="standby-chip" class="mini-chip">0 standby</div>
+                </div>
+                <p class="panel-copy">Lead-urile parcate ies din statisticile curente. Le revezi aici cand vine data de reactivare sau cand vrei sa le reincalzesti.</p>
+                <div class="table-wrap standby-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Companie</th>
+                        <th>Motiv standby</th>
+                        <th>Data reactivare</th>
+                        <th>Urmatorul pas</th>
+                      </tr>
+                    </thead>
+                    <tbody id="standby-table-body"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -694,6 +740,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260421g"></script>
+    <script src="./app.js?v=20260421h"></script>
   </body>
 </html>

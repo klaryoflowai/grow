@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421g";
+const appBuild = "20260421h";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -199,6 +199,8 @@ const elements = {
   scorecardTrendList: document.getElementById("scorecard-trend-list"),
   pipelineSummary: document.getElementById("pipeline-summary"),
   accountsTableBody: document.getElementById("accounts-table-body"),
+  standbyTableBody: document.getElementById("standby-table-body"),
+  standbyChip: document.getElementById("standby-chip"),
   executionSummary: document.getElementById("execution-summary"),
   alertsList: document.getElementById("alerts-list"),
   activitiesFeed: document.getElementById("activities-feed"),
@@ -584,7 +586,7 @@ function bindEvents() {
 
     const company = resolution.company;
     const confirmed = window.confirm(
-      `Resetez tracking-ul pentru ${company}? Vor fi golite stadiul, sanatatea contului, lead date, ultimul contact si next step-ul.`
+      `Resetez tracking-ul pentru ${company}? Vor fi golite stadiul, sanatatea contului, lead date, ultimul contact, urmatorul pas si setarile de standby.`
     );
 
     if (!confirmed) return;
@@ -597,6 +599,8 @@ function bindEvents() {
       last_contact: "",
       next_step: "",
       next_step_date: "",
+      standby_reason: "",
+      reactivation_date: "",
     };
 
     if (state.apiEnabled) {
@@ -1058,6 +1062,8 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       last_contact: null,
       next_step: "",
       next_step_date: null,
+      standby_reason: "",
+      reactivation_date: null,
       sector: "",
       notes: "",
     };
@@ -1117,6 +1123,8 @@ function syncManualAccountFromActivity(activity) {
         last_contact: null,
         next_step: "",
         next_step_date: null,
+        standby_reason: "",
+        reactivation_date: null,
         sector: "",
         notes: "",
       };
@@ -1196,6 +1204,8 @@ function clearManualAccountTracking(companyName) {
     last_contact: null,
     next_step: "",
     next_step_date: null,
+    standby_reason: "",
+    reactivation_date: null,
   };
 }
 
@@ -1251,6 +1261,8 @@ function normalizeRow(kind, row) {
       last_contact: parseDate(row.last_contact || row.date),
       next_step: row.next_step || "",
       next_step_date: parseDate(row.next_step_date),
+      standby_reason: row.standby_reason || row.standbyReason || "",
+      reactivation_date: parseDate(row.reactivation_date || row.reactivationDate),
       sector: row.sector || row.industry || "",
       notes: row.notes || "",
     };
@@ -1463,6 +1475,10 @@ function isOfferStage(stage = "") {
   return ["Oferta", "Negociere"].includes(normalizePipelineStage(stage));
 }
 
+function isStandbyAccount(account = {}) {
+  return normalizePipelineStage(account.pipeline_stage) === "Parcat";
+}
+
 function isPipelineOpen(stage = "") {
   const normalized = normalizePipelineStage(stage);
   if (!normalized) return false;
@@ -1477,6 +1493,8 @@ function isTrackedAccount(account = {}) {
     || account.last_contact
     || normalizeString(account.next_step)
     || account.next_step_date
+    || normalizeString(account.standby_reason)
+    || account.reactivation_date
   );
 }
 
@@ -1744,7 +1762,12 @@ function renderPage() {
 }
 
 function render() {
-  const trackedCount = state.accounts.filter((account) => isTrackedAccount(account)).length;
+  const activeTrackedCount = state.accounts
+    .filter((account) => isTrackedAccount(account))
+    .filter((account) => isPipelineOpen(account.pipeline_stage)).length;
+  const standbyCount = state.accounts
+    .filter((account) => isTrackedAccount(account))
+    .filter((account) => isStandbyAccount(account)).length;
   elements.dataModePill.textContent = !state.bootstrapReady
     ? "Se conecteaza..."
     : state.apiEnabled
@@ -1752,7 +1775,7 @@ function render() {
     : hasManualData()
       ? "Fallback local"
       : "Asteapta conexiunea";
-  elements.summaryChip.textContent = `${state.activities.length} activitati · ${trackedCount} companii cu tracking`;
+  elements.summaryChip.textContent = `${state.activities.length} activitati · ${activeTrackedCount} active · ${standbyCount} standby`;
 
   renderPacingCard();
   renderChecklist();
@@ -3237,7 +3260,7 @@ function getLastSevenDays() {
 function renderPipeline() {
   const trackedAccounts = state.accounts.filter((account) => isTrackedAccount(account));
   const latestPlannedByCompany = buildLatestPlannedActivityIndex(state.activities);
-  const activeAccounts = trackedAccounts
+  const filteredAccounts = trackedAccounts
     .filter((account) => !state.search || account.company.toLowerCase().includes(state.search))
     .sort((left, right) => {
       const stageDiff = pipelineStageValueRank(right.pipeline_stage) - pipelineStageValueRank(left.pipeline_stage);
@@ -3246,13 +3269,17 @@ function renderPipeline() {
       const rightTime = right.last_contact ? right.last_contact.getTime() : 0;
       return rightTime - leftTime;
     });
+  const activeAccounts = filteredAccounts.filter((account) => isPipelineOpen(account.pipeline_stage));
+  const standbyAccounts = filteredAccounts
+    .filter((account) => isStandbyAccount(account))
+    .sort(compareStandbyAccounts);
 
   const activeAccs = trackedAccounts.filter((account) => isPipelineOpen(account.pipeline_stage));
   const counts = {
     active: activeAccs.length,
     offers: trackedAccounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
     signed: trackedAccounts.filter((account) => account.pipeline_stage === "Contract semnat").length,
-    parked: trackedAccounts.filter((account) => ["Parcat", "Pierdut"].includes(account.pipeline_stage)).length,
+    standby: trackedAccounts.filter((account) => isStandbyAccount(account)).length,
     workersInPipeline: activeAccs.reduce((sum, a) => sum + (a.workers || 0), 0),
   };
 
@@ -3277,6 +3304,11 @@ function renderPipeline() {
       <div class="pipeline-stat-value">${counts.signed}</div>
       <div class="pipeline-stat-meta">castigate</div>
     </article>
+    <article class="pipeline-stat-card">
+      <div class="pipeline-stat-label">Standby</div>
+      <div class="pipeline-stat-value">${counts.standby}</div>
+      <div class="pipeline-stat-meta">parcate pentru revenire</div>
+    </article>
   `;
 
   if (!activeAccounts.length) {
@@ -3287,6 +3319,7 @@ function renderPipeline() {
         </td>
       </tr>
     `;
+    renderStandbyTable(standbyAccounts);
     return;
   }
 
@@ -3328,6 +3361,65 @@ function renderPipeline() {
         </tr>
       `;
     })
+    .join("");
+
+  renderStandbyTable(standbyAccounts);
+}
+
+function compareStandbyAccounts(left = {}, right = {}) {
+  const leftDate = left.reactivation_date ? left.reactivation_date.getTime() : Number.POSITIVE_INFINITY;
+  const rightDate = right.reactivation_date ? right.reactivation_date.getTime() : Number.POSITIVE_INFINITY;
+
+  if (leftDate !== rightDate) {
+    return leftDate - rightDate;
+  }
+
+  const leftTouch = left.last_contact ? left.last_contact.getTime() : 0;
+  const rightTouch = right.last_contact ? right.last_contact.getTime() : 0;
+  return rightTouch - leftTouch;
+}
+
+function renderStandbyTable(standbyAccounts = []) {
+  if (!elements.standbyTableBody || !elements.standbyChip) return;
+
+  const dueCount = standbyAccounts.filter((account) => {
+    if (!account.reactivation_date) return false;
+    return dayDiff(account.reactivation_date, new Date()) >= 0;
+  }).length;
+
+  elements.standbyChip.textContent = dueCount
+    ? `${standbyAccounts.length} standby · ${dueCount} de reactivat`
+    : `${standbyAccounts.length} standby`;
+
+  if (!standbyAccounts.length) {
+    elements.standbyTableBody.innerHTML = `
+      <tr>
+        <td colspan="4">
+          <div class="empty-card">Nu exista lead-uri in standby in acest moment.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  elements.standbyTableBody.innerHTML = standbyAccounts
+    .map((account) => `
+      <tr>
+        <td>
+          <div class="company-cell">
+            <div class="company-name">${escapeHtml(account.company)}</div>
+            ${
+              account.last_contact
+                ? `<div class="company-meta">Ultimul touch ${escapeHtml(formatDateWithYear(account.last_contact))}</div>`
+                : ""
+            }
+          </div>
+        </td>
+        <td>${escapeHtml(account.standby_reason || "-")}</td>
+        <td>${renderReactivationCell(account)}</td>
+        <td>${renderNextStepCell(account, null)}</td>
+      </tr>
+    `)
     .join("");
 }
 
@@ -3736,6 +3828,30 @@ function renderNextStepCell(account = {}, activity) {
   `;
 }
 
+function renderReactivationCell(account = {}, now = new Date()) {
+  if (!account.reactivation_date) {
+    return `<span class="table-muted">-</span>`;
+  }
+
+  const delta = dayDiff(account.reactivation_date, now);
+  let meta = "";
+
+  if (delta > 0) {
+    meta = delta === 1 ? "de reactivat ieri" : `intarziat ${delta} zile`;
+  } else if (delta === 0) {
+    meta = "de reactivat azi";
+  } else {
+    meta = `peste ${Math.abs(delta)} zile`;
+  }
+
+  return `
+    <div class="planned-cell">
+      <div class="planned-cell-title">${escapeHtml(formatDateWithYear(account.reactivation_date))}</div>
+      <div class="company-meta">${escapeHtml(meta)}</div>
+    </div>
+  `;
+}
+
 function formatDate(date) {
   if (!date) return "-";
   return new Intl.DateTimeFormat("ro-RO", {
@@ -3849,6 +3965,17 @@ function serializeCompanyPayload(record, raw = {}) {
 
   if (raw.next_step_date !== undefined) {
     payload.next_step_date = record.next_step_date ? record.next_step_date.toISOString().slice(0, 10) : "";
+  }
+
+  const hasStandbyContext = normalizeString(raw.standby_reason) !== ""
+    || normalizeString(raw.reactivation_date) !== "";
+
+  if (hasStandbyContext && raw.standby_reason !== undefined) {
+    payload.standby_reason = record.standby_reason;
+  }
+
+  if (hasStandbyContext && raw.reactivation_date !== undefined) {
+    payload.reactivation_date = record.reactivation_date ? record.reactivation_date.toISOString().slice(0, 10) : "";
   }
 
   if (raw.sector !== undefined) {

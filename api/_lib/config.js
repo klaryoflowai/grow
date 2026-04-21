@@ -46,6 +46,8 @@ function getAirtableConfig() {
         lastContact: readEnv("AIRTABLE_FIELD_COMPANY_LAST_CONTACT", "Last Contact"),
         nextStep: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP", "Next Step"),
         nextStepDate: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP_DATE", "Next Step Date"),
+        standbyReason: readEnv("AIRTABLE_FIELD_COMPANY_STANDBY_REASON", "Motiv standby"),
+        reactivationDate: readEnv("AIRTABLE_FIELD_COMPANY_REACTIVATION_DATE", "Data reactivare"),
         stageChangedDate: readEnv("AIRTABLE_FIELD_COMPANY_STAGE_CHANGED_DATE", "Data Schimbare Stadiu"),
         sector: readEnv("AIRTABLE_FIELD_COMPANY_SECTOR", "Sector"),
         notes: readEnv("AIRTABLE_FIELD_COMPANY_NOTES", "Notes"),
