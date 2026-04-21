@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421f";
+const appBuild = "20260421g";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -3282,7 +3282,7 @@ function renderPipeline() {
   if (!activeAccounts.length) {
     elements.accountsTableBody.innerHTML = `
       <tr>
-        <td colspan="7">
+        <td colspan="6">
           <div class="empty-card">Nu exista companii cu tracking activ inca. Prima activitate sau primul update de companie le va adauga aici.</div>
         </td>
       </tr>
@@ -3323,9 +3323,8 @@ function renderPipeline() {
             }
           </td>
           <td>${escapeHtml(account.last_outcome || "-")}</td>
-          <td>${renderPlannedActivityCell(plannedActivity, account)}</td>
           <td>${formatDate(account.last_contact)}</td>
-          <td>${escapeHtml(formatNextStep(account))}</td>
+          <td>${renderNextStepCell(account, plannedActivity)}</td>
         </tr>
       `;
     })
@@ -3689,43 +3688,40 @@ function buildLatestPlannedActivityIndex(activities = []) {
   return index;
 }
 
-function renderPlannedActivityCell(activity, account = {}) {
-  if (!activity) {
-    const fallbackPlan = normalizeString(account.next_step);
-    if (!fallbackPlan) {
-      return `<span class="table-muted">-</span>`;
-    }
+function renderNextStepCell(account = {}, activity) {
+  const nextStep = normalizeString(account.next_step);
 
-    const fallbackMeta = [];
+  if (nextStep || account.next_step_date) {
+    const meta = [];
     if (account.next_step_date) {
-      fallbackMeta.push(formatDate(account.next_step_date));
+      meta.push(formatDate(account.next_step_date));
     }
-    fallbackMeta.push("din tracking companie");
 
     return `
       <div class="planned-cell">
-        <div class="planned-cell-title">${escapeHtml(fallbackPlan)}</div>
-        <div class="company-meta">${escapeHtml(fallbackMeta.join(" · "))}</div>
+        <div class="planned-cell-title">${escapeHtml(nextStep || "Pas urmator notat")}</div>
+        ${
+          meta.length
+            ? `<div class="company-meta">${escapeHtml(meta.join(" · "))}</div>`
+            : ""
+        }
       </div>
     `;
   }
 
-  const rawOutcome = normalizeString(activity.outcome);
-  const genericPlannedOutcome = rawOutcome.toLowerCase() === "planificat";
-  const primary = !genericPlannedOutcome && rawOutcome
-    ? rawOutcome
-    : normalizeString(activity.next_step) || "Activitate planificata";
-
-  const meta = [];
-
-  if (activity.next_step && primary !== activity.next_step) {
-    meta.push(activity.next_step);
+  if (!activity) {
+    return `<span class="table-muted">-</span>`;
   }
 
+  const rawOutcome = normalizeString(activity.outcome);
+  const genericPlannedOutcome = rawOutcome.toLowerCase() === "planificat";
+  const primary = normalizeString(activity.next_step)
+    || (!genericPlannedOutcome && rawOutcome)
+    || "Pas urmator notat";
+
+  const meta = [];
   if (activity.next_step_date) {
     meta.push(formatDate(activity.next_step_date));
-  } else if (activity.date) {
-    meta.push(`notat ${formatDate(activity.date)}`);
   }
 
   return `
