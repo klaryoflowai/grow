@@ -45,7 +45,8 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422a";
+const appBuild = "20260422b";
+const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -1463,6 +1464,22 @@ function normalizeString(value) {
   return String(value).trim();
 }
 
+function normalizeOutcomeKey(value = "") {
+  return normalizeString(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isWhatsAppMessageOutcome(value = "") {
+  return normalizeOutcomeKey(value) === normalizeOutcomeKey(whatsappMessageOutcome);
+}
+
+function isPendingContactOutcome(value = "") {
+  const normalized = normalizeOutcomeKey(value);
+  return normalized === "nu raspunde" || isWhatsAppMessageOutcome(value);
+}
+
 function stageRank(status = "") {
   return stageOrder[status] ?? 0;
 }
@@ -2001,7 +2018,8 @@ function renderChecklist() {
       badge: `${todayActivities.length} touch-uri deja salvate`,
       copy: "Regula simpla: un touch real trebuie sa lase in urma o urmare clara, nu doar memorie.",
       steps: [
-        "Dupa fiecare apel, mesaj sau meeting real, salveaza touch-ul in aceeasi zi.",
+        "Dupa fiecare apel, mesaj WhatsApp sau meeting real, salveaza touch-ul in aceeasi zi.",
+        `Daca ai trimis doar un mesaj si astepti reactie, foloseste outcome-ul ${whatsappMessageOutcome}.`,
         "Daca nu ai ajuns la decident, marcheaza outcome-ul real: Nu am ajuns la decident, Nu raspunde, Revino mai tarziu.",
         "Daca discutia ramane deschisa, lasa obligatoriu si next step cu data.",
         "Cand alegi compania, foloseste sugestiile existente ca sa eviti duplicatele.",
@@ -2023,7 +2041,8 @@ function renderChecklist() {
       badge: "salveaza contextul complet",
       copy: "Logul rapid poate retine touch-ul, urmatorul pas si, daca e cazul, noul stadiu din pipeline.",
       steps: [
-        "Completeaza Companie, Actiune si Rezultat.",
+        "Completeaza Companie, Actiune si Rezultat / status.",
+        `Pentru outreach fara raspuns clar, foloseste ${whatsappMessageOutcome}.`,
         "Daca exista urmatorul pas, completeaza Next step si Data next step.",
         "Daca etapa s-a schimbat in realitate, actualizeaza Stadiu pipeline dupa touch.",
         "Pentru schimbari mai ample de cont, intra apoi si in Update rapid companie.",
@@ -3123,9 +3142,7 @@ function buildStats(cards) {
 function renderConversions() {
   const monthlyActivities = getMonthlyActivities();
   const counts = countActivities(monthlyActivities);
-  const noResponseCount = monthlyActivities.filter(
-    (a) => a.outcome && a.outcome.toLowerCase().includes("nu raspunde")
-  ).length;
+  const noResponseCount = monthlyActivities.filter((a) => isPendingContactOutcome(a.outcome)).length;
 
   const conversions = [
     buildConversionCard("Contact → Meeting", counts.meeting, counts.contacted),
@@ -3147,7 +3164,7 @@ function renderConversions() {
         <div class="conversion-track">
           <div class="conversion-fill" style="width:${responseRatePct}%; background:${responseRatePct >= 60 ? "#2d8f57" : responseRatePct >= 40 ? "#c98622" : "#cb5846"};"></div>
         </div>
-        <div class="conversion-meta"><span>${counts.contacted - noResponseCount} raspunsuri din ${counts.contacted} contacte · ${noResponseCount} "Nu raspunde"</span></div>
+        <div class="conversion-meta"><span>${counts.contacted - noResponseCount} raspunsuri din ${counts.contacted} contacte · ${noResponseCount} fara raspuns clar</span></div>
       </article>`
     : "";
 

@@ -174,6 +174,7 @@ The dashboard still shows the Romanian labels, but it can read and write the emo
 
 Recommended Romanian outcome options:
 
+- `Mesaj WhatsApp trimis`
 - `Am vorbit cu decidentul`
 - `Nu am ajuns la decident`
 - `Nu raspunde`

@@ -220,6 +220,15 @@ function isMissingFieldError(error, fieldName = "") {
   );
 }
 
+function isInvalidSelectOptionError(error) {
+  const message = normalizeString(error?.message).toLowerCase();
+  return (
+    message.includes("select option")
+    || message.includes("multiple choice")
+    || message.includes("choice")
+  );
+}
+
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
@@ -848,7 +857,20 @@ async function createActivity(payload) {
     fields[config.fields.activities.company] = activity.company;
   }
 
-  const createdRecord = await createRecord("activities", fields);
+  let createdRecord;
+
+  try {
+    createdRecord = await createRecord("activities", fields);
+  } catch (error) {
+    if (activity.outcome && isInvalidSelectOptionError(error)) {
+      throw new AirtableError(
+        400,
+        `In Airtable, adauga optiunea "${activity.outcome}" in Activities -> Outcome si incearca din nou.`
+      );
+    }
+    throw error;
+  }
+
   const companyNameById = new Map([[touched.record.id, touched.normalized.company]]);
 
   return {
