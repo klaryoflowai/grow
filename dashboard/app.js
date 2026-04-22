@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422h";
+const appBuild = "20260422i";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -281,6 +281,7 @@ async function submitActivityFromRaw(raw, form) {
   if (!record.company || !record.date) return false;
   const companyPatchPayload = buildCompanyPatchFromActivityRaw(raw, record);
   let scorecardSync = { updated: false, reason: "not_attempted" };
+  let trendSync = { updated: false, reason: "not_attempted" };
 
   if (state.apiEnabled) {
     try {
@@ -290,6 +291,7 @@ async function submitActivityFromRaw(raw, form) {
       });
       const isDuplicate = Boolean(result?.duplicate);
       scorecardSync = result?.scorecard_sync || scorecardSync;
+      trendSync = result?.trend_sync || trendSync;
       if (isDuplicate) {
         await refreshData({ silent: true });
         updateStatus(`Dublura evitata: activitatea pentru ${record.company} era deja salvata recent.`);
@@ -315,7 +317,7 @@ async function submitActivityFromRaw(raw, form) {
       updateStatus(
         `Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}${
           companyPatchPayload ? " + pipeline sincronizat" : ""
-        }${formatScorecardSyncBadge(scorecardSync)}.${secondaryWarning}`
+        }${formatScorecardSyncBadge(scorecardSync)}${formatTrendSyncBadge(trendSync)}.${secondaryWarning}`
       );
     } catch (error) {
       updateStatus(`Airtable nu a putut salva activitatea. ${error.message}`);
@@ -323,6 +325,7 @@ async function submitActivityFromRaw(raw, form) {
     }
   } else {
     scorecardSync = syncManualScorecardFromActivity(record, state.manualData.activities);
+    trendSync = syncManualDailyTrendFromActivity(record, state.manualData.activities);
     state.manualData.activities.unshift(record);
     syncManualAccountFromActivity(record);
     if (companyPatchPayload) {
@@ -334,7 +337,7 @@ async function submitActivityFromRaw(raw, form) {
     updateStatus(
       `Salvat local: ${record.company} → ${activityLabel(record.activity_type)}${
         companyPatchPayload ? " + pipeline sincronizat" : ""
-      }${formatScorecardSyncBadge(scorecardSync)}.`
+      }${formatScorecardSyncBadge(scorecardSync)}${formatTrendSyncBadge(trendSync)}.`
     );
   }
 
@@ -1326,6 +1329,38 @@ function upsertManualDailyScore(record) {
   }
 }
 
+function syncManualDailyTrendFromActivity(activity, existingActivities = []) {
+  if (!activity?.date || !isLiveActivityEntry(activity)) {
+    return { updated: false, reason: "not_trend_activity" };
+  }
+
+  const date = toIsoDateValue(activity.date);
+  if (!date) {
+    return { updated: false, reason: "invalid_date" };
+  }
+
+  const counts = countActivities(
+    [...existingActivities, activity].filter((record) => toIsoDateValue(record.date) === date)
+  );
+  const existing = state.manualData.dailyScores.find((row) => row.date === date);
+
+  upsertManualDailyScore({
+    id: existing?.id || "",
+    date,
+    contacted: counts.contacted,
+    meetings: counts.meeting,
+    offers: counts.offer,
+    contracts: counts.contract_signed,
+    notes: existing?.notes || "",
+  });
+
+  return {
+    updated: true,
+    date,
+    counts,
+  };
+}
+
 function normalizeRow(kind, row) {
   if (kind === "dailyScores") {
     return {
@@ -1590,6 +1625,10 @@ function formatScorecardSyncBadge(scorecardSync = {}) {
   return labels.length
     ? ` + scorecard sincronizat (${labels.join(", ")})`
     : " + scorecard sincronizat";
+}
+
+function formatTrendSyncBadge(trendSync = {}) {
+  return trendSync?.updated ? " + trend zilnic sincronizat" : "";
 }
 
 function isPendingContactOutcome(value = "") {
@@ -3425,6 +3464,7 @@ function renderTrend() {
 function getLastSevenDays() {
   const rows = [];
   const scoreByDate = new Map(state.dailyScores.map((s) => [s.date, s]));
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   for (let offset = 6; offset >= 0; offset -= 1) {
     const date = new Date();
@@ -3432,17 +3472,27 @@ function getLastSevenDays() {
     date.setDate(date.getDate() - offset);
     const isoDate = date.toISOString().slice(0, 10);
     const scoreRow = scoreByDate.get(isoDate);
+    const liveCounts = countActivities(state.activities.filter((activity) => isSameDay(activity.date, date)));
 
     let counts;
     if (scoreRow) {
-      counts = {
+      const trendCounts = {
         contacted: scoreRow.contacted || 0,
         meeting: scoreRow.meetings || 0,
         offer: scoreRow.offers || 0,
         contract_signed: scoreRow.contracts || 0,
       };
+
+      counts = isoDate === todayIso
+        ? liveCounts
+        : {
+            contacted: Math.max(trendCounts.contacted, liveCounts.contacted),
+            meeting: Math.max(trendCounts.meeting, liveCounts.meeting),
+            offer: Math.max(trendCounts.offer, liveCounts.offer),
+            contract_signed: Math.max(trendCounts.contract_signed, liveCounts.contract_signed),
+          };
     } else {
-      counts = countActivities(state.activities.filter((activity) => isSameDay(activity.date, date)));
+      counts = liveCounts;
     }
 
     rows.push({

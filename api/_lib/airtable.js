@@ -349,6 +349,22 @@ function isLiveActivityRecord(activity = {}) {
   return normalizeActivity(activity.activity_type) !== "planned";
 }
 
+function countActivitiesForTrend(activities = []) {
+  return activities.reduce((counts, activity) => {
+    const key = normalizeActivity(activity.activity_type);
+    if (key === "contacted") counts.contacted += 1;
+    if (key === "meeting") counts.meetings += 1;
+    if (key === "offer") counts.offers += 1;
+    if (key === "contract_signed") counts.contracts += 1;
+    return counts;
+  }, {
+    contacted: 0,
+    meetings: 0,
+    offers: 0,
+    contracts: 0,
+  });
+}
+
 function dayDiff(left, right) {
   const ms = 1000 * 60 * 60 * 24;
   const leftDate = new Date(left);
@@ -1041,6 +1057,7 @@ async function createActivity(payload) {
 
   const createdCompanyNameById = new Map([[touched.record.id, touched.normalized.company]]);
   let scorecardSync = { updated: false, reason: "not_attempted" };
+  let trendSync = { updated: false, reason: "not_attempted" };
 
   try {
     scorecardSync = await syncScorecardFromActivity(activity, config, existingActivities);
@@ -1052,11 +1069,22 @@ async function createActivity(payload) {
     };
   }
 
+  try {
+    trendSync = await syncScorecardTrendFromActivity(activity, config, existingActivities);
+  } catch (error) {
+    trendSync = {
+      updated: false,
+      reason: "trend_sync_failed",
+      message: error.message,
+    };
+  }
+
   return {
     activity: normalizeActivityRecord(createdRecord, config, createdCompanyNameById),
     company: touched.normalized,
     duplicate: false,
     scorecard_sync: scorecardSync,
+    trend_sync: trendSync,
   };
 }
 
@@ -1182,6 +1210,54 @@ async function upsertScorecardTrend(payload) {
     : await createRecord("scorecardTrend", fields);
 
   return normalizeScorecardTrendRecord(record, config);
+}
+
+async function syncScorecardTrendFromActivity(activity, config, existingActivities = []) {
+  const date = toIsoDate(activity.date);
+  if (!date || !isLiveActivityRecord(activity)) {
+    return { updated: false, reason: "not_trend_activity" };
+  }
+
+  let trendRecords = [];
+  try {
+    trendRecords = await listRecords("scorecardTrend");
+  } catch (error) {
+    if (error.status === 404) {
+      return { updated: false, reason: "missing_scorecard_trend_table" };
+    }
+    throw error;
+  }
+
+  const existingRecord = trendRecords.find((record) => {
+    const normalized = normalizeScorecardTrendRecord(record, config);
+    return normalized.date === date;
+  });
+  const normalizedRecord = existingRecord
+    ? normalizeScorecardTrendRecord(existingRecord, config)
+    : { notes: "" };
+  const nextCounts = countActivitiesForTrend(
+    [...existingActivities, activity].filter((record) => toIsoDate(record.date) === date)
+  );
+
+  const fields = {
+    [config.fields.scorecardTrend.date]: date,
+    [config.fields.scorecardTrend.contacted]: nextCounts.contacted,
+    [config.fields.scorecardTrend.meetings]: nextCounts.meetings,
+    [config.fields.scorecardTrend.offers]: nextCounts.offers,
+    [config.fields.scorecardTrend.contracts]: nextCounts.contracts,
+    [config.fields.scorecardTrend.notes]: normalizeString(normalizedRecord.notes),
+  };
+
+  const record = existingRecord
+    ? await updateRecord("scorecardTrend", existingRecord.id, fields)
+    : await createRecord("scorecardTrend", fields);
+
+  return {
+    updated: true,
+    date,
+    counts: nextCounts,
+    trend: normalizeScorecardTrendRecord(record, config),
+  };
 }
 
 async function getDashboardData() {
