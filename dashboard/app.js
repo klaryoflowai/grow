@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422d";
+const appBuild = "20260422e";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -272,13 +272,15 @@ async function submitActivityFromRaw(raw, form) {
   record.created_at = record.created_at || new Date();
   if (!record.company || !record.date) return false;
   const companyPatchPayload = buildCompanyPatchFromActivityRaw(raw, record);
+  let scorecardSync = { updated: false, reason: "not_attempted" };
 
   if (state.apiEnabled) {
     try {
-      await apiJson("/api/activities", {
+      const result = await apiJson("/api/activities", {
         method: "POST",
         body: serializeActivityPayload(record),
       });
+      scorecardSync = result?.scorecard_sync || scorecardSync;
       if (companyPatchPayload) {
         await apiJson("/api/companies", {
           method: "PATCH",
@@ -289,6 +291,8 @@ async function submitActivityFromRaw(raw, form) {
       updateStatus(
         `Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}${
           companyPatchPayload ? " + pipeline sincronizat" : ""
+        }${
+          scorecardSync.updated ? " + scorecard WhatsApp sincronizat" : ""
         }.`
       );
     } catch (error) {
@@ -298,14 +302,18 @@ async function submitActivityFromRaw(raw, form) {
   } else {
     state.manualData.activities.unshift(record);
     syncManualAccountFromActivity(record);
+    scorecardSync = syncManualScorecardFromActivity(record);
     if (companyPatchPayload) {
       upsertManualAccount(normalizeRow("accounts", companyPatchPayload));
     }
     persistManualData();
+    persistScorecards();
     refreshCombinedData();
     updateStatus(
       `Salvat local: ${record.company} → ${activityLabel(record.activity_type)}${
         companyPatchPayload ? " + pipeline sincronizat" : ""
+      }${
+        scorecardSync.updated ? " + scorecard WhatsApp sincronizat" : ""
       }.`
     );
   }
@@ -1234,6 +1242,41 @@ function upsertManualScorecard(record) {
   } else {
     state.manualScorecards.unshift(record);
   }
+}
+
+function syncManualScorecardFromActivity(activity) {
+  if (!isWhatsAppMessageOutcome(activity.outcome)) {
+    return { updated: false, reason: "not_whatsapp_outcome" };
+  }
+
+  const weekStart = getWeekStart(activity.date);
+  if (!weekStart) {
+    return { updated: false, reason: "invalid_week" };
+  }
+
+  const weekEnd = getWeekEnd(weekStart);
+  const existing = state.manualScorecards.find(
+    (item) => (item.week_key || item.week_start) === weekStart || item.week_start === weekStart
+  );
+  const baseRecord = existing
+    ? { ...existing }
+    : normalizeRow("scorecard", {
+        week_start: weekStart,
+        week_end: weekEnd,
+        week_key: weekStart,
+        week_label: buildWeekLabel(weekStart, weekEnd),
+      });
+  const nextRecord = applyComputedScorecardFields({
+    ...baseRecord,
+    linkedin_messages: toNumber(baseRecord.linkedin_messages) + 1,
+  });
+
+  upsertManualScorecard(nextRecord);
+  return {
+    updated: true,
+    week_start: weekStart,
+    linkedin_messages: nextRecord.linkedin_messages,
+  };
 }
 
 function upsertManualDailyScore(record) {

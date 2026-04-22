@@ -499,6 +499,17 @@ function createEmptyScorecard(timezone = "Europe/Chisinau") {
   };
 }
 
+function normalizeOutcomeKey(value = "") {
+  return normalizeString(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isWhatsAppMessageOutcome(value = "") {
+  return normalizeOutcomeKey(value) === normalizeOutcomeKey("Mesaj WhatsApp trimis");
+}
+
 function getScorecardMessageFieldName(config, fields = {}) {
   const configured = config.fields.scorecard.linkedInMessages;
 
@@ -515,6 +526,79 @@ function getScorecardMessageFieldName(config, fields = {}) {
   }
 
   return configured || "LinkedIn Messages";
+}
+
+async function syncScorecardWhatsAppMessages(activity, config) {
+  if (!isWhatsAppMessageOutcome(activity.outcome)) {
+    return { updated: false, reason: "not_whatsapp_outcome" };
+  }
+
+  let scorecardRecords = [];
+  try {
+    scorecardRecords = await listRecords("scorecard");
+  } catch (error) {
+    if (error.status === 404) {
+      return { updated: false, reason: "missing_scorecard_table" };
+    }
+    throw error;
+  }
+
+  const weekStart = getWeekStart(activity.date);
+  if (!weekStart) {
+    return { updated: false, reason: "invalid_week" };
+  }
+
+  const weekEnd = getWeekEnd(weekStart);
+  const weekKey = weekStart;
+  const weekLabel = buildWeekLabel(weekStart, weekEnd);
+  const existingRecord = scorecardRecords.find((record) => {
+    const normalized = normalizeScorecardRecord(record, config);
+    return normalized.week_key === weekKey || normalized.week_start === weekStart;
+  });
+
+  const messageFieldName = getScorecardMessageFieldName(config, existingRecord?.fields || {});
+  const currentMessages = existingRecord ? normalizeScorecardRecord(existingRecord, config).linkedin_messages : 0;
+  const nextMessages = currentMessages + 1;
+  const fields = existingRecord
+    ? {
+        [messageFieldName]: nextMessages,
+      }
+    : {
+        [config.fields.scorecard.weekStart]: weekStart,
+        [config.fields.scorecard.weekEnd]: weekEnd,
+        [config.fields.scorecard.weekKey]: weekKey,
+        [config.fields.scorecard.weekLabel]: weekLabel,
+        [messageFieldName]: nextMessages,
+      };
+
+  let record;
+
+  try {
+    record = existingRecord
+      ? await updateRecord("scorecard", existingRecord.id, fields)
+      : await createRecord("scorecard", fields);
+  } catch (error) {
+    const fallbackMessageField = messageFieldName === "WhatsApp Messages"
+      ? "LinkedIn Messages"
+      : "WhatsApp Messages";
+
+    if (!isMissingFieldError(error, messageFieldName)) {
+      throw error;
+    }
+
+    delete fields[messageFieldName];
+    fields[fallbackMessageField] = nextMessages;
+    record = existingRecord
+      ? await updateRecord("scorecard", existingRecord.id, fields)
+      : await createRecord("scorecard", fields);
+  }
+
+  return {
+    updated: true,
+    week_start: weekStart,
+    linkedin_messages: nextMessages,
+    scorecard: normalizeScorecardRecord(record, config),
+  };
 }
 
 function normalizeScorecardRecord(record, config) {
@@ -872,10 +956,22 @@ async function createActivity(payload) {
   }
 
   const companyNameById = new Map([[touched.record.id, touched.normalized.company]]);
+  let scorecardSync = { updated: false, reason: "not_attempted" };
+
+  try {
+    scorecardSync = await syncScorecardWhatsAppMessages(activity, config);
+  } catch (error) {
+    scorecardSync = {
+      updated: false,
+      reason: "scorecard_sync_failed",
+      message: error.message,
+    };
+  }
 
   return {
     activity: normalizeActivityRecord(createdRecord, config, companyNameById),
     company: touched.normalized,
+    scorecard_sync: scorecardSync,
   };
 }
 
