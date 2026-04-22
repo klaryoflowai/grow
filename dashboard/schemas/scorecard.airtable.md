@@ -23,7 +23,7 @@ Aceasta tabela alimenteaza:
 | `Dream100 P1 Prospects` | Number | Cate companii P1 noi au fost abordate in saptamana |
 | `Sales Velocity Days` | Number | Media de zile de la lead la contract semnat |
 | `Cold Calls` | Number | Total apeluri reci |
-| `LinkedIn Messages` | Number | Total mesaje LinkedIn |
+| `WhatsApp Messages` | Number | Total mesaje WhatsApp |
 | `Field Visits` | Number | Vizite in teren / networking |
 | `Meetings Set` | Number | Meetings confirmate |
 | `Offers Sent` | Number | Oferte trimise |

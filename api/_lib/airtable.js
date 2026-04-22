@@ -490,6 +490,24 @@ function createEmptyScorecard(timezone = "Europe/Chisinau") {
   };
 }
 
+function getScorecardMessageFieldName(config, fields = {}) {
+  const configured = config.fields.scorecard.linkedInMessages;
+
+  if (configured && Object.prototype.hasOwnProperty.call(fields, configured)) {
+    return configured;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(fields, "WhatsApp Messages")) {
+    return "WhatsApp Messages";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(fields, "LinkedIn Messages")) {
+    return "LinkedIn Messages";
+  }
+
+  return configured || "LinkedIn Messages";
+}
+
 function normalizeScorecardRecord(record, config) {
   const fields = record.fields || {};
   const weekStart = getWeekStart(
@@ -510,7 +528,7 @@ function normalizeScorecardRecord(record, config) {
     dream100_p1_prospects: toNumber(fields[config.fields.scorecard.dream100P1Prospects]),
     sales_velocity_days: toNumber(fields[config.fields.scorecard.salesVelocityDays]),
     cold_calls: toNumber(fields[config.fields.scorecard.coldCalls]),
-    linkedin_messages: toNumber(fields[config.fields.scorecard.linkedInMessages]),
+    linkedin_messages: toNumber(fields[getScorecardMessageFieldName(config, fields)]),
     field_visits: toNumber(fields[config.fields.scorecard.fieldVisits]),
     meetings_set: toNumber(fields[config.fields.scorecard.meetingsSet]),
     offers_sent: toNumber(fields[config.fields.scorecard.offersSent]),
@@ -886,6 +904,8 @@ async function upsertScorecard(payload) {
     const normalized = normalizeScorecardRecord(record, config);
     return normalized.week_key === weekKey || normalized.week_start === weekStart;
   });
+  const messageFieldName = getScorecardMessageFieldName(config, existingRecord?.fields || {});
+  const messageFieldValue = toNumber(payload.linkedin_messages);
 
   const fields = {
     [config.fields.scorecard.weekStart]: weekStart,
@@ -896,7 +916,7 @@ async function upsertScorecard(payload) {
     [config.fields.scorecard.dream100P1Prospects]: toNumber(payload.dream100_p1_prospects),
     [config.fields.scorecard.salesVelocityDays]: velocity.averageDays,
     [config.fields.scorecard.coldCalls]: toNumber(payload.cold_calls),
-    [config.fields.scorecard.linkedInMessages]: toNumber(payload.linkedin_messages),
+    [messageFieldName]: messageFieldValue,
     [config.fields.scorecard.fieldVisits]: toNumber(payload.field_visits),
     [config.fields.scorecard.meetingsSet]: toNumber(payload.meetings_set),
     [config.fields.scorecard.offersSent]: toNumber(payload.offers_sent),
@@ -906,9 +926,27 @@ async function upsertScorecard(payload) {
     [config.fields.scorecard.notes]: normalizeString(payload.notes),
   };
 
-  const record = existingRecord
-    ? await updateRecord("scorecard", existingRecord.id, fields)
-    : await createRecord("scorecard", fields);
+  let record;
+
+  try {
+    record = existingRecord
+      ? await updateRecord("scorecard", existingRecord.id, fields)
+      : await createRecord("scorecard", fields);
+  } catch (error) {
+    const fallbackMessageField = messageFieldName === "WhatsApp Messages"
+      ? "LinkedIn Messages"
+      : "WhatsApp Messages";
+
+    if (!isMissingFieldError(error, messageFieldName)) {
+      throw error;
+    }
+
+    delete fields[messageFieldName];
+    fields[fallbackMessageField] = messageFieldValue;
+    record = existingRecord
+      ? await updateRecord("scorecard", existingRecord.id, fields)
+      : await createRecord("scorecard", fields);
+  }
 
   return withComputedSalesVelocity(normalizeScorecardRecord(record, config), activities);
 }

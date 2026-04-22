@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260421k";
+const appBuild = "20260422a";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -2292,7 +2292,7 @@ function renderScorecardDashboard() {
       value: metrics.outreachTotal,
       target: scorecardTargets.leadMeasures.outreach,
       tone: "#2f6ea2",
-      detail: `${scorecard.cold_calls} cold calls · ${scorecard.linkedin_messages} LinkedIn`,
+      detail: `${scorecard.cold_calls} cold calls · ${scorecard.linkedin_messages} WhatsApp`,
     }),
     buildLeadMeasureCard({
       icon: "field",

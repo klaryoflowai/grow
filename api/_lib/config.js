@@ -79,7 +79,10 @@ function getAirtableConfig() {
         dream100P1Prospects: readEnv("AIRTABLE_FIELD_SCORECARD_DREAM100_P1_PROSPECTS", "Dream100 P1 Prospects"),
         salesVelocityDays: readEnv("AIRTABLE_FIELD_SCORECARD_SALES_VELOCITY_DAYS", "Sales Velocity Days"),
         coldCalls: readEnv("AIRTABLE_FIELD_SCORECARD_COLD_CALLS", "Cold Calls"),
-        linkedInMessages: readEnv("AIRTABLE_FIELD_SCORECARD_LINKEDIN_MESSAGES", "LinkedIn Messages"),
+        linkedInMessages: readEnv(
+          "AIRTABLE_FIELD_SCORECARD_WHATSAPP_MESSAGES",
+          readEnv("AIRTABLE_FIELD_SCORECARD_LINKEDIN_MESSAGES", "LinkedIn Messages")
+        ),
         fieldVisits: readEnv("AIRTABLE_FIELD_SCORECARD_FIELD_VISITS", "Field Visits"),
         meetingsSet: readEnv("AIRTABLE_FIELD_SCORECARD_MEETINGS_SET", "Meetings Set"),
         offersSent: readEnv("AIRTABLE_FIELD_SCORECARD_OFFERS_SENT", "Offers Sent"),

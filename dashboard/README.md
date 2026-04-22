@@ -127,7 +127,7 @@ Recommended Airtable fields:
 - `Scorecard -> Dream100 P1 Prospects`
 - `Scorecard -> Sales Velocity Days`
 - `Scorecard -> Cold Calls`
-- `Scorecard -> LinkedIn Messages`
+- `Scorecard -> WhatsApp Messages`
 - `Scorecard -> Field Visits`
 - `Scorecard -> Meetings Set`
 - `Scorecard -> Offers Sent`
