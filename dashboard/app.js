@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422i";
+const appBuild = "20260422j";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -302,18 +302,55 @@ async function submitActivityFromRaw(raw, form) {
         render();
         return true;
       }
+      const savedActivity = result?.activity ? normalizeRow("activities", result.activity) : normalizeRow("activities", record);
+      const savedCompany = result?.company ? normalizeRow("accounts", result.company) : null;
+      const savedScorecard = result?.scorecard_sync?.scorecard
+        ? normalizeRow("scorecard", result.scorecard_sync.scorecard)
+        : null;
+      const savedTrend = result?.trend_sync?.updated
+        ? normalizeRow("dailyScores", {
+            date: result.trend_sync.date,
+            contacted: result.trend_sync.counts?.contacted || 0,
+            meetings: result.trend_sync.counts?.meetings || 0,
+            offers: result.trend_sync.counts?.offers || 0,
+            contracts: result.trend_sync.counts?.contracts || 0,
+          })
+        : null;
+      let syncedCompany = savedCompany;
       let secondaryWarning = "";
       if (companyPatchPayload) {
         try {
-          await apiJson("/api/companies", {
+          const companyResult = await apiJson("/api/companies", {
             method: "PATCH",
             body: companyPatchPayload,
           });
+          syncedCompany = companyResult?.company
+            ? normalizeRow("accounts", companyResult.company)
+            : normalizeRow("accounts", companyPatchPayload);
         } catch (error) {
           secondaryWarning = ` Activitatea a fost salvata, dar sincronizarea suplimentara a companiei a esuat: ${error.message}`;
         }
       }
-      await refreshData({ silent: true });
+
+      applySavedActivityToApiState({
+        activity: savedActivity,
+        company: syncedCompany,
+        scorecard: savedScorecard,
+        dailyScore: savedTrend,
+      });
+
+      try {
+        await refreshData({ silent: true });
+        applySavedActivityToApiState({
+          activity: savedActivity,
+          company: syncedCompany,
+          scorecard: savedScorecard,
+          dailyScore: savedTrend,
+        });
+      } catch (error) {
+        secondaryWarning += ` Dashboard-ul nu a putut face refresh imediat: ${error.message}`;
+      }
+
       updateStatus(
         `Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}${
           companyPatchPayload ? " + pipeline sincronizat" : ""
@@ -459,7 +496,7 @@ function bindEvents() {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const raw = Object.fromEntries(formData.entries());
-    if (!raw.date) raw.date = new Date().toISOString().slice(0, 10);
+    if (!raw.date) raw.date = getTodayIsoDate();
     await submitActivityFromRaw(raw, form);
   });
 
@@ -480,7 +517,7 @@ function bindEvents() {
       event.preventDefault();
       const formData = new FormData(mobileForm);
       const raw = Object.fromEntries(formData.entries());
-      raw.date = new Date().toISOString().slice(0, 10);
+      raw.date = getTodayIsoDate();
       const saved = await submitActivityFromRaw(raw, mobileForm);
       if (saved) {
         closeMobileLogSheet();
@@ -616,7 +653,7 @@ function bindEvents() {
   elements.hydrateDailyTrend?.addEventListener("click", () => {
     const form = elements.forms.dailyTrend;
     const selectedDate = form?.elements?.namedItem("date")?.value;
-    hydrateDailyTrendForm(selectedDate || new Date().toISOString().slice(0, 10), { preferActivityCounts: true });
+    hydrateDailyTrendForm(selectedDate || getTodayIsoDate(), { preferActivityCounts: true });
     updateDailyTrendStatus("Formularul a fost precompletat din activitatile salvate pentru data aleasa.");
   });
 
@@ -687,7 +724,7 @@ function bindEvents() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `grow-scorecard-memory-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `grow-scorecard-memory-${getTodayIsoDate()}.json`;
     link.click();
     URL.revokeObjectURL(url);
     updateStatus("Fallback-ul local a fost exportat, inclusiv scorecard-ul saptamanal.");
@@ -860,7 +897,7 @@ function hydrateDailyTrendForm(date = "", options = {}) {
 
   const requestedDate = normalizeString(date)
     || normalizeString(form.elements.namedItem("date")?.value)
-    || new Date().toISOString().slice(0, 10);
+    || getTodayIsoDate();
   const draft = buildDailyTrendDraft(requestedDate, options);
 
   const assign = (name, value) => {
@@ -884,7 +921,7 @@ function hydrateDailyTrendForm(date = "", options = {}) {
 
 function buildDailyTrendDraft(date = "", options = {}) {
   const { preferActivityCounts = false } = options;
-  const isoDate = normalizeString(date) || new Date().toISOString().slice(0, 10);
+  const isoDate = normalizeString(date) || getTodayIsoDate();
   const existing = state.dailyScores.find((row) => row.date === isoDate);
   const counts = countActivities(getActivitiesForDate(isoDate));
   const draftFromActivities = {
@@ -908,7 +945,7 @@ function buildDailyTrendDraft(date = "", options = {}) {
 }
 
 function setDefaultFormDates() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayIsoDate();
   const activityDate = elements.forms.activity?.querySelector('input[name="date"]');
   const activityNextStepDate = elements.forms.activity?.querySelector('input[name="next_step_date"]');
   const accountNextStepDate = elements.forms.account?.querySelector('input[name="next_step_date"]');
@@ -977,7 +1014,7 @@ function normalizeTargets(value = {}) {
   };
 }
 
-function createEmptyScorecard(weekStart = getWeekStart(new Date().toISOString().slice(0, 10))) {
+function createEmptyScorecard(weekStart = getWeekStart(getTodayIsoDate())) {
   const normalizedWeekStart = getWeekStart(weekStart);
   const weekEnd = getWeekEnd(normalizedWeekStart);
   return {
@@ -1047,7 +1084,7 @@ function hasManualData() {
 }
 
 function selectCurrentScorecard(scorecards) {
-  const currentWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
+  const currentWeekStart = getWeekStart(getTodayIsoDate());
   return scorecards.find((record) => record.week_start === currentWeekStart || record.week_key === currentWeekStart)
     || scorecards[0]
     || applyComputedScorecardFields(createEmptyScorecard(currentWeekStart));
@@ -1086,6 +1123,123 @@ function refreshCombinedData() {
     .filter((item) => item.date)
     .sort((left, right) => right.date.localeCompare(left.date));
   updateCompanyOptions();
+}
+
+function upsertSourceActivity(record) {
+  const nextRecord = normalizeRow("activities", record);
+  if (!nextRecord.company && !nextRecord.date) return;
+
+  state.sourceData.activities = Array.isArray(state.sourceData.activities) ? state.sourceData.activities : [];
+
+  const existingIndex = state.sourceData.activities.findIndex((item) => {
+    if (nextRecord.id && item.id && item.id === nextRecord.id) return true;
+
+    return normalizeString(item.company).toLowerCase() === normalizeString(nextRecord.company).toLowerCase()
+      && normalizeActivity(item.activity_type) === normalizeActivity(nextRecord.activity_type)
+      && toIsoDateValue(item.date) === toIsoDateValue(nextRecord.date)
+      && normalizeString(item.outcome) === normalizeString(nextRecord.outcome)
+      && normalizeString(item.next_step) === normalizeString(nextRecord.next_step)
+      && toIsoDateValue(item.next_step_date) === toIsoDateValue(nextRecord.next_step_date);
+  });
+
+  if (existingIndex >= 0) {
+    state.sourceData.activities[existingIndex] = {
+      ...state.sourceData.activities[existingIndex],
+      ...nextRecord,
+    };
+  } else {
+    state.sourceData.activities.unshift(nextRecord);
+  }
+}
+
+function upsertSourceAccount(record) {
+  const nextRecord = normalizeRow("accounts", record);
+  if (!nextRecord.company) return;
+
+  state.sourceData.accounts = Array.isArray(state.sourceData.accounts) ? state.sourceData.accounts : [];
+
+  const companyKey = normalizeString(nextRecord.company).toLowerCase();
+  const existingIndex = state.sourceData.accounts.findIndex(
+    (item) => normalizeString(item.company).toLowerCase() === companyKey
+  );
+
+  if (existingIndex >= 0) {
+    state.sourceData.accounts[existingIndex] = {
+      ...state.sourceData.accounts[existingIndex],
+      ...nextRecord,
+    };
+  } else {
+    state.sourceData.accounts.unshift(nextRecord);
+  }
+}
+
+function upsertSourceScorecard(record) {
+  const nextRecord = normalizeRow("scorecard", record);
+  const key = nextRecord.week_key || nextRecord.week_start;
+  if (!key) return;
+
+  state.sourceData.scorecards = Array.isArray(state.sourceData.scorecards) ? state.sourceData.scorecards : [];
+
+  const existingIndex = state.sourceData.scorecards.findIndex((item) => {
+    const itemKey = item.week_key || item.week_start;
+    return itemKey === key;
+  });
+
+  if (existingIndex >= 0) {
+    state.sourceData.scorecards[existingIndex] = {
+      ...state.sourceData.scorecards[existingIndex],
+      ...nextRecord,
+    };
+  } else {
+    state.sourceData.scorecards.unshift(nextRecord);
+  }
+}
+
+function upsertSourceDailyScore(record) {
+  const nextRecord = normalizeRow("dailyScores", record);
+  const key = normalizeString(nextRecord.date);
+  if (!key) return;
+
+  state.sourceData.dailyScores = Array.isArray(state.sourceData.dailyScores) ? state.sourceData.dailyScores : [];
+
+  const existingIndex = state.sourceData.dailyScores.findIndex((item) => normalizeString(item.date) === key);
+
+  if (existingIndex >= 0) {
+    state.sourceData.dailyScores[existingIndex] = {
+      ...state.sourceData.dailyScores[existingIndex],
+      ...nextRecord,
+    };
+  } else {
+    state.sourceData.dailyScores.unshift(nextRecord);
+  }
+}
+
+function applySavedActivityToApiState({ activity, company, scorecard, dailyScore }) {
+  let changed = false;
+
+  if (activity) {
+    upsertSourceActivity(activity);
+    changed = true;
+  }
+
+  if (company?.company) {
+    upsertSourceAccount(company);
+    changed = true;
+  }
+
+  if (scorecard?.week_start) {
+    upsertSourceScorecard(scorecard);
+    changed = true;
+  }
+
+  if (dailyScore?.date) {
+    upsertSourceDailyScore(dailyScore);
+    changed = true;
+  }
+
+  if (changed) {
+    refreshCombinedData();
+  }
 }
 
 function mergeAccounts(sourceAccounts, manualAccounts, activities) {
@@ -1538,6 +1692,10 @@ function getWeekStart(value) {
   return normalized.toISOString().slice(0, 10);
 }
 
+function getTodayIsoDate() {
+  return toIsoDateValue(new Date());
+}
+
 function getWeekEnd(value) {
   const weekStart = getWeekStart(value);
   const date = parseDate(weekStart);
@@ -1587,8 +1745,18 @@ function isWhatsAppMessageOutcome(value = "") {
 }
 
 function toIsoDateValue(value) {
+  if (typeof value === "string") {
+    const directMatch = value.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (directMatch) return directMatch[1];
+  }
+
   const date = parseDate(value);
-  return date ? date.toISOString().slice(0, 10) : "";
+  if (!date) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function isFirstLiveCompanyTouch(activity, existingActivities = []) {
@@ -2513,7 +2681,7 @@ function renderWigDashboard() {
 }
 
 function getCurrentWeekScorecardRecord() {
-  const currentWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
+  const currentWeekStart = getWeekStart(getTodayIsoDate());
   return state.scorecards.find(
     (record) => record.week_start === currentWeekStart || record.week_key === currentWeekStart
   ) || createEmptyScorecard(currentWeekStart);
@@ -2534,7 +2702,7 @@ function getWigMetrics(scorecard) {
   const q2QualifiedActivities = q2Activities.filter(
     (activity) => activity.workers_delta >= wigPlan.q2.minWorkersPerContract
   );
-  const currentWeekStart = parseDate(scorecard.week_start || getWeekStart(new Date().toISOString().slice(0, 10)));
+  const currentWeekStart = parseDate(scorecard.week_start || getWeekStart(getTodayIsoDate()));
   const currentWeekEnd = parseDate(scorecard.week_end || getWeekEnd(scorecard.week_start));
   const weeklyMeetings = state.activities.filter(
     (activity) =>
@@ -2731,7 +2899,7 @@ function getVelocityMetricForScorecard(scorecard) {
 }
 
 function getWeeklyActivitiesForScorecard(scorecard) {
-  const fallbackWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
+  const fallbackWeekStart = getWeekStart(getTodayIsoDate());
   const weekStartValue = scorecard?.week_start || fallbackWeekStart;
   const weekEndValue = scorecard?.week_end || getWeekEnd(weekStartValue);
   const weekStart = parseDate(weekStartValue);
@@ -3464,13 +3632,13 @@ function renderTrend() {
 function getLastSevenDays() {
   const rows = [];
   const scoreByDate = new Map(state.dailyScores.map((s) => [s.date, s]));
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = getTodayIsoDate();
 
   for (let offset = 6; offset >= 0; offset -= 1) {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() - offset);
-    const isoDate = date.toISOString().slice(0, 10);
+    const isoDate = toIsoDateValue(date);
     const scoreRow = scoreByDate.get(isoDate);
     const liveCounts = countActivities(state.activities.filter((activity) => isSameDay(activity.date, date)));
 
@@ -4309,9 +4477,7 @@ function formatDateWithYear(date) {
 
 function isSameDay(left, right) {
   if (!left || !right) return false;
-  return left.getFullYear() === right.getFullYear()
-    && left.getMonth() === right.getMonth()
-    && left.getDate() === right.getDate();
+  return toIsoDateValue(left) === toIsoDateValue(right);
 }
 
 function dayDiff(left, right) {

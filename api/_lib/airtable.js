@@ -973,10 +973,9 @@ async function touchCompanyFromActivity(activity) {
 
 async function createActivity(payload) {
   const config = getRequiredConfig();
-  const todayIso = new Date().toISOString().slice(0, 10);
   const payloadDate = toIsoDate(payload.date);
   const activity = {
-    date: payloadDate === todayIso ? new Date().toISOString() : payloadDate,
+    date: payloadDate,
     company: normalizeString(payload.company),
     activity_type: normalizeActivity(payload.activity_type),
     outcome: normalizeString(payload.outcome),
