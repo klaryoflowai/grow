@@ -1835,7 +1835,7 @@ function isStandbyAccount(account = {}) {
 function isPipelineOpen(stage = "") {
   const normalized = normalizePipelineStage(stage);
   if (!normalized) return false;
-  return !["Contract semnat", "Parcat", "Pierdut"].includes(normalized);
+  return !["Necontactat", "Contract semnat", "Parcat", "Pierdut"].includes(normalized);
 }
 
 function isTrackedAccount(account = {}) {
@@ -3809,7 +3809,7 @@ function renderPipeline() {
     elements.accountsTableBody.innerHTML = `
       <tr>
         <td colspan="6">
-          <div class="empty-card">Nu exista companii cu tracking activ inca. Prima activitate sau primul update de companie le va adauga aici.</div>
+          <div class="empty-card">Nu exista companii in miscare acum. Conturile ramase pe "Necontactat" nu apar in acest snapshot.</div>
         </td>
       </tr>
     `;
