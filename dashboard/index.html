@@ -433,7 +433,7 @@
                   </div>
                   <div class="mini-chip">Tracking live</div>
                 </div>
-                <p class="helper pipeline-form-helper">Foloseste formularul acesta doar pentru corectii de cont: stadiu, volum, next step sau standby. Apelurile si mesajele merg in Quick Log, iar campurile lasate goale nu rescriu datele existente.</p>
+                <p class="helper pipeline-form-helper">Foloseste formularul acesta doar pentru corectii de cont: stadiu, volum, next step, motiv standby sau reactivare. Apelurile si mesajele merg in Quick Log, iar campurile lasate goale nu rescriu datele existente.</p>
                 <label class="field">
                   <span>Companie</span>
                   <input
@@ -472,30 +472,31 @@
                     <span>Data urmatorului pas</span>
                     <input name="next_step_date" type="text" data-date-picker placeholder="Alege data" />
                   </label>
+                  <label class="field">
+                    <span>Motiv standby</span>
+                    <select name="standby_reason">
+                      <option value="">-</option>
+                      <option value="Lucreaza deja cu alta agentie">Lucreaza deja cu alta agentie</option>
+                      <option value="Nu au nevoie acum">Nu au nevoie acum</option>
+                      <option value="Nu doresc acum">Nu doresc acum</option>
+                      <option value="Nu doresc in principiu">Nu doresc in principiu</option>
+                      <option value="Revenim in 1 luna">Revenim in 1 luna</option>
+                      <option value="Revenim in 3 luni">Revenim in 3 luni</option>
+                      <option value="Revenim in 6 luni">Revenim in 6 luni</option>
+                      <option value="Buget blocat">Buget blocat</option>
+                      <option value="Sezonal">Sezonal</option>
+                      <option value="Contact nepotrivit">Contact nepotrivit</option>
+                      <option value="Monitorizare pasiva">Monitorizare pasiva</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Data reactivare</span>
+                    <input name="reactivation_date" type="text" data-date-picker placeholder="Alege data" />
+                  </label>
                 </div>
                 <details class="form-details mini-form-details">
-                  <summary>Standby si semnal de risc</summary>
+                  <summary>Sanatate cont si semnal de risc</summary>
                   <div class="form-details-grid">
-                    <label class="field">
-                      <span>Motiv standby</span>
-                      <select name="standby_reason">
-                        <option value="">-</option>
-                        <option value="Nu au nevoie acum">Nu au nevoie acum</option>
-                        <option value="Nu doresc acum">Nu doresc acum</option>
-                        <option value="Nu doresc in principiu">Nu doresc in principiu</option>
-                        <option value="Revenim in 1 luna">Revenim in 1 luna</option>
-                        <option value="Revenim in 3 luni">Revenim in 3 luni</option>
-                        <option value="Revenim in 6 luni">Revenim in 6 luni</option>
-                        <option value="Buget blocat">Buget blocat</option>
-                        <option value="Sezonal">Sezonal</option>
-                        <option value="Contact nepotrivit">Contact nepotrivit</option>
-                        <option value="Monitorizare pasiva">Monitorizare pasiva</option>
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Data reactivare</span>
-                      <input name="reactivation_date" type="text" data-date-picker placeholder="Alege data" />
-                    </label>
                     <fieldset class="field fieldset-reset form-details-notes">
                       <legend>Sanatate cont</legend>
                       <div class="health-choice-grid">
@@ -530,7 +531,7 @@
                       </div>
                     </fieldset>
                   </div>
-                  <p class="helper">Cand un lead intra pe pauza, pune-l pe <strong>Parcat</strong>, alege motivul si data de reactivare. Ultimul touch vine automat din activitatile logate.</p>
+                  <p class="helper">Cand un lead intra pe pauza, pune-l pe <strong>Parcat</strong>, completeaza mai sus motivul si data de reactivare. Ultimul touch vine automat din activitatile logate.</p>
                 </details>
                 <div class="form-actions">
                   <button class="secondary-button" type="submit">Salveaza schimbarile</button>
