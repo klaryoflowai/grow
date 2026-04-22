@@ -729,15 +729,11 @@ async function upsertCompany(payload) {
     if (normalizedPipelineStage && normalizedPipelineStage !== prevStage && config.fields.companies.stageChangedDate) {
       fields[config.fields.companies.stageChangedDate] = toIsoDate(new Date());
     }
-  } else if (!existingRecord && config.fields.companies.pipelineStage) {
-    fields[config.fields.companies.pipelineStage] = "";
   }
 
   if ("account_health" in payload && config.fields.companies.accountHealth) {
     const encodedHealth = encodeAccountHealth(payload.account_health);
     fields[config.fields.companies.accountHealth] = encodedHealth || null;
-  } else if (!existingRecord && config.fields.companies.accountHealth) {
-    fields[config.fields.companies.accountHealth] = "";
   }
 
   const rawWorkers = normalizeString(payload.workers);
@@ -772,7 +768,8 @@ async function upsertCompany(payload) {
   }
 
   if ("standby_reason" in payload && config.fields.companies.standbyReason) {
-    fields[config.fields.companies.standbyReason] = normalizeString(payload.standby_reason);
+    const standbyReason = normalizeString(payload.standby_reason);
+    fields[config.fields.companies.standbyReason] = standbyReason || null;
   }
 
   if ("reactivation_date" in payload && config.fields.companies.reactivationDate) {
