@@ -8,7 +8,7 @@ const defaultTargets = {
 const scorecardTargets = {
   powerThree: {
     newContractWorkersMtd: 100,
-    dream100P1Prospects: 10,
+    dream100P1Prospects: 50,
     salesVelocityDays: 21,
   },
   leadMeasures: {
@@ -39,13 +39,13 @@ const wigPlan = {
     end: "2026-06-30",
     contractsTarget: 5,
     minWorkersPerContract: 15,
-    prospectsPerWeek: 20,
+    prospectsPerWeek: 50,
     meetingsPerWeek: 5,
     followUpTarget: 100,
   },
 };
 
-const appBuild = "20260422b";
+const appBuild = "20260422c";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -2299,9 +2299,18 @@ function renderScorecardDashboard() {
 
   elements.velocityFocusCard.innerHTML = buildVelocityFocus(scorecard, metrics);
   elements.funnelGrid.innerHTML = [
-    buildConversionCard4dx("Contact -> Meeting", metrics.contactToMeeting, scorecardTargets.funnel.contactToMeeting),
-    buildConversionCard4dx("Meeting -> Oferta", metrics.meetingToOffer, scorecardTargets.funnel.meetingToOffer),
-    buildConversionCard4dx("Oferta -> Semnat", metrics.offerToSigned, scorecardTargets.funnel.offerToSigned),
+    buildConversionCard4dx("Contact -> Meeting", metrics.contactToMeeting, scorecardTargets.funnel.contactToMeeting, {
+      numerator: "meetings",
+      denominator: metrics.funnelSource === "activities" ? "contacte live" : "companii P1",
+    }),
+    buildConversionCard4dx("Meeting -> Oferta", metrics.meetingToOffer, scorecardTargets.funnel.meetingToOffer, {
+      numerator: "oferte",
+      denominator: "meetings",
+    }),
+    buildConversionCard4dx("Oferta -> Semnat", metrics.offerToSigned, scorecardTargets.funnel.offerToSigned, {
+      numerator: "contracte",
+      denominator: "oferte",
+    }),
   ].join("");
 
   elements.leadMeasuresGrid.innerHTML = [
@@ -2400,11 +2409,27 @@ function getWigMetrics(scorecard) {
 
 function getScorecardMetrics(scorecard) {
   const velocity = getVelocityMetricForScorecard(scorecard);
+  const weeklyActivities = getWeeklyActivitiesForScorecard(scorecard);
+  const weeklyCounts = countActivities(weeklyActivities);
+  const hasLiveFunnelData = Object.values(weeklyCounts).some((value) => value > 0);
+  const funnelCounts = hasLiveFunnelData
+    ? {
+        contacted: weeklyCounts.contacted,
+        meeting: weeklyCounts.meeting,
+        offer: weeklyCounts.offer,
+        contract_signed: weeklyCounts.contract_signed,
+      }
+    : {
+        contacted: scorecard.dream100_p1_prospects,
+        meeting: scorecard.meetings_set,
+        offer: scorecard.offers_sent,
+        contract_signed: scorecard.contracts_signed,
+      };
   const outreachTotal = scorecard.cold_calls + scorecard.linkedin_messages;
-  const contactToMeeting = buildRateMetric(scorecard.meetings_set, scorecard.dream100_p1_prospects);
-  const meetingToOffer = buildRateMetric(scorecard.offers_sent, scorecard.meetings_set);
-  const offerToSigned = buildRateMetric(scorecard.contracts_signed, scorecard.offers_sent);
-  const activityRatio = scorecard.meetings_set ? outreachTotal / scorecard.meetings_set : 0;
+  const contactToMeeting = buildRateMetric(funnelCounts.meeting, funnelCounts.contacted);
+  const meetingToOffer = buildRateMetric(funnelCounts.offer, funnelCounts.meeting);
+  const offerToSigned = buildRateMetric(funnelCounts.contract_signed, funnelCounts.offer);
+  const activityRatio = funnelCounts.meeting ? funnelCounts.contacted / funnelCounts.meeting : 0;
   const bottleneck = [contactToMeeting, meetingToOffer, offerToSigned]
     .filter((item) => item.hasBase)
     .sort((left, right) => left.value - right.value)[0];
@@ -2412,6 +2437,8 @@ function getScorecardMetrics(scorecard) {
 
   return {
     outreachTotal,
+    funnelCounts,
+    funnelSource: hasLiveFunnelData ? "activities" : "scorecard",
     contactToMeeting,
     meetingToOffer,
     offerToSigned,
@@ -2544,6 +2571,22 @@ function getVelocityMetricForScorecard(scorecard) {
     state.activities,
     scorecard.week_start,
     scorecard.week_end || getWeekEnd(scorecard.week_start)
+  );
+}
+
+function getWeeklyActivitiesForScorecard(scorecard) {
+  const fallbackWeekStart = getWeekStart(new Date().toISOString().slice(0, 10));
+  const weekStartValue = scorecard?.week_start || fallbackWeekStart;
+  const weekEndValue = scorecard?.week_end || getWeekEnd(weekStartValue);
+  const weekStart = parseDate(weekStartValue);
+  const weekEnd = parseDate(weekEndValue);
+
+  if (!weekStart || !weekEnd) {
+    return [];
+  }
+
+  return state.activities.filter(
+    (activity) => isLiveActivityEntry(activity) && isDateWithinInclusiveRange(activity.date, weekStart, weekEnd)
   );
 }
 
@@ -2770,6 +2813,9 @@ function buildVelocityFocus(scorecard, metrics) {
   const velocityContext = metrics.velocitySampleSize
     ? `Calculat automat din ${metrics.velocitySampleSize} contract${metrics.velocitySampleSize === 1 ? "" : "e"} semnate in ${scorecard.week_label || "saptamana selectata"}.`
     : "Nu exista contracte semnate in saptamana selectata, deci media nu poate fi calculata inca.";
+  const funnelContext = metrics.funnelSource === "activities"
+    ? "Funnel-ul saptamanii se calculeaza live din activitatile logate."
+    : "Funnel-ul cade pe valorile salvate in Scorecard pentru saptamana curenta.";
 
   return `
     <article class="velocity-card" style="--metric-accent:${metrics.velocityTone}; --metric-soft:${metrics.velocitySoft};">
@@ -2781,12 +2827,13 @@ function buildVelocityFocus(scorecard, metrics) {
         <span>Target: &lt; ${scorecardTargets.powerThree.salesVelocityDays} zile</span>
       </div>
       <div class="velocity-foot">${velocityContext}</div>
+      <div class="velocity-foot">${funnelContext}</div>
       <div class="velocity-foot">${conversionCount.join(" · ")}</div>
     </article>
   `;
 }
 
-function buildConversionCard4dx(label, metric, target) {
+function buildConversionCard4dx(label, metric, target, units = {}) {
   const color = !metric.hasBase
     ? "#93a08f"
     : metric.value >= target
@@ -2812,7 +2859,7 @@ function buildConversionCard4dx(label, metric, target) {
         <div class="conversion-fill" style="width:${metric.hasBase ? Math.min(metric.value, 100) : 0}%; background:${color};"></div>
       </div>
       <div class="conversion-meta">
-        <span>${metric.hasBase ? `${metric.numerator} din ${metric.denominator}` : "Fara baza suficienta in saptamana curenta."}</span>
+        <span>${metric.hasBase ? `${metric.numerator} ${units.numerator || "rezultate"} din ${metric.denominator} ${units.denominator || "baza"}` : "Fara baza suficienta in saptamana curenta."}</span>
         <span class="conversion-badge" style="color:${color}; background:${soft};">Target ${target}%</span>
       </div>
     </article>
@@ -2846,7 +2893,7 @@ function buildLeadMeasureCard(options) {
 }
 
 function buildActivityRatioCard(scorecard, metrics) {
-  const ratioText = scorecard.meetings_set
+  const ratioText = metrics.funnelCounts.meeting
     ? `${metrics.activityRatio.toFixed(1)} contacte pentru 1 meeting`
     : "Nu exista meetings suficiente pentru a calcula raportul.";
   const bottleneckCopy = metrics.bottleneck?.hasBase
@@ -2858,12 +2905,16 @@ function buildActivityRatioCard(scorecard, metrics) {
             : "Oferta -> Semnat"
       } (${metrics.bottleneck.value}%).`
     : "Completeaza saptamana curenta pentru a vedea bottleneck-ul principal.";
+  const sourceCopy = metrics.funnelSource === "activities"
+    ? "Calculat din activitatile live ale saptamanii curente."
+    : "Calculat din valorile salvate in Scorecard.";
 
   return `
     <article class="ratio-card-shell">
       <div class="metric-kicker">Activity Ratio</div>
-      <div class="ratio-value">${scorecard.meetings_set ? metrics.activityRatio.toFixed(1) : "-"}</div>
+      <div class="ratio-value">${metrics.funnelCounts.meeting ? metrics.activityRatio.toFixed(1) : "-"}</div>
       <div class="metric-note">${ratioText}</div>
+      <div class="ratio-foot">${sourceCopy}</div>
       <div class="ratio-foot">${bottleneckCopy}</div>
     </article>
   `;
@@ -2872,24 +2923,24 @@ function buildActivityRatioCard(scorecard, metrics) {
 function buildLagFunnel(scorecard, metrics) {
   const funnelStages = [
     {
-      label: "Dream100 P1 noi",
-      value: scorecard.dream100_p1_prospects,
+      label: metrics.funnelSource === "activities" ? "Contacte live" : "Dream100 P1 noi",
+      value: metrics.funnelCounts.contacted,
       width: 100,
-      note: "punctul de intrare in palnie",
+      note: metrics.funnelSource === "activities" ? "baza live din activitatile saptamanii" : "punctul de intrare in palnie",
       tone: "#2f6ea2",
       bottleneck: false,
     },
     {
       label: "Meetings stabilite",
-      value: scorecard.meetings_set,
+      value: metrics.funnelCounts.meeting,
       width: 82,
-      note: `${metrics.contactToMeeting.hasBase ? `${metrics.contactToMeeting.value}% din prospectarea P1` : "asteapta date"}`,
+      note: `${metrics.contactToMeeting.hasBase ? `${metrics.contactToMeeting.value}% din ${metrics.funnelSource === "activities" ? "contactele live" : "prospectarea P1"}` : "asteapta date"}`,
       tone: metrics.bottleneck === metrics.contactToMeeting ? "#cb5846" : "#55779e",
       bottleneck: metrics.bottleneck === metrics.contactToMeeting,
     },
     {
       label: "Oferte trimise",
-      value: scorecard.offers_sent,
+      value: metrics.funnelCounts.offer,
       width: 66,
       note: `${metrics.meetingToOffer.hasBase ? `${metrics.meetingToOffer.value}% din meetings` : "asteapta date"}`,
       tone: metrics.bottleneck === metrics.meetingToOffer ? "#cb5846" : "#c38b2a",
@@ -2897,7 +2948,7 @@ function buildLagFunnel(scorecard, metrics) {
     },
     {
       label: "Contracte semnate",
-      value: scorecard.contracts_signed,
+      value: metrics.funnelCounts.contract_signed,
       width: 52,
       note: `${metrics.offerToSigned.hasBase ? `${metrics.offerToSigned.value}% din oferte` : "asteapta date"}`,
       tone: metrics.bottleneck === metrics.offerToSigned ? "#cb5846" : "#2d8f57",
