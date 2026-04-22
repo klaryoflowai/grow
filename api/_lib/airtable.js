@@ -540,6 +540,24 @@ function isWhatsAppMessageOutcome(value = "") {
   return normalizeOutcomeKey(value) === normalizeOutcomeKey("Mesaj WhatsApp trimis");
 }
 
+function isFirstLiveCompanyTouch(activity, existingActivities = []) {
+  if (!activity?.company || !activity?.date) return false;
+  if (!isLiveActivityRecord(activity)) return false;
+
+  const companyKey = normalizeCompanyKey(activity.company);
+  const activityDate = toIsoDate(activity.date);
+
+  if (!companyKey || !activityDate) return false;
+
+  return !existingActivities.some((record) => (
+    record.company
+    && normalizeCompanyKey(record.company) === companyKey
+    && isLiveActivityRecord(record)
+    && toIsoDate(record.date)
+    && toIsoDate(record.date) <= activityDate
+  ));
+}
+
 function getScorecardMessageFieldName(config, fields = {}) {
   const configured = config.fields.scorecard.linkedInMessages;
 
@@ -558,9 +576,12 @@ function getScorecardMessageFieldName(config, fields = {}) {
   return configured || "LinkedIn Messages";
 }
 
-async function syncScorecardWhatsAppMessages(activity, config) {
-  if (!isWhatsAppMessageOutcome(activity.outcome)) {
-    return { updated: false, reason: "not_whatsapp_outcome" };
+async function syncScorecardFromActivity(activity, config, existingActivities = []) {
+  const shouldIncrementWhatsApp = isWhatsAppMessageOutcome(activity.outcome);
+  const shouldIncrementDream100 = isFirstLiveCompanyTouch(activity, existingActivities);
+
+  if (!shouldIncrementWhatsApp && !shouldIncrementDream100) {
+    return { updated: false, reason: "not_scorecard_activity" };
   }
 
   let scorecardRecords = [];
@@ -585,21 +606,28 @@ async function syncScorecardWhatsAppMessages(activity, config) {
     const normalized = normalizeScorecardRecord(record, config);
     return normalized.week_key === weekKey || normalized.week_start === weekStart;
   });
-
+  const normalizedExistingRecord = existingRecord ? normalizeScorecardRecord(existingRecord, config) : null;
   const messageFieldName = getScorecardMessageFieldName(config, existingRecord?.fields || {});
-  const currentMessages = existingRecord ? normalizeScorecardRecord(existingRecord, config).linkedin_messages : 0;
-  const nextMessages = currentMessages + 1;
+  const currentMessages = normalizedExistingRecord?.linkedin_messages || 0;
+  const currentDream100 = normalizedExistingRecord?.dream100_p1_prospects || 0;
+  const nextMessages = currentMessages + (shouldIncrementWhatsApp ? 1 : 0);
+  const nextDream100 = currentDream100 + (shouldIncrementDream100 ? 1 : 0);
   const fields = existingRecord
-    ? {
-        [messageFieldName]: nextMessages,
-      }
+    ? {}
     : {
         [config.fields.scorecard.weekStart]: weekStart,
         [config.fields.scorecard.weekEnd]: weekEnd,
         [config.fields.scorecard.weekKey]: weekKey,
         [config.fields.scorecard.weekLabel]: weekLabel,
-        [messageFieldName]: nextMessages,
       };
+
+  if (shouldIncrementWhatsApp) {
+    fields[messageFieldName] = nextMessages;
+  }
+
+  if (shouldIncrementDream100) {
+    fields[config.fields.scorecard.dream100P1Prospects] = nextDream100;
+  }
 
   let record;
 
@@ -626,7 +654,12 @@ async function syncScorecardWhatsAppMessages(activity, config) {
   return {
     updated: true,
     week_start: weekStart,
-    linkedin_messages: nextMessages,
+    linkedin_messages: shouldIncrementWhatsApp ? nextMessages : currentMessages,
+    dream100_p1_prospects: shouldIncrementDream100 ? nextDream100 : currentDream100,
+    metrics_updated: [
+      shouldIncrementDream100 ? "dream100_p1_prospects" : "",
+      shouldIncrementWhatsApp ? "whatsapp_messages" : "",
+    ].filter(Boolean),
     scorecard: normalizeScorecardRecord(record, config),
   };
 }
@@ -941,7 +974,21 @@ async function createActivity(payload) {
     throw new AirtableError(400, "Activitatea are nevoie de data si companie.");
   }
 
-  const duplicateActivity = await findRecentDuplicateActivity(activity, config);
+  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const companyNameById = buildCompanyNameMap(companyRecords, config);
+  const activityRecords = await listRecords("activities");
+  const existingActivities = activityRecords
+    .map((record) => normalizeActivityRecord(record, config, companyNameById))
+    .filter((record) => record.company && record.date);
+
+  const duplicateActivity = existingActivities.find((record) => {
+    if (!record.created_at) return false;
+    if (!isSameActivityFingerprint(record, activity)) return false;
+    const duplicateWindowMs = 5 * 60 * 1000;
+    const now = new Date();
+    return Math.abs(now.getTime() - record.created_at.getTime()) <= duplicateWindowMs;
+  }) || null;
+
   if (duplicateActivity) {
     return {
       activity: duplicateActivity,
@@ -992,11 +1039,11 @@ async function createActivity(payload) {
     throw error;
   }
 
-  const companyNameById = new Map([[touched.record.id, touched.normalized.company]]);
+  const createdCompanyNameById = new Map([[touched.record.id, touched.normalized.company]]);
   let scorecardSync = { updated: false, reason: "not_attempted" };
 
   try {
-    scorecardSync = await syncScorecardWhatsAppMessages(activity, config);
+    scorecardSync = await syncScorecardFromActivity(activity, config, existingActivities);
   } catch (error) {
     scorecardSync = {
       updated: false,
@@ -1006,7 +1053,7 @@ async function createActivity(payload) {
   }
 
   return {
-    activity: normalizeActivityRecord(createdRecord, config, companyNameById),
+    activity: normalizeActivityRecord(createdRecord, config, createdCompanyNameById),
     company: touched.normalized,
     duplicate: false,
     scorecard_sync: scorecardSync,

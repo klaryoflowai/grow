@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422g";
+const appBuild = "20260422h";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -315,18 +315,16 @@ async function submitActivityFromRaw(raw, form) {
       updateStatus(
         `Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}${
           companyPatchPayload ? " + pipeline sincronizat" : ""
-        }${
-          scorecardSync.updated ? " + scorecard WhatsApp sincronizat" : ""
-        }.${secondaryWarning}`
+        }${formatScorecardSyncBadge(scorecardSync)}.${secondaryWarning}`
       );
     } catch (error) {
       updateStatus(`Airtable nu a putut salva activitatea. ${error.message}`);
       return false;
     }
   } else {
+    scorecardSync = syncManualScorecardFromActivity(record, state.manualData.activities);
     state.manualData.activities.unshift(record);
     syncManualAccountFromActivity(record);
-    scorecardSync = syncManualScorecardFromActivity(record);
     if (companyPatchPayload) {
       upsertManualAccount(normalizeRow("accounts", companyPatchPayload));
     }
@@ -336,9 +334,7 @@ async function submitActivityFromRaw(raw, form) {
     updateStatus(
       `Salvat local: ${record.company} → ${activityLabel(record.activity_type)}${
         companyPatchPayload ? " + pipeline sincronizat" : ""
-      }${
-        scorecardSync.updated ? " + scorecard WhatsApp sincronizat" : ""
-      }.`
+      }${formatScorecardSyncBadge(scorecardSync)}.`
     );
   }
 
@@ -1272,14 +1268,17 @@ function upsertManualScorecard(record) {
   }
 }
 
-function syncManualScorecardFromActivity(activity) {
-  if (!isWhatsAppMessageOutcome(activity.outcome)) {
-    return { updated: false, reason: "not_whatsapp_outcome" };
-  }
-
+function syncManualScorecardFromActivity(activity, existingActivities = []) {
   const weekStart = getWeekStart(activity.date);
   if (!weekStart) {
     return { updated: false, reason: "invalid_week" };
+  }
+
+  const shouldIncrementWhatsApp = isWhatsAppMessageOutcome(activity.outcome);
+  const shouldIncrementDream100 = isFirstLiveCompanyTouch(activity, existingActivities);
+
+  if (!shouldIncrementWhatsApp && !shouldIncrementDream100) {
+    return { updated: false, reason: "not_scorecard_activity" };
   }
 
   const weekEnd = getWeekEnd(weekStart);
@@ -1296,7 +1295,8 @@ function syncManualScorecardFromActivity(activity) {
       });
   const nextRecord = applyComputedScorecardFields({
     ...baseRecord,
-    linkedin_messages: toNumber(baseRecord.linkedin_messages) + 1,
+    linkedin_messages: toNumber(baseRecord.linkedin_messages) + (shouldIncrementWhatsApp ? 1 : 0),
+    dream100_p1_prospects: toNumber(baseRecord.dream100_p1_prospects) + (shouldIncrementDream100 ? 1 : 0),
   });
 
   upsertManualScorecard(nextRecord);
@@ -1304,6 +1304,11 @@ function syncManualScorecardFromActivity(activity) {
     updated: true,
     week_start: weekStart,
     linkedin_messages: nextRecord.linkedin_messages,
+    dream100_p1_prospects: nextRecord.dream100_p1_prospects,
+    metrics_updated: [
+      shouldIncrementDream100 ? "dream100_p1_prospects" : "",
+      shouldIncrementWhatsApp ? "whatsapp_messages" : "",
+    ].filter(Boolean),
   };
 }
 
@@ -1544,6 +1549,47 @@ function normalizeOutcomeKey(value = "") {
 
 function isWhatsAppMessageOutcome(value = "") {
   return normalizeOutcomeKey(value) === normalizeOutcomeKey(whatsappMessageOutcome);
+}
+
+function toIsoDateValue(value) {
+  const date = parseDate(value);
+  return date ? date.toISOString().slice(0, 10) : "";
+}
+
+function isFirstLiveCompanyTouch(activity, existingActivities = []) {
+  if (!activity?.company || !activity?.date) return false;
+  if (!isLiveActivityEntry(activity)) return false;
+
+  const companyKey = normalizeCompanyKey(activity.company);
+  const activityDate = toIsoDateValue(activity.date);
+
+  if (!companyKey || !activityDate) return false;
+
+  return !existingActivities.some((record) => (
+    record.company
+    && normalizeCompanyKey(record.company) === companyKey
+    && isLiveActivityEntry(record)
+    && toIsoDateValue(record.date)
+    && toIsoDateValue(record.date) <= activityDate
+  ));
+}
+
+function formatScorecardSyncBadge(scorecardSync = {}) {
+  if (!scorecardSync?.updated) return "";
+
+  const labels = [];
+  if (Array.isArray(scorecardSync.metrics_updated)) {
+    if (scorecardSync.metrics_updated.includes("dream100_p1_prospects")) {
+      labels.push("Dream100 P1");
+    }
+    if (scorecardSync.metrics_updated.includes("whatsapp_messages")) {
+      labels.push("WhatsApp");
+    }
+  }
+
+  return labels.length
+    ? ` + scorecard sincronizat (${labels.join(", ")})`
+    : " + scorecard sincronizat";
 }
 
 function isPendingContactOutcome(value = "") {
@@ -2870,7 +2916,7 @@ function buildQ2DisciplineCard(scorecard, metrics) {
           <div class="metric-chip">${followUpText}</div>
         </div>
       </div>
-      <div class="metric-note">P1 vine din Scorecard-ul saptamanii curente. Follow-up-ul de 24h este calculat live din activitatile de meeting care au next step imediat sau actiune ulterioara in 24h.</div>
+      <div class="metric-note">Dream 100 P1 creste automat la primul touch real salvat pe o companie noua. Follow-up-ul de 24h este calculat live din activitatile de meeting care au next step imediat sau actiune ulterioara in 24h.</div>
     </article>
   `;
 }
