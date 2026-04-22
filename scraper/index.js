@@ -47,9 +47,32 @@ const JOBSEEKER_EXCLUDE = [
   "ofer servicii", "ofer munca", "ofer muncă",
 ];
 
+// Titluri irelevante: posturi de conducere, tehnicieni specializați, vânzări, HoReCa individual
+const TITLE_EXCLUDE = [
+  // Conducere / tehnicieni înalți
+  "diriginte", "șef proiect", "sef proiect", "topograf", "geolog",
+  "șef de depozit", "sef de depozit", "șef parc", "sef parc",
+  "șef rețea", "sef retea", "șef de direcție", "sef de directie",
+  "devizier", "diriginte de șantier",
+  // Call center / suport
+  "call-centru", "call centru", "suport clienți", "suport clienti", "supervizor",
+  // Vânzări
+  "manager de vânzări", "manager de vanzari",
+  "manager vânzări", "manager vanzari",
+  "agent de vânzări", "agent de vanzari",
+  "agent comercial", "asistent vânzări", "asistent vanzari",
+  // HoReCa individual
+  "chelner", "barista", "barman", "manager de formare",
+];
+
 function isJobOffer(titlu, descriere = "") {
   const text = `${titlu} ${descriere}`.toLowerCase();
   return !JOBSEEKER_EXCLUDE.some((kw) => text.includes(kw));
+}
+
+function isRelevantTitle(titlu) {
+  const t = titlu.toLowerCase();
+  return !TITLE_EXCLUDE.some((kw) => t.includes(kw.toLowerCase()));
 }
 
 function matchesVolumeFilter(titlu, descriere = "") {
@@ -189,6 +212,7 @@ async function scrapeCategory(page, category) {
     const validCards = jobCards.filter((c) => c.url && c.titlu && c.titlu.length > 3);
     for (const card of validCards) {
       if (!isJobOffer(card.titlu)) continue;
+      if (!isRelevantTitle(card.titlu)) continue;
       if (!matchesVolumeFilter(card.titlu)) continue;
       leads.push({ ...card, industrie: category.industrie });
     }
