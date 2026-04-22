@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422e";
+const appBuild = "20260422g";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -258,6 +258,14 @@ async function init() {
 }
 
 async function submitActivityFromRaw(raw, form) {
+  if (form?.dataset.submitting === "1") {
+    return false;
+  }
+  const submitButton = form?.querySelector('button[type="submit"]');
+  if (form) form.dataset.submitting = "1";
+  if (submitButton) submitButton.disabled = true;
+
+  try {
   if (!state.bootstrapReady) {
     updateStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
     return false;
@@ -280,12 +288,28 @@ async function submitActivityFromRaw(raw, form) {
         method: "POST",
         body: serializeActivityPayload(record),
       });
+      const isDuplicate = Boolean(result?.duplicate);
       scorecardSync = result?.scorecard_sync || scorecardSync;
+      if (isDuplicate) {
+        await refreshData({ silent: true });
+        updateStatus(`Dublura evitata: activitatea pentru ${record.company} era deja salvata recent.`);
+        if (form) {
+          form.reset();
+          setDefaultFormDates();
+        }
+        render();
+        return true;
+      }
+      let secondaryWarning = "";
       if (companyPatchPayload) {
-        await apiJson("/api/companies", {
-          method: "PATCH",
-          body: companyPatchPayload,
-        });
+        try {
+          await apiJson("/api/companies", {
+            method: "PATCH",
+            body: companyPatchPayload,
+          });
+        } catch (error) {
+          secondaryWarning = ` Activitatea a fost salvata, dar sincronizarea suplimentara a companiei a esuat: ${error.message}`;
+        }
       }
       await refreshData({ silent: true });
       updateStatus(
@@ -293,7 +317,7 @@ async function submitActivityFromRaw(raw, form) {
           companyPatchPayload ? " + pipeline sincronizat" : ""
         }${
           scorecardSync.updated ? " + scorecard WhatsApp sincronizat" : ""
-        }.`
+        }.${secondaryWarning}`
       );
     } catch (error) {
       updateStatus(`Airtable nu a putut salva activitatea. ${error.message}`);
@@ -324,6 +348,10 @@ async function submitActivityFromRaw(raw, form) {
   }
   render();
   return true;
+  } finally {
+    if (form) delete form.dataset.submitting;
+    if (submitButton) submitButton.disabled = false;
+  }
 }
 
 function bindEvents() {

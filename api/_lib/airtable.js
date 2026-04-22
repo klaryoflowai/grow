@@ -315,6 +315,36 @@ function normalizeCompanyKey(value = "") {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function isSameActivityFingerprint(existing = {}, incoming = {}) {
+  return (
+    normalizeCompanyKey(existing.company) === normalizeCompanyKey(incoming.company)
+    && normalizeActivity(existing.activity_type) === normalizeActivity(incoming.activity_type)
+    && normalizeString(existing.outcome) === normalizeString(incoming.outcome)
+    && toIsoDate(existing.date) === toIsoDate(incoming.date)
+    && normalizeString(existing.next_step) === normalizeString(incoming.next_step)
+    && toIsoDate(existing.next_step_date) === toIsoDate(incoming.next_step_date)
+    && normalizeString(existing.notes) === normalizeString(incoming.notes)
+    && toNumber(existing.workers_delta) === toNumber(incoming.workers_delta)
+  );
+}
+
+async function findRecentDuplicateActivity(activity, config) {
+  const duplicateWindowMs = 5 * 60 * 1000;
+  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const companyNameById = buildCompanyNameMap(companyRecords, config);
+  const activityRecords = await listRecords("activities");
+  const normalizedActivities = activityRecords
+    .map((record) => normalizeActivityRecord(record, config, companyNameById))
+    .filter((record) => record.company && record.date);
+  const now = new Date();
+
+  return normalizedActivities.find((record) => {
+    if (!record.created_at) return false;
+    if (!isSameActivityFingerprint(record, activity)) return false;
+    return Math.abs(now.getTime() - record.created_at.getTime()) <= duplicateWindowMs;
+  }) || null;
+}
+
 function isLiveActivityRecord(activity = {}) {
   return normalizeActivity(activity.activity_type) !== "planned";
 }
@@ -914,6 +944,16 @@ async function createActivity(payload) {
     throw new AirtableError(400, "Activitatea are nevoie de data si companie.");
   }
 
+  const duplicateActivity = await findRecentDuplicateActivity(activity, config);
+  if (duplicateActivity) {
+    return {
+      activity: duplicateActivity,
+      company: { company: duplicateActivity.company },
+      duplicate: true,
+      scorecard_sync: { updated: false, reason: "duplicate_skipped" },
+    };
+  }
+
   const touched = await touchCompanyFromActivity(activity);
 
   const fields = {
@@ -971,6 +1011,7 @@ async function createActivity(payload) {
   return {
     activity: normalizeActivityRecord(createdRecord, config, companyNameById),
     company: touched.normalized,
+    duplicate: false,
     scorecard_sync: scorecardSync,
   };
 }
