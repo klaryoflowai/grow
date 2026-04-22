@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422j";
+const appBuild = "20260422k";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -1851,6 +1851,10 @@ function isTrackedAccount(account = {}) {
   );
 }
 
+function isMovingAccount(account = {}) {
+  return isTrackedAccount(account) && isPipelineOpen(account.pipeline_stage);
+}
+
 function normalizeCompanyKey(value = "") {
   return String(value || "")
     .toLowerCase()
@@ -2115,9 +2119,7 @@ function renderPage() {
 }
 
 function render() {
-  const activeTrackedCount = state.accounts
-    .filter((account) => isTrackedAccount(account))
-    .filter((account) => isPipelineOpen(account.pipeline_stage)).length;
+  const movingCount = state.accounts.filter((account) => isMovingAccount(account)).length;
   const standbyCount = state.accounts
     .filter((account) => isTrackedAccount(account))
     .filter((account) => isStandbyAccount(account)).length;
@@ -2128,7 +2130,7 @@ function render() {
     : hasManualData()
       ? "Fallback local"
       : "Asteapta conexiunea";
-  elements.summaryChip.textContent = `${state.activities.length} activitati · ${activeTrackedCount} active · ${standbyCount} standby`;
+  elements.summaryChip.textContent = `${state.activities.length} activitati · ${movingCount} in miscare · ${standbyCount} standby`;
 
   renderPacingCard();
   renderChecklist();
@@ -2265,7 +2267,7 @@ function renderChecklist() {
   const todayCounts = countActivities(todayActivities);
   const monthlyCounts = countActivities(getMonthlyActivities());
   const trackedOpenAccounts = state.accounts.filter(
-    (account) => isTrackedAccount(account) && isPipelineOpen(account.pipeline_stage)
+    (account) => isMovingAccount(account)
   ).length;
   const { total, elapsed } = getWorkingDaysInfo();
   const workingDaysLeft = Math.max(total - elapsed + 1, 1);
@@ -3762,13 +3764,13 @@ function renderPipeline() {
   const filteredAccounts = trackedAccounts
     .filter((account) => !state.search || account.company.toLowerCase().includes(state.search));
   const activeAccounts = filteredAccounts
-    .filter((account) => isPipelineOpen(account.pipeline_stage))
+    .filter((account) => isMovingAccount(account))
     .sort((left, right) => compareActivePipelineAccounts(left, right));
   const standbyAccounts = filteredAccounts
     .filter((account) => isStandbyAccount(account))
     .sort(compareStandbyAccounts);
 
-  const activeAccs = trackedAccounts.filter((account) => isPipelineOpen(account.pipeline_stage));
+  const activeAccs = trackedAccounts.filter((account) => isMovingAccount(account));
   const counts = {
     active: activeAccs.length,
     offers: trackedAccounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
@@ -3779,7 +3781,7 @@ function renderPipeline() {
 
   elements.pipelineSummary.innerHTML = `
     <article class="pipeline-stat-card">
-      <div class="pipeline-stat-label">Active</div>
+      <div class="pipeline-stat-label">In miscare</div>
       <div class="pipeline-stat-value">${counts.active}</div>
       <div class="pipeline-stat-meta">conturi in lucru</div>
     </article>
@@ -4117,8 +4119,7 @@ function buildAlertCopy(account, now) {
 
 function getExecutionQueues(now = new Date()) {
   const openTrackedAccounts = state.accounts
-    .filter((account) => isTrackedAccount(account))
-    .filter((account) => isPipelineOpen(account.pipeline_stage));
+    .filter((account) => isMovingAccount(account));
   const standbyTrackedAccounts = state.accounts
     .filter((account) => isTrackedAccount(account))
     .filter((account) => isStandbyAccount(account));
