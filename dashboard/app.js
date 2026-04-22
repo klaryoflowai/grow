@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422k";
+const appBuild = "20260422l";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -1256,7 +1256,7 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
     const key = activity.company.toLowerCase();
     const existing = merged.get(key) || {
       company: activity.company,
-      pipeline_stage: mapActivityToPipelineStage(activity.activity_type),
+      pipeline_stage: "",
       account_health: "",
       last_outcome: "",
       workers: 0,
@@ -1278,10 +1278,6 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
 
     if (!plannedActivity && activity.outcome) {
       existing.last_outcome = activity.outcome;
-    }
-
-    if (!plannedActivity) {
-      existing.pipeline_stage = mergePipelineStage(existing.pipeline_stage, activity.activity_type);
     }
 
     if (activity.activity_type === "contract_signed" && activity.workers_delta > existing.workers) {
@@ -1317,7 +1313,7 @@ function syncManualAccountFromActivity(activity) {
     ? { ...state.manualData.accounts[existingIndex] }
     : {
         company: activity.company,
-        pipeline_stage: mapActivityToPipelineStage(activity.activity_type),
+        pipeline_stage: "",
         account_health: "",
         last_outcome: "",
         workers: 0,
@@ -1353,10 +1349,6 @@ function syncManualAccountFromActivity(activity) {
     )
   ) {
     current.last_outcome = activity.outcome;
-  }
-
-  if (!plannedActivity) {
-    current.pipeline_stage = mergePipelineStage(current.pipeline_stage, activity.activity_type);
   }
 
   if (activity.activity_type === "contract_signed" && activity.workers_delta > current.workers) {

@@ -905,10 +905,6 @@ async function touchCompanyFromActivity(activity) {
   const existingCompany = existingRecord
     ? normalizeCompanyRecord(existingRecord, config)
     : null;
-  const existingStage = existingCompany?.pipeline_stage || "";
-  const nextPipelineStage = plannedActivity
-    ? existingStage
-    : mergePipelineStage(existingStage, activity.activity_type);
 
   const fields = {
     [config.fields.companies.company]: companyName,
@@ -930,13 +926,6 @@ async function touchCompanyFromActivity(activity) {
       .sort((left, right) => left.getTime() - right.getTime());
     const lastContact = dateCandidates[dateCandidates.length - 1] || null;
     fields[config.fields.companies.lastContact] = lastContact ? toIsoDate(lastContact) : null;
-  }
-
-  if (!plannedActivity && config.fields.companies.pipelineStage) {
-    fields[config.fields.companies.pipelineStage] = nextPipelineStage || null;
-    if (nextPipelineStage && nextPipelineStage !== existingStage && config.fields.companies.stageChangedDate) {
-      fields[config.fields.companies.stageChangedDate] = toIsoDate(new Date());
-    }
   }
 
   if (activity.next_step) {

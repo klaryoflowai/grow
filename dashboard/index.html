@@ -330,10 +330,10 @@
             <div>
               <p class="section-label">Captura zilnica</p>
               <h2>Adauga o activitate in 10 secunde</h2>
-              <p class="panel-copy">Aici salvezi doar touch-urile reale. Schimbarile de stadiu, volum sau standby raman in formularul de companie.</p>
+              <p class="panel-copy">Aici salvezi doar touch-urile reale. Stadiul oficial al companiei ramane in Companies -> Stadiu Pipeline si se schimba doar explicit.</p>
             </div>
           </div>
-          <p class="helper workflow-note">Regula simpla: touch real = Quick Log. Corectie de cont = Update companie.</p>
+          <p class="helper workflow-note">Regula simpla: touch real = Quick Log. Stadiu oficial = Companies -> Stadiu Pipeline.</p>
 
           <form id="activity-form" class="quick-form">
             <label class="field">
@@ -434,7 +434,7 @@
                   </div>
                   <div class="mini-chip">Tracking live</div>
                 </div>
-                <p class="helper pipeline-form-helper">Foloseste formularul acesta doar pentru corectii de cont: stadiu, volum, next step, motiv standby sau reactivare. Apelurile si mesajele merg in Quick Log, iar campurile lasate goale nu rescriu datele existente.</p>
+                <p class="helper pipeline-form-helper">Acesta este locul oficial pentru stadiul companiei. Activities raman jurnal de touch-uri, iar aici corectezi stadiul real, volumul, next step-ul sau standby-ul.</p>
                 <label class="field">
                   <span>Companie</span>
                   <input
@@ -700,7 +700,7 @@
       <form id="mobile-activity-form" class="mobile-log-form">
         <div class="mobile-log-intro">
           <strong>Salveaza touch-ul real si lasa urmatorul pas din acelasi ecran.</strong>
-          <span>Daca s-a schimbat etapa in realitate, poti sincroniza si pipeline-ul companiei.</span>
+          <span>Daca s-a schimbat etapa in realitate, poti sincroniza explicit Companies -> Stadiu Pipeline.</span>
         </div>
         <label class="field">
           <span>Companie</span>
@@ -764,6 +764,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260422k"></script>
+    <script src="./app.js?v=20260422l"></script>
   </body>
 </html>
