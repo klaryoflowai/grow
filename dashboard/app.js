@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422c";
+const appBuild = "20260422d";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -2387,7 +2387,7 @@ function getWigMetrics(scorecard) {
   );
   const meetingsWithFollowUp = weeklyMeetings.filter(hasFollowUpWithin24h).length;
   const followUpMetric = buildRateMetric(meetingsWithFollowUp, weeklyMeetings.length);
-  const daysRemainingInQ2 = q2End ? Math.max(dayDiff(q2End, new Date()), 0) : 0;
+  const daysRemainingInQ2 = q2End ? Math.max(dayDiff(new Date(), q2End), 0) : 0;
 
   return {
     annualContracts: annualActivities.length,
