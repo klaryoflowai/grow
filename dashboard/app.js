@@ -45,7 +45,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260422l";
+const appBuild = "20260423a";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -550,21 +550,71 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        await apiJson("/api/companies", {
+        const companyResult = await apiJson("/api/companies", {
           method: "PATCH",
           body: serializeCompanyPayload(companyPatch),
         });
+        const pipelineActivity = buildActivityFromCompanyUpdate(record, raw);
+        let activityMessage = "";
+        let savedActivityState = {
+          company: companyResult?.company ? normalizeRow("accounts", companyResult.company) : normalizeRow("accounts", companyPatch),
+        };
+
+        if (pipelineActivity) {
+          try {
+            const activityResult = await apiJson("/api/activities", {
+              method: "POST",
+              body: serializeActivityPayload(pipelineActivity),
+            });
+            savedActivityState = {
+              activity: activityResult?.activity ? normalizeRow("activities", activityResult.activity) : pipelineActivity,
+              company: activityResult?.company
+                ? normalizeRow("accounts", activityResult.company)
+                : savedActivityState.company,
+              scorecard: activityResult?.scorecard_sync?.scorecard
+                ? normalizeRow("scorecard", activityResult.scorecard_sync.scorecard)
+                : null,
+              dailyScore: activityResult?.trend_sync?.updated
+                ? normalizeRow("dailyScores", {
+                    date: activityResult.trend_sync.date,
+                    contacted: activityResult.trend_sync.counts?.contacted || 0,
+                    meetings: activityResult.trend_sync.counts?.meetings || 0,
+                    offers: activityResult.trend_sync.counts?.offers || 0,
+                    contracts: activityResult.trend_sync.counts?.contracts || 0,
+                  })
+                : null,
+            };
+            activityMessage = ` Activitate ${activityLabel(pipelineActivity.activity_type)} logata automat.`;
+          } catch (error) {
+            activityMessage = ` Compania a fost salvata, dar logarea automata in Activities a esuat: ${error.message}`;
+          }
+        }
+
+        applySavedActivityToApiState(savedActivityState);
         await refreshData({ silent: true });
-        updateStatus(`Compania ${record.company} a fost actualizata in Airtable.`);
+        applySavedActivityToApiState(savedActivityState);
+        updateStatus(`Compania ${record.company} a fost actualizata in Airtable.${activityMessage}`);
       } catch (error) {
         updateStatus(`Airtable nu a putut salva compania. ${error.message}`);
         return;
       }
     } else {
+      const pipelineActivity = buildActivityFromCompanyUpdate(record, raw);
       upsertManualAccount(companyPatch);
+      if (pipelineActivity) {
+        const scorecardSync = syncManualScorecardFromActivity(pipelineActivity, state.manualData.activities);
+        const trendSync = syncManualDailyTrendFromActivity(pipelineActivity, state.manualData.activities);
+        state.manualData.activities.unshift(pipelineActivity);
+        syncManualAccountFromActivity(pipelineActivity);
+        persistScorecards();
+        updateStatus(
+          `Compania ${record.company} a fost actualizata local. Activitate ${activityLabel(pipelineActivity.activity_type)} logata automat${formatScorecardSyncBadge(scorecardSync)}${formatTrendSyncBadge(trendSync)}.`
+        );
+      } else {
+        updateStatus(`Compania ${record.company} a fost actualizata local.`);
+      }
       persistManualData();
       refreshCombinedData();
-      updateStatus(`Compania ${record.company} a fost actualizata local.`);
     }
 
     form.reset();
@@ -1636,6 +1686,18 @@ function mapActivityToPipelineStage(activityType = "") {
     contract_signed: "Contract semnat",
   };
   return mapping[normalizeActivity(activityType)] || "Necontactat";
+}
+
+function mapPipelineStageToActivityType(stage = "") {
+  const normalized = normalizePipelineStage(stage);
+  const mapping = {
+    Contactat: "contacted",
+    Meeting: "meeting",
+    Oferta: "offer",
+    Negociere: "offer",
+    "Contract semnat": "contract_signed",
+  };
+  return mapping[normalized] || "";
 }
 
 function normalizeActivity(value = "") {
@@ -4573,6 +4635,23 @@ function buildCompanyUpdatePatch(record, raw = {}) {
   }
 
   return payload;
+}
+
+function buildActivityFromCompanyUpdate(record, raw = {}) {
+  const requestedPipelineStage = normalizeString(raw.pipeline_stage);
+  const activityType = mapPipelineStageToActivityType(requestedPipelineStage);
+
+  if (!activityType) return null;
+
+  const stage = normalizePipelineStage(requestedPipelineStage);
+  return normalizeRow("activities", {
+    date: getTodayIsoDate(),
+    company: record.company,
+    activity_type: activityType,
+    next_step: raw.next_step || "",
+    next_step_date: raw.next_step_date || "",
+    notes: `Stadiu pipeline actualizat la ${stage} din Update rapid companie.`,
+  });
 }
 
 function serializeActivityPayload(record) {
