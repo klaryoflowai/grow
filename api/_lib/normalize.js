@@ -58,13 +58,14 @@ function parseDate(value) {
 function toIsoDate(value) {
   if (!value) return "";
 
-  // Airtable returns dates as ISO-ish strings (sometimes with timezone offsets).
+  // Airtable returns date fields as ISO strings (sometimes with timezone offsets).
   // Parsing those into a JS Date and then using toISOString() can shift the day
-  // (e.g. Europe/Chisinau midnight becomes previous UTC day). For strings that
-  // start with YYYY-MM-DD, we keep that exact calendar date.
+  // (e.g. Europe/Chisinau midnight becomes previous UTC day). For *date-only*
+  // strings (YYYY-MM-DD), we keep that exact calendar date. For ISO strings that
+  // include time, we parse and then format in the Airtable timezone.
   if (typeof value === "string") {
-    const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})/);
-    if (match) return match[1];
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   }
 
   const date = parseDate(value);
