@@ -56,8 +56,33 @@ function parseDate(value) {
 }
 
 function toIsoDate(value) {
+  if (!value) return "";
+
+  // Airtable returns dates as ISO-ish strings (sometimes with timezone offsets).
+  // Parsing those into a JS Date and then using toISOString() can shift the day
+  // (e.g. Europe/Chisinau midnight becomes previous UTC day). For strings that
+  // start with YYYY-MM-DD, we keep that exact calendar date.
+  if (typeof value === "string") {
+    const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+
   const date = parseDate(value);
-  return date ? date.toISOString().slice(0, 10) : "";
+  if (!date) return "";
+
+  const timezone = process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : date.toISOString().slice(0, 10);
 }
 
 function normalizeStatus(value = "") {
