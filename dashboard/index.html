@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260421c" />
+    <link rel="stylesheet" href="./styles.css?v=20260424a" />
   </head>
   <body>
     <div class="shell">
@@ -44,18 +44,22 @@
           </div>
           <div class="hero-side">
             <article class="hero-pacing-card" id="pacing-card">
-              <div class="hero-pacing-label">Contactate / target lunar</div>
+              <div class="hero-pacing-label">Companii miscate / saptamana</div>
               <div class="hero-pacing-number">—</div>
               <div class="hero-pacing-status">Se incarca...</div>
             </article>
             <div class="hero-status-grid">
               <article class="hero-status-card">
-                <span class="hero-status-label">Tracking</span>
-                <strong class="hero-status-value" id="summary-chip">0 activitati</strong>
+                <span class="hero-status-label">Touch-uri saptamana</span>
+                <strong class="hero-status-value" id="weekly-touch-chip">0</strong>
               </article>
               <article class="hero-status-card">
-                <span class="hero-status-label">Astazi</span>
-                <strong class="hero-status-value hero-status-value--date" id="current-date"></strong>
+                <span class="hero-status-label">Due azi</span>
+                <strong class="hero-status-value" id="due-today-chip">0</strong>
+              </article>
+              <article class="hero-status-card">
+                <span class="hero-status-label">Intarziate</span>
+                <strong class="hero-status-value" id="overdue-chip">0</strong>
               </article>
               <article class="hero-status-card">
                 <span class="hero-status-label">Mod date</span>
@@ -764,6 +768,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260423a"></script>
+    <script src="./app.js?v=20260424a"></script>
   </body>
 </html>

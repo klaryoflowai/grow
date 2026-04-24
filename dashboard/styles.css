@@ -244,7 +244,7 @@ h3 {
 
 .hero-status-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -355,7 +355,7 @@ h3 {
 }
 
 .hero-status-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .page-nav-shell {
@@ -2462,10 +2462,6 @@ td {
     padding: 16px;
   }
 
-  .hero-status-card:last-child {
-    grid-column: 1 / -1;
-  }
-
   .quick-form {
     grid-template-columns: 1fr 1fr;
   }
@@ -2609,10 +2605,6 @@ td {
 
   .hero-status-grid {
     grid-template-columns: 1fr;
-  }
-
-  .hero-status-card:last-child {
-    grid-column: auto;
   }
 
   .hero-status-card {

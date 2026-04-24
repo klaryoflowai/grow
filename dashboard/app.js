@@ -23,6 +23,10 @@ const scorecardTargets = {
   },
 };
 
+const heroTargets = {
+  movedCompaniesPerWeek: 35,
+};
+
 const wigPlan = {
   annual: {
     year: 2026,
@@ -45,7 +49,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260423a";
+const appBuild = "20260424a";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -179,10 +183,11 @@ const state = {
 };
 
 const elements = {
-  currentDate: document.getElementById("current-date"),
   pacingCard: document.getElementById("pacing-card"),
+  weeklyTouchChip: document.getElementById("weekly-touch-chip"),
+  dueTodayChip: document.getElementById("due-today-chip"),
+  overdueChip: document.getElementById("overdue-chip"),
   dataModePill: document.getElementById("data-mode-pill"),
-  summaryChip: document.getElementById("summary-chip"),
   statusMessage: document.getElementById("status-message"),
   retryConnection: document.getElementById("retry-connection"),
   scorecardWeekChip: document.getElementById("scorecard-week-chip"),
@@ -240,13 +245,6 @@ const elements = {
 init();
 
 async function init() {
-  elements.currentDate.textContent = new Date().toLocaleDateString("ro-RO", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
   hydrateInputs();
   initDatePickers();
   setDefaultFormDates();
@@ -2173,10 +2171,8 @@ function renderPage() {
 }
 
 function render() {
-  const movingCount = state.accounts.filter((account) => isMovingAccount(account)).length;
-  const standbyCount = state.accounts
-    .filter((account) => isTrackedAccount(account))
-    .filter((account) => isStandbyAccount(account)).length;
+  const weeklyMovement = getHeroMovementMetrics();
+  const openPipelineActions = getOpenPipelineActionCounts();
   elements.dataModePill.textContent = !state.bootstrapReady
     ? "Se conecteaza..."
     : state.apiEnabled
@@ -2184,7 +2180,9 @@ function render() {
     : hasManualData()
       ? "Fallback local"
       : "Asteapta conexiunea";
-  elements.summaryChip.textContent = `${state.activities.length} activitati · ${movingCount} in miscare · ${standbyCount} standby`;
+  elements.weeklyTouchChip.textContent = `${weeklyMovement.weekly.totalTouches} touch-uri`;
+  elements.dueTodayChip.textContent = `${openPipelineActions.dueToday} conturi`;
+  elements.overdueChip.textContent = `${openPipelineActions.overdue} conturi`;
 
   renderPacingCard();
   renderChecklist();
@@ -2218,15 +2216,118 @@ function getWorkingDaysInfo() {
   return { total: Math.max(total, 1), elapsed: Math.max(elapsed, 1) };
 }
 
+function getCurrentWeekWorkingDaysInfo(now = new Date()) {
+  const day = now.getDay();
+  const elapsed = day === 0 ? 5 : Math.min(day, 5);
+  return {
+    total: 5,
+    elapsed: Math.max(elapsed, 1),
+  };
+}
+
+function buildFirstLiveTouchIndexFromActivities(activities = []) {
+  const sorted = [...activities]
+    .filter((activity) => activity.company && activity.date && isLiveActivityEntry(activity))
+    .sort((left, right) => {
+      const leftTime = left.date?.getTime?.() || 0;
+      const rightTime = right.date?.getTime?.() || 0;
+      return leftTime - rightTime;
+    });
+
+  const firstTouchByCompany = new Map();
+
+  sorted.forEach((activity) => {
+    const companyKey = normalizeCompanyKey(activity.company);
+    if (!companyKey || firstTouchByCompany.has(companyKey)) return;
+    firstTouchByCompany.set(companyKey, activity.date);
+  });
+
+  return firstTouchByCompany;
+}
+
+function getCurrentWeekLiveActivities() {
+  const weekStart = getWeekStart(getTodayIsoDate());
+  return getWeeklyActivitiesForScorecard({
+    week_start: weekStart,
+    week_end: getWeekEnd(weekStart),
+  });
+}
+
+function buildCompanyMovementMetrics(activities = [], rangeStart = null, rangeEnd = null) {
+  const touchedCompanies = new Map();
+  const firstTouchIndex = buildFirstLiveTouchIndexFromActivities(state.activities);
+
+  activities.forEach((activity) => {
+    if (!isLiveActivityEntry(activity)) return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    if (!companyKey) return;
+
+    const firstTouchDate = firstTouchIndex.get(companyKey);
+    const existingEntry = touchedCompanies.get(companyKey) || {
+      company: activity.company,
+      touches: 0,
+      isNew: false,
+    };
+
+    existingEntry.touches += 1;
+    existingEntry.isNew = Boolean(
+      rangeStart
+      && rangeEnd
+      && firstTouchDate
+      && isDateWithinInclusiveRange(firstTouchDate, rangeStart, rangeEnd)
+    );
+
+    touchedCompanies.set(companyKey, existingEntry);
+  });
+
+  const companies = [...touchedCompanies.values()];
+  const newCompanies = companies.filter((entry) => entry.isNew).length;
+
+  return {
+    moved: companies.length,
+    newCompanies,
+    followUp: Math.max(companies.length - newCompanies, 0),
+    totalTouches: activities.length,
+  };
+}
+
+function getHeroMovementMetrics(now = new Date()) {
+  const weekStart = parseDate(getWeekStart(getTodayIsoDate()));
+  const weekEnd = parseDate(getWeekEnd(getTodayIsoDate()));
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  return {
+    weekly: buildCompanyMovementMetrics(getCurrentWeekLiveActivities(), weekStart, weekEnd),
+    today: buildCompanyMovementMetrics(getTodayActivities(), today, today),
+  };
+}
+
+function getOpenPipelineActionCounts(now = new Date()) {
+  const openAccounts = state.accounts.filter((account) => isMovingAccount(account));
+
+  return openAccounts.reduce((counts, account) => {
+    if (!account.next_step_date) return counts;
+
+    const delta = dayDiff(account.next_step_date, now);
+    if (delta === 0) counts.dueToday += 1;
+    if (delta > 0) counts.overdue += 1;
+    return counts;
+  }, {
+    dueToday: 0,
+    overdue: 0,
+  });
+}
+
 function renderPacingCard() {
   if (!elements.pacingCard) return;
 
-  const todayCounts = countActivities(getTodayActivities());
-  const monthlyCounts = countActivities(getMonthlyActivities());
-  const { total, elapsed } = getWorkingDaysInfo();
-  const target = state.targets.contacted || 1;
+  const movement = getHeroMovementMetrics();
+  const { total, elapsed } = getCurrentWeekWorkingDaysInfo();
+  const target = heroTargets.movedCompaniesPerWeek || 1;
   const expectedByNow = Math.round((target / total) * elapsed);
-  const ratio = expectedByNow > 0 ? monthlyCounts.contacted / expectedByNow : 1;
+  const ratio = expectedByNow > 0 ? movement.weekly.moved / expectedByNow : 1;
 
   let statusLabel, statusColor, pacingBg;
   if (ratio >= 0.8) {
@@ -2246,13 +2347,13 @@ function renderPacingCard() {
   elements.pacingCard.style.setProperty("--pacing-bg", pacingBg);
   elements.pacingCard.style.setProperty("--pacing-color", statusColor);
   elements.pacingCard.innerHTML = `
-    <div class="hero-pacing-label">Contactate / target lunar</div>
-    <div class="hero-pacing-number" style="color:${statusColor};">${monthlyCounts.contacted}<span class="hero-pacing-target"> / ${target}</span></div>
+    <div class="hero-pacing-label">Companii miscate / saptamana</div>
+    <div class="hero-pacing-number" style="color:${statusColor};">${movement.weekly.moved}<span class="hero-pacing-target"> / ${target}</span></div>
     <div class="hero-pacing-status">
-      Azi: <strong>${todayCounts.contacted}</strong> contacte · <strong>${todayCounts.meeting}</strong> meetings
+      Saptamana asta: <strong>${movement.weekly.newCompanies}</strong> noi · <strong>${movement.weekly.followUp}</strong> follow-up
       <span class="hero-pacing-badge" style="color:${statusColor}; border-color:${statusColor}33; background:${pacingBg};">${statusLabel}</span>
     </div>
-    <div class="hero-pacing-meta">Asteptat pana azi: ${expectedByNow} · Zi lucratoare ${elapsed} din ${total}</div>
+    <div class="hero-pacing-meta">Azi: ${movement.today.moved} companii miscate · ${movement.today.followUp} follow-up · ${movement.weekly.totalTouches} touch-uri totale · Asteptat pana azi: ${expectedByNow} · zi lucratoare ${elapsed} din ${total}</div>
   `;
 }
 
