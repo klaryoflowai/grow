@@ -25,6 +25,7 @@ Aceasta tabela alimenteaza:
 | `Cold Calls` | Number | Total apeluri reci |
 | `WhatsApp Messages` | Number | Total mesaje WhatsApp |
 | `Field Visits` | Number | Vizite in teren / networking |
+| `Warm Outreach` | Number | Touch-uri calde din reteaua existenta / referrals |
 | `Meetings Set` | Number | Meetings confirmate |
 | `Offers Sent` | Number | Oferte trimise |
 | `Contracts Signed` | Number | Contracte semnate |
@@ -44,3 +45,5 @@ Aceasta tabela alimenteaza:
 Nu pune datele zilnice in `Scorecard`.
 
 Pentru panoul `Ultimele 7 zile`, foloseste tabela separata `Scorecard Trend`.
+
+Pentru executia zilnica `Cold Calls / WhatsApp / Field Visits / Warm Outreach`, foloseste tabela separata `Lead Measures Daily`.

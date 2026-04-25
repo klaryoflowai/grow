@@ -518,6 +518,18 @@ function normalizeTargetsRecord(record, config) {
     meetings: toNumber(fields[config.fields.targets.meetings]),
     offers: toNumber(fields[config.fields.targets.offers]),
     contracts: toNumber(fields[config.fields.targets.contracts]),
+    coldCallsDaily: toNumber(fields[config.fields.targets.coldCallsDaily]),
+    coldCallsWeekly: toNumber(fields[config.fields.targets.coldCallsWeekly]),
+    coldCallsMonthly: toNumber(fields[config.fields.targets.coldCallsMonthly]),
+    whatsappMessagesDaily: toNumber(fields[config.fields.targets.whatsappMessagesDaily]),
+    whatsappMessagesWeekly: toNumber(fields[config.fields.targets.whatsappMessagesWeekly]),
+    whatsappMessagesMonthly: toNumber(fields[config.fields.targets.whatsappMessagesMonthly]),
+    fieldVisitsDaily: toNumber(fields[config.fields.targets.fieldVisitsDaily]),
+    fieldVisitsWeekly: toNumber(fields[config.fields.targets.fieldVisitsWeekly]),
+    fieldVisitsMonthly: toNumber(fields[config.fields.targets.fieldVisitsMonthly]),
+    warmOutreachDaily: toNumber(fields[config.fields.targets.warmOutreachDaily]),
+    warmOutreachWeekly: toNumber(fields[config.fields.targets.warmOutreachWeekly]),
+    warmOutreachMonthly: toNumber(fields[config.fields.targets.warmOutreachMonthly]),
   };
 }
 
@@ -536,11 +548,24 @@ function createEmptyScorecard(timezone = "Europe/Chisinau") {
     cold_calls: 0,
     linkedin_messages: 0,
     field_visits: 0,
+    warm_outreach: 0,
     meetings_set: 0,
     offers_sent: 0,
     contracts_signed: 0,
     workers_signed: 0,
     workers_delivered: 0,
+    notes: "",
+  };
+}
+
+function createEmptyLeadMeasureDaily(timezone = "Europe/Chisinau") {
+  return {
+    id: "",
+    date: toIsoDate(new Date()) || getCurrentWeekStart(timezone),
+    cold_calls: 0,
+    whatsapp_messages: 0,
+    field_visits: 0,
+    warm_outreach: 0,
     notes: "",
   };
 }
@@ -702,6 +727,7 @@ function normalizeScorecardRecord(record, config) {
     cold_calls: toNumber(fields[config.fields.scorecard.coldCalls]),
     linkedin_messages: toNumber(fields[getScorecardMessageFieldName(config, fields)]),
     field_visits: toNumber(fields[config.fields.scorecard.fieldVisits]),
+    warm_outreach: toNumber(fields[config.fields.scorecard.warmOutreach]),
     meetings_set: toNumber(fields[config.fields.scorecard.meetingsSet]),
     offers_sent: toNumber(fields[config.fields.scorecard.offersSent]),
     contracts_signed: toNumber(fields[config.fields.scorecard.contractsSigned]),
@@ -721,6 +747,19 @@ function normalizeScorecardTrendRecord(record, config) {
     offers: toNumber(fields[config.fields.scorecardTrend.offers]),
     contracts: toNumber(fields[config.fields.scorecardTrend.contracts]),
     notes: normalizeString(fields[config.fields.scorecardTrend.notes]),
+  };
+}
+
+function normalizeLeadMeasureDailyRecord(record, config) {
+  const fields = record.fields || {};
+  return {
+    id: record.id,
+    date: toIsoDate(fields[config.fields.leadMeasuresDaily.date]),
+    cold_calls: toNumber(fields[config.fields.leadMeasuresDaily.coldCalls]),
+    whatsapp_messages: toNumber(fields[config.fields.leadMeasuresDaily.whatsappMessages]),
+    field_visits: toNumber(fields[config.fields.leadMeasuresDaily.fieldVisits]),
+    warm_outreach: toNumber(fields[config.fields.leadMeasuresDaily.warmOutreach]),
+    notes: normalizeString(fields[config.fields.leadMeasuresDaily.notes]),
   };
 }
 
@@ -1091,6 +1130,18 @@ async function upsertTargets(payload) {
     [config.fields.targets.meetings]: toNumber(payload.meetings),
     [config.fields.targets.offers]: toNumber(payload.offers),
     [config.fields.targets.contracts]: toNumber(payload.contracts),
+    [config.fields.targets.coldCallsDaily]: toNumber(payload.coldCallsDaily),
+    [config.fields.targets.coldCallsWeekly]: toNumber(payload.coldCallsWeekly),
+    [config.fields.targets.coldCallsMonthly]: toNumber(payload.coldCallsMonthly),
+    [config.fields.targets.whatsappMessagesDaily]: toNumber(payload.whatsappMessagesDaily),
+    [config.fields.targets.whatsappMessagesWeekly]: toNumber(payload.whatsappMessagesWeekly),
+    [config.fields.targets.whatsappMessagesMonthly]: toNumber(payload.whatsappMessagesMonthly),
+    [config.fields.targets.fieldVisitsDaily]: toNumber(payload.fieldVisitsDaily),
+    [config.fields.targets.fieldVisitsWeekly]: toNumber(payload.fieldVisitsWeekly),
+    [config.fields.targets.fieldVisitsMonthly]: toNumber(payload.fieldVisitsMonthly),
+    [config.fields.targets.warmOutreachDaily]: toNumber(payload.warmOutreachDaily),
+    [config.fields.targets.warmOutreachWeekly]: toNumber(payload.warmOutreachWeekly),
+    [config.fields.targets.warmOutreachMonthly]: toNumber(payload.warmOutreachMonthly),
   };
 
   const record = existingRecord
@@ -1137,6 +1188,7 @@ async function upsertScorecard(payload) {
     [config.fields.scorecard.coldCalls]: toNumber(payload.cold_calls),
     [messageFieldName]: messageFieldValue,
     [config.fields.scorecard.fieldVisits]: toNumber(payload.field_visits),
+    [config.fields.scorecard.warmOutreach]: toNumber(payload.warm_outreach),
     [config.fields.scorecard.meetingsSet]: toNumber(payload.meetings_set),
     [config.fields.scorecard.offersSent]: toNumber(payload.offers_sent),
     [config.fields.scorecard.contractsSigned]: toNumber(payload.contracts_signed),
@@ -1168,6 +1220,36 @@ async function upsertScorecard(payload) {
   }
 
   return withComputedSalesVelocity(normalizeScorecardRecord(record, config), activities);
+}
+
+async function upsertLeadMeasuresDaily(payload) {
+  const config = getRequiredConfig();
+  const date = toIsoDate(payload.date || new Date());
+
+  if (!date) {
+    throw new AirtableError(400, "Lead Measures Daily are nevoie de Data.");
+  }
+
+  const leadMeasureRecords = await listRecords("leadMeasuresDaily");
+  const existingRecord = leadMeasureRecords.find((record) => {
+    const normalized = normalizeLeadMeasureDailyRecord(record, config);
+    return normalized.date === date;
+  });
+
+  const fields = {
+    [config.fields.leadMeasuresDaily.date]: date,
+    [config.fields.leadMeasuresDaily.coldCalls]: toNumber(payload.cold_calls),
+    [config.fields.leadMeasuresDaily.whatsappMessages]: toNumber(payload.whatsapp_messages),
+    [config.fields.leadMeasuresDaily.fieldVisits]: toNumber(payload.field_visits),
+    [config.fields.leadMeasuresDaily.warmOutreach]: toNumber(payload.warm_outreach),
+    [config.fields.leadMeasuresDaily.notes]: normalizeString(payload.notes),
+  };
+
+  const record = existingRecord
+    ? await updateRecord("leadMeasuresDaily", existingRecord.id, fields)
+    : await createRecord("leadMeasuresDaily", fields);
+
+  return normalizeLeadMeasureDailyRecord(record, config);
 }
 
 async function upsertScorecardTrend(payload) {
@@ -1260,6 +1342,7 @@ async function getDashboardData() {
       activities: [],
       targets: { period: currentPeriod, ...defaultTargets },
       dailyScores: [],
+      leadMeasuresDaily: [],
       scorecards: [],
       scorecard: createEmptyScorecard(config.timezone),
       connection: {
@@ -1278,6 +1361,7 @@ async function getDashboardData() {
   let targetRecords = [];
   let scorecardRecords = [];
   let scorecardTrendRecords = [];
+  let leadMeasureDailyRecords = [];
 
   try {
     targetRecords = await listRecords("targets");
@@ -1306,6 +1390,16 @@ async function getDashboardData() {
     }
   }
 
+  try {
+    leadMeasureDailyRecords = await listRecords("leadMeasuresDaily");
+  } catch (error) {
+    if (error.status === 404) {
+      warnings.push("Tabela Lead Measures Daily nu a fost gasita. Cardul Key Lead Measures asteapta tabela noua.");
+    } else {
+      throw error;
+    }
+  }
+
   const companyNameById = buildCompanyNameMap(companyRecords, config);
   const companies = companyRecords
     .map((record) => normalizeCompanyRecord(record, config))
@@ -1328,6 +1422,10 @@ async function getDashboardData() {
     .map((record) => normalizeScorecardTrendRecord(record, config))
     .filter((record) => record.date)
     .sort((left, right) => right.date.localeCompare(left.date));
+  const leadMeasuresDaily = leadMeasureDailyRecords
+    .map((record) => normalizeLeadMeasureDailyRecord(record, config))
+    .filter((record) => record.date)
+    .sort((left, right) => right.date.localeCompare(left.date));
   const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
     || scorecards[0]
     || withComputedSalesVelocity(createEmptyScorecard(config.timezone), activities);
@@ -1338,6 +1436,7 @@ async function getDashboardData() {
     activities,
     targets,
     dailyScores,
+    leadMeasuresDaily,
     scorecards,
     scorecard,
     connection: {
@@ -1357,5 +1456,6 @@ module.exports = {
   upsertCompany,
   upsertScorecard,
   upsertScorecardTrend,
+  upsertLeadMeasuresDaily,
   upsertTargets,
 };

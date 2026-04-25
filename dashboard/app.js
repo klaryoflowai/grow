@@ -3,6 +3,18 @@ const defaultTargets = {
   meetings: 12,
   offers: 6,
   contracts: 4,
+  coldCallsDaily: 10,
+  coldCallsWeekly: 50,
+  coldCallsMonthly: 200,
+  whatsappMessagesDaily: 20,
+  whatsappMessagesWeekly: 100,
+  whatsappMessagesMonthly: 400,
+  fieldVisitsDaily: 5,
+  fieldVisitsWeekly: 10,
+  fieldVisitsMonthly: 40,
+  warmOutreachDaily: 2,
+  warmOutreachWeekly: 10,
+  warmOutreachMonthly: 40,
 };
 
 const scorecardTargets = {
@@ -49,7 +61,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260424a";
+const appBuild = "20260425a";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
@@ -163,12 +175,14 @@ const state = {
     activities: [],
     scorecards: [],
     dailyScores: [],
+    leadMeasuresDaily: [],
   },
   manualData: loadManualData(),
   manualScorecards: loadScorecards(),
   accounts: [],
   activities: [],
   dailyScores: [],
+  leadMeasuresDaily: [],
   scorecards: [],
   scorecard: createEmptyScorecard(),
   search: "",
@@ -196,6 +210,7 @@ const elements = {
   checklistDayGrid: document.getElementById("checklist-day-grid"),
   checklistWeekGrid: document.getElementById("checklist-week-grid"),
   wigGrid: document.getElementById("wig-grid"),
+  keyLeadMeasuresCard: document.getElementById("key-lead-measures-card"),
   powerThreeGrid: document.getElementById("power-three-grid"),
   velocityFocusCard: document.getElementById("velocity-focus-card"),
   funnelGrid: document.getElementById("funnel-grid"),
@@ -221,6 +236,7 @@ const elements = {
   companyFormStatus: document.getElementById("company-form-status"),
   scorecardFormStatus: document.getElementById("scorecard-form-status"),
   dailyTrendFormStatus: document.getElementById("daily-trend-form-status"),
+  leadMeasuresFormStatus: document.getElementById("lead-measures-form-status"),
   companyOptions: document.getElementById("company-options"),
   standbyFilterButtons: [...document.querySelectorAll("[data-standby-filter]")],
   pageButtons: [...document.querySelectorAll("[data-page-target]")],
@@ -232,12 +248,25 @@ const elements = {
     meetings: document.getElementById("target-meetings"),
     offers: document.getElementById("target-offers"),
     contracts: document.getElementById("target-contracts"),
+    coldCallsDaily: document.getElementById("target-cold-calls-daily"),
+    coldCallsWeekly: document.getElementById("target-cold-calls-weekly"),
+    coldCallsMonthly: document.getElementById("target-cold-calls-monthly"),
+    whatsappMessagesDaily: document.getElementById("target-whatsapp-messages-daily"),
+    whatsappMessagesWeekly: document.getElementById("target-whatsapp-messages-weekly"),
+    whatsappMessagesMonthly: document.getElementById("target-whatsapp-messages-monthly"),
+    fieldVisitsDaily: document.getElementById("target-field-visits-daily"),
+    fieldVisitsWeekly: document.getElementById("target-field-visits-weekly"),
+    fieldVisitsMonthly: document.getElementById("target-field-visits-monthly"),
+    warmOutreachDaily: document.getElementById("target-warm-outreach-daily"),
+    warmOutreachWeekly: document.getElementById("target-warm-outreach-weekly"),
+    warmOutreachMonthly: document.getElementById("target-warm-outreach-monthly"),
   },
   forms: {
     activity: document.getElementById("activity-form"),
     account: document.getElementById("account-form"),
     scorecard: document.getElementById("scorecard-form"),
     dailyTrend: document.getElementById("daily-trend-form"),
+    leadMeasuresDaily: document.getElementById("lead-measures-daily-form"),
   },
   companyInputs: [...document.querySelectorAll('input[name="company"]')],
 };
@@ -429,6 +458,18 @@ function bindEvents() {
       meetings: toNumber(elements.targets.meetings.value),
       offers: toNumber(elements.targets.offers.value),
       contracts: toNumber(elements.targets.contracts.value),
+      coldCallsDaily: toNumber(elements.targets.coldCallsDaily.value),
+      coldCallsWeekly: toNumber(elements.targets.coldCallsWeekly.value),
+      coldCallsMonthly: toNumber(elements.targets.coldCallsMonthly.value),
+      whatsappMessagesDaily: toNumber(elements.targets.whatsappMessagesDaily.value),
+      whatsappMessagesWeekly: toNumber(elements.targets.whatsappMessagesWeekly.value),
+      whatsappMessagesMonthly: toNumber(elements.targets.whatsappMessagesMonthly.value),
+      fieldVisitsDaily: toNumber(elements.targets.fieldVisitsDaily.value),
+      fieldVisitsWeekly: toNumber(elements.targets.fieldVisitsWeekly.value),
+      fieldVisitsMonthly: toNumber(elements.targets.fieldVisitsMonthly.value),
+      warmOutreachDaily: toNumber(elements.targets.warmOutreachDaily.value),
+      warmOutreachWeekly: toNumber(elements.targets.warmOutreachWeekly.value),
+      warmOutreachMonthly: toNumber(elements.targets.warmOutreachMonthly.value),
     };
 
     if (state.apiEnabled) {
@@ -439,7 +480,7 @@ function bindEvents() {
         });
         state.targets = normalizeTargets(result.targets || payload);
         refreshCombinedData();
-        updateStatus("Target-urile lunare au fost salvate in Airtable.");
+        updateStatus("Target-urile lunare si Key Lead Measures au fost salvate in Airtable.");
         render();
         return;
       } catch (error) {
@@ -451,7 +492,7 @@ function bindEvents() {
     state.targets = payload;
     localStorage.setItem(storageKeys.targets, JSON.stringify(state.targets));
     refreshCombinedData();
-    updateStatus("Target-urile au fost salvate local pana conectam Vercel-ul la Airtable.");
+    updateStatus("Target-urile lunare si Key Lead Measures au fost salvate local pana conectam Vercel-ul la Airtable.");
     render();
   });
 
@@ -659,6 +700,49 @@ function bindEvents() {
     render();
   });
 
+  elements.forms.leadMeasuresDaily?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.bootstrapReady) {
+      updateLeadMeasuresStatus("Dashboard-ul inca se conecteaza la Airtable. Asteapta 1-2 secunde si incearca din nou.");
+      return;
+    }
+
+    const form = event.currentTarget;
+    const raw = Object.fromEntries(new FormData(form).entries());
+    const record = normalizeRow("leadMeasuresDaily", raw);
+
+    if (!record.date) {
+      updateLeadMeasuresStatus("Alege mai intai data pentru care vrei sa salvezi lead measures.");
+      return;
+    }
+
+    if (state.apiEnabled) {
+      try {
+        const result = await apiJson("/api/lead-measures-daily", {
+          method: "PUT",
+          body: serializeLeadMeasuresPayload(record),
+        });
+        if (result?.leadMeasure) {
+          upsertSourceLeadMeasureDaily(result.leadMeasure);
+        }
+        await refreshData({ silent: true });
+        updateLeadMeasuresStatus(`Lead measures pentru ${record.date} au fost salvate in Airtable.`);
+      } catch (error) {
+        updateLeadMeasuresStatus(`Airtable nu a putut salva lead measures. ${error.message}`);
+        return;
+      }
+    } else {
+      upsertManualLeadMeasureDaily(record);
+      persistManualData();
+      refreshCombinedData();
+      updateLeadMeasuresStatus(`Lead measures pentru ${record.date} au fost salvate local.`);
+    }
+
+    hydrateLeadMeasuresDailyForm(record.date);
+    hydrateScorecardForm();
+    render();
+  });
+
   elements.forms.dailyTrend?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.bootstrapReady) {
@@ -707,6 +791,10 @@ function bindEvents() {
 
   elements.forms.dailyTrend?.elements?.namedItem("date")?.addEventListener("change", (event) => {
     hydrateDailyTrendForm(event.currentTarget.value);
+  });
+
+  elements.forms.leadMeasuresDaily?.elements?.namedItem("date")?.addEventListener("change", (event) => {
+    hydrateLeadMeasuresDailyForm(event.currentTarget.value);
   });
 
   elements.resetAccount.addEventListener("click", async () => {
@@ -782,14 +870,16 @@ function bindEvents() {
     localStorage.removeItem(storageKeys.manual);
     localStorage.removeItem(storageKeys.scorecards);
     localStorage.removeItem(storageKeys.targets);
-    state.manualData = { accounts: [], activities: [], dailyScores: [] };
+    state.manualData = { accounts: [], activities: [], dailyScores: [], leadMeasuresDaily: [] };
     state.manualScorecards = [];
     state.dailyScores = [];
+    state.leadMeasuresDaily = [];
     state.targets = { ...defaultTargets };
     hydrateInputs();
     refreshCombinedData();
     hydrateDailyTrendForm();
-    updateStatus("Memoria locala a fost stearsa, inclusiv trendul zilnic si scorecard-ul saptamanal.");
+    hydrateLeadMeasuresDailyForm();
+    updateStatus("Memoria locala a fost stearsa, inclusiv trendul zilnic, lead measures si scorecard-ul saptamanal.");
     render();
   });
 }
@@ -859,6 +949,9 @@ async function refreshData(options = {}) {
     state.sourceData.dailyScores = Array.isArray(payload.dailyScores)
       ? payload.dailyScores.map((row) => normalizeRow("dailyScores", row))
       : [];
+    state.sourceData.leadMeasuresDaily = Array.isArray(payload.leadMeasuresDaily)
+      ? payload.leadMeasuresDaily.map((row) => normalizeRow("leadMeasuresDaily", row))
+      : [];
 
     if (payload.targets) {
       state.targets = normalizeTargets(payload.targets);
@@ -870,6 +963,7 @@ async function refreshData(options = {}) {
     refreshCombinedData();
     hydrateScorecardForm();
     hydrateDailyTrendForm();
+    hydrateLeadMeasuresDailyForm();
 
     if (elements.retryConnection) elements.retryConnection.hidden = true;
     if (!silent) {
@@ -884,11 +978,12 @@ async function refreshData(options = {}) {
     state.sourceMode = "fallback";
     state.connection = null;
     state.warnings = [];
-    state.sourceData = { accounts: [], activities: [], scorecards: [], dailyScores: [] };
+    state.sourceData = { accounts: [], activities: [], scorecards: [], dailyScores: [], leadMeasuresDaily: [] };
     state.targets = loadTargets();
     refreshCombinedData();
     hydrateScorecardForm();
     hydrateDailyTrendForm();
+    hydrateLeadMeasuresDailyForm();
 
     if (elements.retryConnection) elements.retryConnection.hidden = false;
     if (!silent) {
@@ -902,6 +997,18 @@ function hydrateInputs() {
   elements.targets.meetings.value = state.targets.meetings;
   elements.targets.offers.value = state.targets.offers;
   elements.targets.contracts.value = state.targets.contracts;
+  elements.targets.coldCallsDaily.value = state.targets.coldCallsDaily;
+  elements.targets.coldCallsWeekly.value = state.targets.coldCallsWeekly;
+  elements.targets.coldCallsMonthly.value = state.targets.coldCallsMonthly;
+  elements.targets.whatsappMessagesDaily.value = state.targets.whatsappMessagesDaily;
+  elements.targets.whatsappMessagesWeekly.value = state.targets.whatsappMessagesWeekly;
+  elements.targets.whatsappMessagesMonthly.value = state.targets.whatsappMessagesMonthly;
+  elements.targets.fieldVisitsDaily.value = state.targets.fieldVisitsDaily;
+  elements.targets.fieldVisitsWeekly.value = state.targets.fieldVisitsWeekly;
+  elements.targets.fieldVisitsMonthly.value = state.targets.fieldVisitsMonthly;
+  elements.targets.warmOutreachDaily.value = state.targets.warmOutreachDaily;
+  elements.targets.warmOutreachWeekly.value = state.targets.warmOutreachWeekly;
+  elements.targets.warmOutreachMonthly.value = state.targets.warmOutreachMonthly;
 }
 
 function hydrateScorecardForm() {
@@ -924,19 +1031,57 @@ function hydrateScorecardForm() {
     field.value = value ?? "";
   };
 
+  const weeklyLeadMeasures = getLeadMeasuresRangeTotals(scorecard.week_start, scorecard.week_end || getWeekEnd(scorecard.week_start));
+  const shouldHydrateFromDaily = !scorecard.id
+    && (
+      weeklyLeadMeasures.cold_calls
+      || weeklyLeadMeasures.whatsapp_messages
+      || weeklyLeadMeasures.field_visits
+      || weeklyLeadMeasures.warm_outreach
+    );
+
   assign("week_start", scorecard.week_start);
   assign("new_contract_workers_mtd", scorecard.new_contract_workers_mtd);
   assign("dream100_p1_prospects", scorecard.dream100_p1_prospects);
   assign("sales_velocity_days", scorecard.sales_velocity_days);
-  assign("cold_calls", scorecard.cold_calls);
-  assign("linkedin_messages", scorecard.linkedin_messages);
-  assign("field_visits", scorecard.field_visits);
+  assign("cold_calls", shouldHydrateFromDaily ? weeklyLeadMeasures.cold_calls : scorecard.cold_calls);
+  assign("linkedin_messages", shouldHydrateFromDaily ? weeklyLeadMeasures.whatsapp_messages : scorecard.linkedin_messages);
+  assign("field_visits", shouldHydrateFromDaily ? weeklyLeadMeasures.field_visits : scorecard.field_visits);
+  assign("warm_outreach", shouldHydrateFromDaily ? weeklyLeadMeasures.warm_outreach : scorecard.warm_outreach);
   assign("meetings_set", scorecard.meetings_set);
   assign("offers_sent", scorecard.offers_sent);
   assign("contracts_signed", scorecard.contracts_signed);
   assign("workers_signed", scorecard.workers_signed);
   assign("workers_delivered", scorecard.workers_delivered);
   assign("notes", scorecard.notes);
+}
+
+function hydrateLeadMeasuresDailyForm(date = "") {
+  const form = elements.forms.leadMeasuresDaily;
+  if (!form) return;
+
+  const requestedDate = normalizeString(date)
+    || normalizeString(form.elements.namedItem("date")?.value)
+    || getTodayIsoDate();
+  const draft = buildLeadMeasuresDailyDraft(requestedDate);
+
+  const assign = (name, value) => {
+    const field = form.elements.namedItem(name);
+    if (!field) return;
+    if (field instanceof RadioNodeList) return;
+    if (field.dataset?.datePicker !== undefined) {
+      setDateFieldValue(field, value || "");
+      return;
+    }
+    field.value = value ?? "";
+  };
+
+  assign("date", draft.date);
+  assign("cold_calls", draft.cold_calls);
+  assign("whatsapp_messages", draft.whatsapp_messages);
+  assign("field_visits", draft.field_visits);
+  assign("warm_outreach", draft.warm_outreach);
+  assign("notes", draft.notes);
 }
 
 function hydrateDailyTrendForm(date = "", options = {}) {
@@ -992,6 +1137,62 @@ function buildDailyTrendDraft(date = "", options = {}) {
   return draftFromActivities;
 }
 
+function buildLeadMeasuresDailyDraft(date = "") {
+  const isoDate = normalizeString(date) || getTodayIsoDate();
+  const existing = state.leadMeasuresDaily.find((row) => row.date === isoDate);
+
+  return existing || createEmptyLeadMeasureDaily(isoDate);
+}
+
+function getLeadMeasuresRangeTotals(start, end) {
+  const startDate = parseDate(start);
+  const endDate = parseDate(end);
+  if (!startDate || !endDate) {
+    return createEmptyLeadMeasureDaily(start);
+  }
+
+  return state.leadMeasuresDaily.reduce((totals, row) => {
+    const rowDate = parseDate(row.date);
+    if (!isDateWithinInclusiveRange(rowDate, startDate, endDate)) {
+      return totals;
+    }
+
+    totals.cold_calls += toNumber(row.cold_calls);
+    totals.whatsapp_messages += toNumber(row.whatsapp_messages);
+    totals.field_visits += toNumber(row.field_visits);
+    totals.warm_outreach += toNumber(row.warm_outreach);
+    return totals;
+  }, createEmptyLeadMeasureDaily(start));
+}
+
+function isFieldVisitTargetDay(date = getTodayIsoDate()) {
+  const parsed = parseDate(date);
+  if (!parsed) return false;
+  const day = parsed.getDay();
+  return day === 3 || day === 4;
+}
+
+function getFieldVisitDailyTarget(date = getTodayIsoDate()) {
+  return isFieldVisitTargetDay(date) ? state.targets.fieldVisitsDaily : 0;
+}
+
+function getMonthEnd(date = getTodayIsoDate()) {
+  const parsed = parseDate(date);
+  if (!parsed) return "";
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  return toIsoDateValue(new Date(year, month + 1, 0));
+}
+
+function formatShortDate(date) {
+  const parsed = parseDate(date);
+  if (!parsed) return "-";
+  return new Intl.DateTimeFormat("ro-RO", {
+    day: "2-digit",
+    month: "short",
+  }).format(parsed);
+}
+
 function setDefaultFormDates() {
   const today = getTodayIsoDate();
   const activityDate = elements.forms.activity?.querySelector('input[name="date"]');
@@ -999,12 +1200,14 @@ function setDefaultFormDates() {
   const accountNextStepDate = elements.forms.account?.querySelector('input[name="next_step_date"]');
   const scorecardWeekStart = elements.forms.scorecard?.querySelector('input[name="week_start"]');
   const dailyTrendDate = elements.forms.dailyTrend?.querySelector('input[name="date"]');
+  const leadMeasuresDate = elements.forms.leadMeasuresDaily?.querySelector('input[name="date"]');
 
   if (activityDate && !activityDate.value) setDateFieldValue(activityDate, today);
   if (activityNextStepDate && !activityNextStepDate.value) setDateFieldValue(activityNextStepDate, "");
   if (accountNextStepDate && !accountNextStepDate.value) setDateFieldValue(accountNextStepDate, "");
   if (scorecardWeekStart && !scorecardWeekStart.value) setDateFieldValue(scorecardWeekStart, getWeekStart(today));
   if (dailyTrendDate && !dailyTrendDate.value) setDateFieldValue(dailyTrendDate, today);
+  if (leadMeasuresDate && !leadMeasuresDate.value) setDateFieldValue(leadMeasuresDate, today);
 }
 
 function initDatePickers() {
@@ -1059,6 +1262,18 @@ function normalizeTargets(value = {}) {
     meetings: toNumber(value.meetings ?? defaultTargets.meetings),
     offers: toNumber(value.offers ?? defaultTargets.offers),
     contracts: toNumber(value.contracts ?? defaultTargets.contracts),
+    coldCallsDaily: toNumber(value.coldCallsDaily ?? value.cold_calls_daily ?? defaultTargets.coldCallsDaily),
+    coldCallsWeekly: toNumber(value.coldCallsWeekly ?? value.cold_calls_weekly ?? defaultTargets.coldCallsWeekly),
+    coldCallsMonthly: toNumber(value.coldCallsMonthly ?? value.cold_calls_monthly ?? defaultTargets.coldCallsMonthly),
+    whatsappMessagesDaily: toNumber(value.whatsappMessagesDaily ?? value.whatsapp_messages_daily ?? defaultTargets.whatsappMessagesDaily),
+    whatsappMessagesWeekly: toNumber(value.whatsappMessagesWeekly ?? value.whatsapp_messages_weekly ?? defaultTargets.whatsappMessagesWeekly),
+    whatsappMessagesMonthly: toNumber(value.whatsappMessagesMonthly ?? value.whatsapp_messages_monthly ?? defaultTargets.whatsappMessagesMonthly),
+    fieldVisitsDaily: toNumber(value.fieldVisitsDaily ?? value.field_visits_daily ?? defaultTargets.fieldVisitsDaily),
+    fieldVisitsWeekly: toNumber(value.fieldVisitsWeekly ?? value.field_visits_weekly ?? defaultTargets.fieldVisitsWeekly),
+    fieldVisitsMonthly: toNumber(value.fieldVisitsMonthly ?? value.field_visits_monthly ?? defaultTargets.fieldVisitsMonthly),
+    warmOutreachDaily: toNumber(value.warmOutreachDaily ?? value.warm_outreach_daily ?? defaultTargets.warmOutreachDaily),
+    warmOutreachWeekly: toNumber(value.warmOutreachWeekly ?? value.warm_outreach_weekly ?? defaultTargets.warmOutreachWeekly),
+    warmOutreachMonthly: toNumber(value.warmOutreachMonthly ?? value.warm_outreach_monthly ?? defaultTargets.warmOutreachMonthly),
   };
 }
 
@@ -1077,11 +1292,24 @@ function createEmptyScorecard(weekStart = getWeekStart(getTodayIsoDate())) {
     cold_calls: 0,
     linkedin_messages: 0,
     field_visits: 0,
+    warm_outreach: 0,
     meetings_set: 0,
     offers_sent: 0,
     contracts_signed: 0,
     workers_signed: 0,
     workers_delivered: 0,
+    notes: "",
+  };
+}
+
+function createEmptyLeadMeasureDaily(date = getTodayIsoDate()) {
+  return {
+    id: "",
+    date: normalizeString(date) || getTodayIsoDate(),
+    cold_calls: 0,
+    whatsapp_messages: 0,
+    field_visits: 0,
+    warm_outreach: 0,
     notes: "",
   };
 }
@@ -1100,7 +1328,7 @@ function loadScorecards() {
 
 function loadManualData() {
   const raw = localStorage.getItem(storageKeys.manual);
-  if (!raw) return { accounts: [], activities: [], dailyScores: [] };
+  if (!raw) return { accounts: [], activities: [], dailyScores: [], leadMeasuresDaily: [] };
 
   try {
     const parsed = JSON.parse(raw);
@@ -1108,9 +1336,10 @@ function loadManualData() {
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts.map((row) => normalizeRow("accounts", row)) : [],
       activities: Array.isArray(parsed.activities) ? parsed.activities.map((row) => normalizeRow("activities", row)) : [],
       dailyScores: Array.isArray(parsed.dailyScores) ? parsed.dailyScores.map((row) => normalizeRow("dailyScores", row)) : [],
+      leadMeasuresDaily: Array.isArray(parsed.leadMeasuresDaily) ? parsed.leadMeasuresDaily.map((row) => normalizeRow("leadMeasuresDaily", row)) : [],
     };
   } catch {
-    return { accounts: [], activities: [], dailyScores: [] };
+    return { accounts: [], activities: [], dailyScores: [], leadMeasuresDaily: [] };
   }
 }
 
@@ -1127,6 +1356,7 @@ function hasManualData() {
     state.manualData.accounts.length
     || state.manualData.activities.length
     || state.manualData.dailyScores.length
+    || state.manualData.leadMeasuresDaily.length
     || state.manualScorecards.length
   );
 }
@@ -1153,6 +1383,9 @@ function refreshCombinedData() {
     state.dailyScores = [...state.sourceData.dailyScores]
       .filter((item) => item.date)
       .sort((left, right) => right.date.localeCompare(left.date));
+    state.leadMeasuresDaily = [...state.sourceData.leadMeasuresDaily]
+      .filter((item) => item.date)
+      .sort((left, right) => right.date.localeCompare(left.date));
     updateCompanyOptions();
     return;
   }
@@ -1168,6 +1401,9 @@ function refreshCombinedData() {
     .sort((left, right) => right.week_start.localeCompare(left.week_start));
   state.scorecard = selectCurrentScorecard(state.scorecards);
   state.dailyScores = [...state.manualData.dailyScores]
+    .filter((item) => item.date)
+    .sort((left, right) => right.date.localeCompare(left.date));
+  state.leadMeasuresDaily = [...state.manualData.leadMeasuresDaily]
     .filter((item) => item.date)
     .sort((left, right) => right.date.localeCompare(left.date));
   updateCompanyOptions();
@@ -1259,6 +1495,27 @@ function upsertSourceDailyScore(record) {
     };
   } else {
     state.sourceData.dailyScores.unshift(nextRecord);
+  }
+}
+
+function upsertSourceLeadMeasureDaily(record) {
+  const nextRecord = normalizeRow("leadMeasuresDaily", record);
+  const key = normalizeString(nextRecord.date);
+  if (!key) return;
+
+  state.sourceData.leadMeasuresDaily = Array.isArray(state.sourceData.leadMeasuresDaily)
+    ? state.sourceData.leadMeasuresDaily
+    : [];
+
+  const existingIndex = state.sourceData.leadMeasuresDaily.findIndex((item) => normalizeString(item.date) === key);
+
+  if (existingIndex >= 0) {
+    state.sourceData.leadMeasuresDaily[existingIndex] = {
+      ...state.sourceData.leadMeasuresDaily[existingIndex],
+      ...nextRecord,
+    };
+  } else {
+    state.sourceData.leadMeasuresDaily.unshift(nextRecord);
   }
 }
 
@@ -1523,6 +1780,20 @@ function upsertManualDailyScore(record) {
   }
 }
 
+function upsertManualLeadMeasureDaily(record) {
+  const key = normalizeString(record.date);
+  const existingIndex = state.manualData.leadMeasuresDaily.findIndex((item) => normalizeString(item.date) === key);
+
+  if (existingIndex >= 0) {
+    state.manualData.leadMeasuresDaily[existingIndex] = {
+      ...state.manualData.leadMeasuresDaily[existingIndex],
+      ...record,
+    };
+  } else {
+    state.manualData.leadMeasuresDaily.unshift(record);
+  }
+}
+
 function syncManualDailyTrendFromActivity(activity, existingActivities = []) {
   if (!activity?.date || !isLiveActivityEntry(activity)) {
     return { updated: false, reason: "not_trend_activity" };
@@ -1556,6 +1827,18 @@ function syncManualDailyTrendFromActivity(activity, existingActivities = []) {
 }
 
 function normalizeRow(kind, row) {
+  if (kind === "leadMeasuresDaily") {
+    return {
+      id: row.id || "",
+      date: row.date || "",
+      cold_calls: toNumber(row.cold_calls || row.coldCalls || 0),
+      whatsapp_messages: toNumber(row.whatsapp_messages || row.whatsappMessages || 0),
+      field_visits: toNumber(row.field_visits || row.fieldVisits || 0),
+      warm_outreach: toNumber(row.warm_outreach || row.warmOutreach || 0),
+      notes: row.notes || "",
+    };
+  }
+
   if (kind === "dailyScores") {
     return {
       id: row.id || "",
@@ -1599,8 +1882,9 @@ function normalizeRow(kind, row) {
       dream100_p1_prospects: toNumber(row.dream100_p1_prospects || row.dream100P1Prospects || 0),
       sales_velocity_days: toNumber(row.sales_velocity_days || row.salesVelocityDays || 0),
       cold_calls: toNumber(row.cold_calls || row.coldCalls || 0),
-      linkedin_messages: toNumber(row.linkedin_messages || row.linkedInMessages || 0),
+      linkedin_messages: toNumber(row.linkedin_messages || row.linkedInMessages || row.whatsapp_messages || row.whatsappMessages || 0),
       field_visits: toNumber(row.field_visits || row.fieldVisits || 0),
+      warm_outreach: toNumber(row.warm_outreach || row.warmOutreach || 0),
       meetings_set: toNumber(row.meetings_set || row.meetingsSet || 0),
       offers_sent: toNumber(row.offers_sent || row.offersSent || 0),
       contracts_signed: toNumber(row.contracts_signed || row.contractsSigned || 0),
@@ -2141,6 +2425,12 @@ function updateDailyTrendStatus(message) {
   }
 }
 
+function updateLeadMeasuresStatus(message) {
+  if (elements.leadMeasuresFormStatus) {
+    elements.leadMeasuresFormStatus.textContent = message;
+  }
+}
+
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#/, "").trim();
   return dashboardPages.has(hash) ? hash : "scorecard";
@@ -2389,6 +2679,10 @@ function renderConnection() {
     chips.push(`<div class="mini-chip">Scorecard Trend: ${escapeHtml(tables.scorecardTrend)}</div>`);
   }
 
+  if (tables.leadMeasuresDaily) {
+    chips.push(`<div class="mini-chip">Lead Measures Daily: ${escapeHtml(tables.leadMeasuresDaily)}</div>`);
+  }
+
   chips.push(`<div class="mini-chip">Build: ${appBuild}</div>`);
   chips.push(`<div class="mini-chip">Host: ${escapeHtml(window.location.host)}</div>`);
 
@@ -2405,8 +2699,8 @@ function renderConnection() {
     .join("");
 
   elements.connectionCopy.textContent = state.apiEnabled
-    ? "Baza Grow este conectata. Formularele scriu direct in Airtable, iar trendul zilnic poate veni din tabela Scorecard Trend."
-    : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile, target-urile, trendul zilnic si scorecard-ul saptamanal.";
+    ? "Baza Grow este conectata. Formularele scriu direct in Airtable, iar trendul zilnic si Key Lead Measures vin din tabele dedicate."
+    : "Pana setezi variabilele de mediu in Vercel, dashboard-ul retine local activitatile, target-urile, trendul zilnic, lead measures si scorecard-ul saptamanal.";
 
   elements.connectionBadges.innerHTML = `
     <div class="chip-wrap">${chips.join("")}</div>
@@ -2728,6 +3022,7 @@ function renderScorecardDashboard() {
   const metrics = getScorecardMetrics(scorecard);
   const historyCount = state.scorecards.length;
   renderWigDashboard();
+  renderKeyLeadMeasuresCard();
 
   if (elements.scorecardWeekChip) {
     elements.scorecardWeekChip.textContent = scorecard.week_label || "Saptamana curenta";
@@ -2797,17 +3092,17 @@ function renderScorecardDashboard() {
   elements.leadMeasuresGrid.innerHTML = [
     buildLeadMeasureCard({
       icon: "phone",
-      label: "Contacte Reci (Outreach)",
+      label: "Outreach total saptamanal",
       value: metrics.outreachTotal,
-      target: scorecardTargets.leadMeasures.outreach,
+      target: metrics.outreachTarget,
       tone: "#2f6ea2",
-      detail: `${scorecard.cold_calls} cold calls · ${scorecard.linkedin_messages} WhatsApp`,
+      detail: `${scorecard.cold_calls} cold calls · ${scorecard.linkedin_messages} WhatsApp · ${scorecard.warm_outreach} warm outreach`,
     }),
     buildLeadMeasureCard({
       icon: "field",
       label: "Vizite in teren / networking",
       value: scorecard.field_visits,
-      target: scorecardTargets.leadMeasures.fieldVisits,
+      target: state.targets.fieldVisitsWeekly,
       tone: "#5c7796",
       detail: "prezenta fizica in sedii, santiere sau evenimente",
     }),
@@ -2835,6 +3130,98 @@ function renderWigDashboard() {
     buildQ2RockCard(wigMetrics),
     buildQ2DisciplineCard(currentWeekScorecard, wigMetrics),
   ].join("");
+}
+
+function renderKeyLeadMeasuresCard() {
+  if (!elements.keyLeadMeasuresCard) return;
+
+  const today = getTodayIsoDate();
+  const weekStart = getWeekStart(today);
+  const weekEnd = getWeekEnd(today);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const monthEnd = getMonthEnd(today);
+  const todayTotals = getLeadMeasuresRangeTotals(today, today);
+  const weekTotals = getLeadMeasuresRangeTotals(weekStart, weekEnd);
+  const monthTotals = getLeadMeasuresRangeTotals(monthStart, monthEnd);
+
+  const metrics = {
+    coldCalls: {
+      icon: "phone",
+      label: "Apel rece",
+      tone: "#2f6ea2",
+      today: todayTotals.cold_calls,
+      todayTarget: state.targets.coldCallsDaily,
+      week: weekTotals.cold_calls,
+      weekTarget: state.targets.coldCallsWeekly,
+      month: monthTotals.cold_calls,
+      monthTarget: state.targets.coldCallsMonthly,
+    },
+    whatsappMessages: {
+      icon: "message",
+      label: "WhatsApp personalizat",
+      tone: "#5c7796",
+      today: todayTotals.whatsapp_messages,
+      todayTarget: state.targets.whatsappMessagesDaily,
+      week: weekTotals.whatsapp_messages,
+      weekTarget: state.targets.whatsappMessagesWeekly,
+      month: monthTotals.whatsapp_messages,
+      monthTarget: state.targets.whatsappMessagesMonthly,
+    },
+    fieldVisits: {
+      icon: "field",
+      label: "Vizita fizica",
+      tone: "#c38b2a",
+      today: todayTotals.field_visits,
+      todayTarget: getFieldVisitDailyTarget(today),
+      week: weekTotals.field_visits,
+      weekTarget: state.targets.fieldVisitsWeekly,
+      month: monthTotals.field_visits,
+      monthTarget: state.targets.fieldVisitsMonthly,
+      offDay: !isFieldVisitTargetDay(today),
+    },
+    warmOutreach: {
+      icon: "meeting",
+      label: "Warm Outreach",
+      tone: "#2d8f57",
+      today: todayTotals.warm_outreach,
+      todayTarget: state.targets.warmOutreachDaily,
+      week: weekTotals.warm_outreach,
+      weekTarget: state.targets.warmOutreachWeekly,
+      month: monthTotals.warm_outreach,
+      monthTarget: state.targets.warmOutreachMonthly,
+    },
+  };
+
+  elements.keyLeadMeasuresCard.innerHTML = `
+    <div class="lead-focus-shell">
+      <div class="lead-focus-block">
+        <div class="lead-focus-block-head">
+          <div>
+            <div class="metric-kicker">Cold Outreach zilnic</div>
+            <div class="metric-note">Miscarea rece care construieste pipeline nou: apeluri, WhatsApp si prezenta fizica.</div>
+          </div>
+          <div class="mini-chip">Saptamana curenta · ${formatShortDate(weekStart)} - ${formatShortDate(weekEnd)}</div>
+        </div>
+        <div class="lead-focus-metric-grid">
+          ${buildKeyLeadMeasureMetric(metrics.coldCalls)}
+          ${buildKeyLeadMeasureMetric(metrics.whatsappMessages)}
+          ${buildKeyLeadMeasureMetric(metrics.fieldVisits)}
+        </div>
+      </div>
+      <div class="lead-focus-block lead-focus-block--warm">
+        <div class="lead-focus-block-head">
+          <div>
+            <div class="metric-kicker">Warm Outreach</div>
+            <div class="metric-note">Reteaua existenta, recomandarile si relatiile calde care comprima ciclul de vanzare.</div>
+          </div>
+          <div class="mini-chip">Target recomandat: ${state.targets.warmOutreachWeekly} / saptamana</div>
+        </div>
+        <div class="lead-focus-metric-grid lead-focus-metric-grid--single">
+          ${buildKeyLeadMeasureMetric(metrics.warmOutreach)}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function getCurrentWeekScorecardRecord() {
@@ -2906,7 +3293,10 @@ function getScorecardMetrics(scorecard) {
         offer: scorecard.offers_sent,
         contract_signed: scorecard.contracts_signed,
       };
-  const outreachTotal = scorecard.cold_calls + scorecard.linkedin_messages;
+  const outreachTotal = scorecard.cold_calls + scorecard.linkedin_messages + scorecard.warm_outreach;
+  const outreachTarget = state.targets.coldCallsWeekly
+    + state.targets.whatsappMessagesWeekly
+    + state.targets.warmOutreachWeekly;
   const contactToMeeting = buildRateMetric(funnelCounts.meeting, funnelCounts.contacted);
   const meetingToOffer = buildRateMetric(funnelCounts.offer, funnelCounts.meeting);
   const offerToSigned = buildRateMetric(funnelCounts.contract_signed, funnelCounts.offer);
@@ -2918,6 +3308,7 @@ function getScorecardMetrics(scorecard) {
 
   return {
     outreachTotal,
+    outreachTarget,
     funnelCounts,
     funnelSource: hasLiveFunnelData ? "activities" : "scorecard",
     contactToMeeting,
@@ -3373,6 +3764,55 @@ function buildLeadMeasureCard(options) {
   `;
 }
 
+function buildKeyLeadMeasureMetric(metric) {
+  return `
+    <article class="lead-focus-metric" style="--metric-accent:${metric.tone};">
+      <div class="measure-head">
+        <div class="metric-icon metric-icon--lead">${scorecardIcon(metric.icon)}</div>
+        <div>
+          <div class="metric-title">${metric.label}</div>
+          <div class="metric-note">${buildLeadMeasureTodayCopy(metric)}</div>
+        </div>
+      </div>
+      <div class="lead-focus-progress-list">
+        ${buildKeyLeadMeasureProgressRow("Azi", metric.today, metric.todayTarget, metric.tone, { offDay: metric.offDay })}
+        ${buildKeyLeadMeasureProgressRow("Saptamana", metric.week, metric.weekTarget, metric.tone)}
+        ${buildKeyLeadMeasureProgressRow("Luna", metric.month, metric.monthTarget, metric.tone)}
+      </div>
+    </article>
+  `;
+}
+
+function buildLeadMeasureTodayCopy(metric) {
+  if (!metric.todayTarget && metric.offDay) {
+    return `${metric.today} facute azi · fara target azi`;
+  }
+
+  return `${metric.today} din ${metric.todayTarget || 0} astazi`;
+}
+
+function buildKeyLeadMeasureProgressRow(label, actual, target, tone, options = {}) {
+  const { offDay = false } = options;
+  const progress = target > 0 ? progressAgainstTarget(actual, target) : actual > 0 ? 100 : 0;
+  const valueText = target > 0
+    ? `${actual} din ${target}`
+    : offDay
+      ? `${actual} din 0 · off day`
+      : `${actual} fara target`;
+
+  return `
+    <div class="lead-progress-row">
+      <div class="lead-progress-head">
+        <span>${label}</span>
+        <strong>${valueText}</strong>
+      </div>
+      <div class="metric-progress-track">
+        <div class="metric-progress-fill" style="width:${progress}%; background:${tone};"></div>
+      </div>
+    </div>
+  `;
+}
+
 function buildActivityRatioCard(scorecard, metrics) {
   const ratioText = metrics.funnelCounts.meeting
     ? `${metrics.activityRatio.toFixed(1)} contacte pentru 1 meeting`
@@ -3527,6 +3967,7 @@ function scorecardIcon(name) {
     target: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M22 12h-3M12 22v-3M2 12h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     speed: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 15l4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6 19h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     phone: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h3l1 4-2 2a14 14 0 0 0 5 5l2-2 4 1v3c0 1-1 2-2 2A16 16 0 0 1 5 6c0-1 1-2 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+    message: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
     field: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5 6-10a6 6 0 1 0-12 0c0 5 6 10 6 10Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="11" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`,
     meeting: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v6M16 3v6M4 10h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     workers: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm10 0a4 4 0 1 1 0-8 4 4 0 0 1 0 8ZM3 21c1.2-2 3-3 4-3s2.8 1 4 3M13 21c1.2-2 3-3 4-3s2.8 1 4 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -4830,11 +5271,23 @@ function serializeScorecardPayload(record) {
     cold_calls: record.cold_calls,
     linkedin_messages: record.linkedin_messages,
     field_visits: record.field_visits,
+    warm_outreach: record.warm_outreach,
     meetings_set: record.meetings_set,
     offers_sent: record.offers_sent,
     contracts_signed: record.contracts_signed,
     workers_signed: record.workers_signed,
     workers_delivered: record.workers_delivered,
+    notes: record.notes,
+  };
+}
+
+function serializeLeadMeasuresPayload(record) {
+  return {
+    date: record.date,
+    cold_calls: record.cold_calls,
+    whatsapp_messages: record.whatsapp_messages,
+    field_visits: record.field_visits,
+    warm_outreach: record.warm_outreach,
     notes: record.notes,
   };
 }

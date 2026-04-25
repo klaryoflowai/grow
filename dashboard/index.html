@@ -89,6 +89,52 @@
         <section class="panel span-12" data-page="scorecard">
           <div class="panel-header">
             <div>
+              <p class="section-label">$100M Leads</p>
+              <h2>Key Lead Measures</h2>
+              <p class="panel-copy">Cardul operational pentru activitatile critice din zi, saptamana si luna. Datele vin din tabela Lead Measures Daily, iar targetele din Targets.</p>
+            </div>
+          </div>
+          <div class="lead-measures-focus-layout">
+            <div id="key-lead-measures-card" class="lead-measures-focus-card"></div>
+            <form id="lead-measures-daily-form" class="scorecard-form lead-measures-daily-form">
+              <div class="scorecard-form-grid lead-measures-form-grid">
+                <label class="field">
+                  <span>Data</span>
+                  <input name="date" type="text" data-date-picker required placeholder="Alege data" />
+                </label>
+                <label class="field">
+                  <span>Cold Calls</span>
+                  <input name="cold_calls" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>WhatsApp personalizat</span>
+                  <input name="whatsapp_messages" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Field Visits</span>
+                  <input name="field_visits" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field">
+                  <span>Warm Outreach</span>
+                  <input name="warm_outreach" type="number" min="0" placeholder="0" />
+                </label>
+                <label class="field span-2">
+                  <span>Note</span>
+                  <textarea name="notes" rows="3" placeholder="Ce ai observat azi: ce a mers, ce s-a blocat, cine merita follow-up cald"></textarea>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="secondary-button" type="submit">Salveaza lead measures</button>
+              </div>
+              <p class="helper">Poti completa aceeasi zi fie aici, fie direct in Airtable in tabela <strong>Lead Measures Daily</strong>. Dashboard-ul citeste aceeasi sursa.</p>
+              <p class="status-line" id="lead-measures-form-status"></p>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel span-12" data-page="scorecard">
+          <div class="panel-header">
+            <div>
               <p class="section-label">North Star</p>
               <h2>WIG anual si Rock Q2</h2>
               <p class="panel-copy">Stratul strategic de deasupra scorecard-ului saptamanal: vezi tinta anuala, checkpoint-ul din Q2 si disciplina care impinge inchiderile.</p>
@@ -209,6 +255,10 @@
               <label class="field">
                 <span>Vizite in teren</span>
                 <input name="field_visits" type="number" min="0" placeholder="0" />
+              </label>
+              <label class="field">
+                <span>Warm Outreach</span>
+                <input name="warm_outreach" type="number" min="0" placeholder="0" />
               </label>
               <label class="field">
                 <span>Meetings stabilite</span>
@@ -671,6 +721,81 @@
                   <span>Contracte</span>
                   <input id="target-contracts" type="number" min="0" />
                 </label>
+              </div>
+              <div class="config-divider"></div>
+              <h3>Target-uri Key Lead Measures</h3>
+              <p class="helper">
+                Aici setezi planul de executie pentru cardul nou de pe pagina Scorecard. Zilnic si saptamanal pot fi ajustate fara sa schimbi codul.
+              </p>
+              <div class="target-stack">
+                <div class="target-group">
+                  <h4>Cold Calls</h4>
+                  <div class="mini-grid target-grid">
+                    <label class="field">
+                      <span>Zilnic</span>
+                      <input id="target-cold-calls-daily" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Saptamanal</span>
+                      <input id="target-cold-calls-weekly" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Lunar</span>
+                      <input id="target-cold-calls-monthly" type="number" min="0" />
+                    </label>
+                  </div>
+                </div>
+                <div class="target-group">
+                  <h4>WhatsApp personalizat</h4>
+                  <div class="mini-grid target-grid">
+                    <label class="field">
+                      <span>Zilnic</span>
+                      <input id="target-whatsapp-messages-daily" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Saptamanal</span>
+                      <input id="target-whatsapp-messages-weekly" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Lunar</span>
+                      <input id="target-whatsapp-messages-monthly" type="number" min="0" />
+                    </label>
+                  </div>
+                </div>
+                <div class="target-group">
+                  <h4>Field Visits</h4>
+                  <div class="mini-grid target-grid">
+                    <label class="field">
+                      <span>Zilnic</span>
+                      <input id="target-field-visits-daily" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Saptamanal</span>
+                      <input id="target-field-visits-weekly" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Lunar</span>
+                      <input id="target-field-visits-monthly" type="number" min="0" />
+                    </label>
+                  </div>
+                </div>
+                <div class="target-group">
+                  <h4>Warm Outreach</h4>
+                  <div class="mini-grid target-grid">
+                    <label class="field">
+                      <span>Zilnic</span>
+                      <input id="target-warm-outreach-daily" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Saptamanal</span>
+                      <input id="target-warm-outreach-weekly" type="number" min="0" />
+                    </label>
+                    <label class="field">
+                      <span>Lunar</span>
+                      <input id="target-warm-outreach-monthly" type="number" min="0" />
+                    </label>
+                  </div>
+                </div>
               </div>
               <button id="save-targets" class="secondary-button" type="button">Salveaza target-urile</button>
             </div>

@@ -25,10 +25,11 @@ The operational scorecard still works with only 4 core activity types:
 
 The pipeline conversion cards and execution summaries are built on top of these 4 values.
 
-The dedicated weekly scorecard page now uses two Airtable tables:
+The dedicated weekly scorecard page now uses three Airtable tables:
 
 - `Scorecard` = one row per week
 - `Scorecard Trend` = one row per day
+- `Lead Measures Daily` = one row per day for Hormozi-style execution metrics
 
 The richer activity log stores:
 
@@ -66,6 +67,7 @@ The Vercel serverless layer lives in:
 - `api/bootstrap.js`
 - `api/activities.js`
 - `api/companies.js`
+- `api/lead-measures-daily.js`
 - `api/targets.js`
 
 Shared Airtable helpers live in:
@@ -87,6 +89,7 @@ Tables expected by default:
 - `Targets`
 - `Scorecard`
 - `Scorecard Trend`
+- `Lead Measures Daily`
 
 Default field names are documented in:
 
@@ -119,6 +122,18 @@ Recommended Airtable fields:
 - `Targets -> Meetings Target`
 - `Targets -> Offers Target`
 - `Targets -> Contracts Target`
+- `Targets -> Cold Calls Daily`
+- `Targets -> Cold Calls Weekly`
+- `Targets -> Cold Calls Monthly`
+- `Targets -> WhatsApp Messages Daily`
+- `Targets -> WhatsApp Messages Weekly`
+- `Targets -> WhatsApp Messages Monthly`
+- `Targets -> Field Visits Daily`
+- `Targets -> Field Visits Weekly`
+- `Targets -> Field Visits Monthly`
+- `Targets -> Warm Outreach Daily`
+- `Targets -> Warm Outreach Weekly`
+- `Targets -> Warm Outreach Monthly`
 - `Scorecard -> Week Start`
 - `Scorecard -> Week End`
 - `Scorecard -> Week Key`
@@ -129,6 +144,7 @@ Recommended Airtable fields:
 - `Scorecard -> Cold Calls`
 - `Scorecard -> WhatsApp Messages`
 - `Scorecard -> Field Visits`
+- `Scorecard -> Warm Outreach`
 - `Scorecard -> Meetings Set`
 - `Scorecard -> Offers Sent`
 - `Scorecard -> Contracts Signed`
@@ -141,6 +157,12 @@ Recommended Airtable fields:
 - `Scorecard Trend -> Offers`
 - `Scorecard Trend -> Contracts`
 - `Scorecard Trend -> Notes`
+- `Lead Measures Daily -> Date`
+- `Lead Measures Daily -> Cold Calls`
+- `Lead Measures Daily -> WhatsApp Messages`
+- `Lead Measures Daily -> Field Visits`
+- `Lead Measures Daily -> Warm Outreach`
+- `Lead Measures Daily -> Notes`
 
 Recommended Romanian pipeline options:
 

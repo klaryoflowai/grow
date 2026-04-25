@@ -563,6 +563,94 @@ h3 {
   gap: 14px;
 }
 
+.lead-measures-focus-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.85fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.lead-measures-focus-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  background: linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(245, 239, 230, 0.94));
+  box-shadow: var(--shadow-low);
+  padding: 20px;
+}
+
+.lead-focus-shell,
+.lead-focus-block,
+.lead-focus-progress-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.lead-focus-shell {
+  gap: 16px;
+}
+
+.lead-focus-block {
+  gap: 14px;
+}
+
+.lead-focus-block + .lead-focus-block {
+  padding-top: 16px;
+  border-top: 1px solid rgba(18, 32, 23, 0.08);
+}
+
+.lead-focus-block-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.lead-focus-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lead-focus-metric-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.lead-focus-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.lead-focus-progress-list {
+  gap: 10px;
+}
+
+.lead-progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lead-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.lead-progress-head strong {
+  color: var(--forest-800);
+  font-weight: 700;
+}
+
 .power-three-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -614,10 +702,23 @@ h3 {
   gap: 14px;
 }
 
+.lead-measures-daily-form {
+  min-height: 100%;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  background: linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(245, 239, 230, 0.94));
+  box-shadow: var(--shadow-low);
+}
+
 .scorecard-form-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.lead-measures-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .scorecard-form-grid .field.span-2 {
@@ -921,6 +1022,39 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.config-divider {
+  height: 1px;
+  background: rgba(18, 32, 23, 0.08);
+  margin: 4px 0;
+}
+
+.target-stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.target-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.target-group h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--forest-800);
+  font-family: "Sora", sans-serif;
+}
+
+.target-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .stat-card {
@@ -2377,6 +2511,17 @@ td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .lead-measures-focus-layout,
+  .velocity-layout,
+  .lag-outcome-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lead-focus-metric-grid,
+  .target-stack {
+    grid-template-columns: 1fr;
+  }
+
   .checklist-trend-layout {
     grid-template-columns: 1fr;
   }
@@ -2387,11 +2532,6 @@ td {
 
   .checklist-grid--weekly {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .velocity-layout,
-  .lag-outcome-grid {
-    grid-template-columns: 1fr;
   }
 
   .wig-stat-grid {
@@ -2492,6 +2632,13 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .lead-measures-form-grid,
+  .lead-focus-metric-grid,
+  .target-stack,
+  .target-grid {
+    grid-template-columns: 1fr;
+  }
+
   .checklist-trend-layout {
     grid-template-columns: 1fr;
   }
@@ -2500,6 +2647,7 @@ td {
     flex-direction: column;
   }
 
+  .lead-measures-focus-layout,
   .velocity-layout,
   .pipeline-form-grid {
     grid-template-columns: 1fr;
@@ -2524,6 +2672,12 @@ td {
 
   .scorecard-hero-meta {
     width: 100%;
+  }
+
+  .lead-focus-block-head,
+  .lead-progress-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .mini-chip {

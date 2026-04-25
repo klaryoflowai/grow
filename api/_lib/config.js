@@ -3,6 +3,18 @@ const defaultTargets = {
   meetings: 12,
   offers: 6,
   contracts: 4,
+  coldCallsDaily: 10,
+  coldCallsWeekly: 50,
+  coldCallsMonthly: 200,
+  whatsappMessagesDaily: 20,
+  whatsappMessagesWeekly: 100,
+  whatsappMessagesMonthly: 400,
+  fieldVisitsDaily: 5,
+  fieldVisitsWeekly: 10,
+  fieldVisitsMonthly: 40,
+  warmOutreachDaily: 2,
+  warmOutreachWeekly: 10,
+  warmOutreachMonthly: 40,
 };
 
 function readEnv(name, fallback = "") {
@@ -27,6 +39,7 @@ function getAirtableConfig() {
       targets: readEnv("AIRTABLE_TABLE_TARGETS", "Targets"),
       scorecard: readEnv("AIRTABLE_TABLE_SCORECARD", "Scorecard"),
       scorecardTrend: readEnv("AIRTABLE_TABLE_SCORECARD_TREND", "Scorecard Trend"),
+      leadMeasuresDaily: readEnv("AIRTABLE_TABLE_LEAD_MEASURES_DAILY", "Lead Measures Daily"),
     },
     views: {
       companies: readEnv("AIRTABLE_VIEW_COMPANIES"),
@@ -34,6 +47,7 @@ function getAirtableConfig() {
       targets: readEnv("AIRTABLE_VIEW_TARGETS"),
       scorecard: readEnv("AIRTABLE_VIEW_SCORECARD"),
       scorecardTrend: readEnv("AIRTABLE_VIEW_SCORECARD_TREND"),
+      leadMeasuresDaily: readEnv("AIRTABLE_VIEW_LEAD_MEASURES_DAILY"),
     },
     fields: {
       companies: {
@@ -69,6 +83,18 @@ function getAirtableConfig() {
         meetings: readEnv("AIRTABLE_FIELD_TARGET_MEETINGS", "Meetings Target"),
         offers: readEnv("AIRTABLE_FIELD_TARGET_OFFERS", "Offers Target"),
         contracts: readEnv("AIRTABLE_FIELD_TARGET_CONTRACTS", "Contracts Target"),
+        coldCallsDaily: readEnv("AIRTABLE_FIELD_TARGET_COLD_CALLS_DAILY", "Cold Calls Daily"),
+        coldCallsWeekly: readEnv("AIRTABLE_FIELD_TARGET_COLD_CALLS_WEEKLY", "Cold Calls Weekly"),
+        coldCallsMonthly: readEnv("AIRTABLE_FIELD_TARGET_COLD_CALLS_MONTHLY", "Cold Calls Monthly"),
+        whatsappMessagesDaily: readEnv("AIRTABLE_FIELD_TARGET_WHATSAPP_MESSAGES_DAILY", "WhatsApp Messages Daily"),
+        whatsappMessagesWeekly: readEnv("AIRTABLE_FIELD_TARGET_WHATSAPP_MESSAGES_WEEKLY", "WhatsApp Messages Weekly"),
+        whatsappMessagesMonthly: readEnv("AIRTABLE_FIELD_TARGET_WHATSAPP_MESSAGES_MONTHLY", "WhatsApp Messages Monthly"),
+        fieldVisitsDaily: readEnv("AIRTABLE_FIELD_TARGET_FIELD_VISITS_DAILY", "Field Visits Daily"),
+        fieldVisitsWeekly: readEnv("AIRTABLE_FIELD_TARGET_FIELD_VISITS_WEEKLY", "Field Visits Weekly"),
+        fieldVisitsMonthly: readEnv("AIRTABLE_FIELD_TARGET_FIELD_VISITS_MONTHLY", "Field Visits Monthly"),
+        warmOutreachDaily: readEnv("AIRTABLE_FIELD_TARGET_WARM_OUTREACH_DAILY", "Warm Outreach Daily"),
+        warmOutreachWeekly: readEnv("AIRTABLE_FIELD_TARGET_WARM_OUTREACH_WEEKLY", "Warm Outreach Weekly"),
+        warmOutreachMonthly: readEnv("AIRTABLE_FIELD_TARGET_WARM_OUTREACH_MONTHLY", "Warm Outreach Monthly"),
       },
       scorecard: {
         weekStart: readEnv("AIRTABLE_FIELD_SCORECARD_WEEK_START", "Week Start"),
@@ -84,6 +110,7 @@ function getAirtableConfig() {
           readEnv("AIRTABLE_FIELD_SCORECARD_LINKEDIN_MESSAGES", "LinkedIn Messages")
         ),
         fieldVisits: readEnv("AIRTABLE_FIELD_SCORECARD_FIELD_VISITS", "Field Visits"),
+        warmOutreach: readEnv("AIRTABLE_FIELD_SCORECARD_WARM_OUTREACH", "Warm Outreach"),
         meetingsSet: readEnv("AIRTABLE_FIELD_SCORECARD_MEETINGS_SET", "Meetings Set"),
         offersSent: readEnv("AIRTABLE_FIELD_SCORECARD_OFFERS_SENT", "Offers Sent"),
         contractsSigned: readEnv("AIRTABLE_FIELD_SCORECARD_CONTRACTS_SIGNED", "Contracts Signed"),
@@ -98,6 +125,14 @@ function getAirtableConfig() {
         offers: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_OFFERS", "Offers"),
         contracts: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_CONTRACTS", "Contracts"),
         notes: readEnv("AIRTABLE_FIELD_SCORECARD_TREND_NOTES", "Notes"),
+      },
+      leadMeasuresDaily: {
+        date: readEnv("AIRTABLE_FIELD_LEAD_MEASURES_DAILY_DATE", "Date"),
+        coldCalls: readEnv("AIRTABLE_FIELD_LEAD_MEASURES_DAILY_COLD_CALLS", "Cold Calls"),
+        whatsappMessages: readEnv("AIRTABLE_FIELD_LEAD_MEASURES_DAILY_WHATSAPP_MESSAGES", "WhatsApp Messages"),
+        fieldVisits: readEnv("AIRTABLE_FIELD_LEAD_MEASURES_DAILY_FIELD_VISITS", "Field Visits"),
+        warmOutreach: readEnv("AIRTABLE_FIELD_LEAD_MEASURES_DAILY_WARM_OUTREACH", "Warm Outreach"),
+        notes: readEnv("AIRTABLE_FIELD_LEAD_MEASURES_DAILY_NOTES", "Notes"),
       },
     },
     modes: {
