@@ -172,6 +172,9 @@ The repo now includes two secure Vercel endpoints for Telegram summaries:
 
 - `/api/telegram-morning`
 - `/api/telegram-evening`
+- `/api/telegram-webhook`
+- `/api/telegram-webhook-setup`
+- `/api/telegram-webhook-info`
 
 Both endpoints:
 
@@ -214,6 +217,17 @@ Evening briefing includes:
 - today's key lead measures
 - recent saved actions
 - what needs attention tomorrow
+
+Telegram commands:
+
+- `/intel Nume Companie` -> short intelligence report from Airtable + public signals
+- `/help` -> command help
+
+Webhook setup:
+
+1. set `TELEGRAM_WEBHOOK_SECRET` in Vercel or reuse `CRON_SECRET`
+2. open `/api/telegram-webhook-setup?key=YOUR_SECRET`
+3. verify webhook state with `/api/telegram-webhook-info?key=YOUR_SECRET`
 
 Recommended Romanian pipeline options:
 

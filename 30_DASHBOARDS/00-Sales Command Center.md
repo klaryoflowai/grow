@@ -2,6 +2,11 @@
 
 Interactive version: open `dashboard/index.html` for the richer web dashboard fed by live CSV sources.
 
+## Automation
+
+- [[03-Grow Bot - Telegram Briefings]]
+- [[04-Grow Bot - Setup Pas cu Pas]]
+
 ## Focus Today
 
 - review stalled Dream 100 follow-ups

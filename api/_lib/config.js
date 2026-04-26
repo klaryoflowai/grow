@@ -76,6 +76,10 @@ function getAirtableConfig() {
         lastContact: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_LAST_CONTACT", "Last contact"),
         decisionMaker: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_DECISION_MAKER", "Factor decizie"),
         mobile: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_MOBILE", "Mobil"),
+        recruitmentSignal: readEnv(
+          "AIRTABLE_FIELD_CONTACT_PRIORITY_RECRUITMENT_SIGNAL",
+          "Recrutare (Anunțuri Active) (from Copmany)"
+        ),
         notes: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_NOTES", "Notes"),
       },
       activities: {

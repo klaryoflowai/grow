@@ -298,6 +298,9 @@ function normalizeContactPriorityRecord(record, config, companyNameById, positio
     mobile: normalizeString(
       config.fields.contactPriority.mobile ? fields[config.fields.contactPriority.mobile] : ""
     ),
+    recruitment_signal: normalizeString(
+      config.fields.contactPriority.recruitmentSignal ? fields[config.fields.contactPriority.recruitmentSignal] : ""
+    ),
     notes: normalizeString(
       config.fields.contactPriority.notes ? fields[config.fields.contactPriority.notes] : ""
     ),
