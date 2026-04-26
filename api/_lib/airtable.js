@@ -262,13 +262,32 @@ function normalizeCompanyRecord(record, config) {
   };
 }
 
-function normalizeContactPriorityRecord(record, config, position = 0) {
+function resolveContactPriorityCompany(fields, config, companyNameById) {
+  const direct = fields[config.fields.contactPriority.company];
+  if (typeof direct === "string") return normalizeString(direct);
+
+  const lookupField = config.fields.contactPriority.companyLookup;
+  if (lookupField) {
+    const lookupValue = fields[lookupField];
+    const lookupString = normalizeString(Array.isArray(lookupValue) ? lookupValue[0] : lookupValue);
+    if (lookupString) return lookupString;
+  }
+
+  if (Array.isArray(direct)) {
+    const resolved = direct.map((id) => companyNameById.get(id)).find(Boolean);
+    if (resolved) return resolved;
+  }
+
+  return normalizeString(direct);
+}
+
+function normalizeContactPriorityRecord(record, config, companyNameById, position = 0) {
   const fields = record.fields || {};
   return {
     id: record.id,
     position,
     rank: toNumber(fields[config.fields.contactPriority.rank]) || position + 1,
-    company: normalizeString(fields[config.fields.contactPriority.company]),
+    company: resolveContactPriorityCompany(fields, config, companyNameById),
     sector: normalizeString(fields[config.fields.contactPriority.sector]),
     last_contact: toIsoDate(
       config.fields.contactPriority.lastContact ? fields[config.fields.contactPriority.lastContact] : ""
@@ -816,10 +835,10 @@ function findCompanyByName(records, companyName, config) {
   });
 }
 
-function findContactPriorityByCompany(records, companyName, config) {
+function findContactPriorityByCompany(records, companyName, config, companyNameById = new Map()) {
   const wanted = normalizeString(companyName).toLowerCase();
   return records.find((record) => {
-    const name = normalizeString(record.fields?.[config.fields.contactPriority.company]).toLowerCase();
+    const name = normalizeContactPriorityRecord(record, config, companyNameById).company.toLowerCase();
     return name === wanted;
   });
 }
@@ -830,14 +849,16 @@ async function syncContactPriorityFromActivity(activity, config) {
   }
 
   try {
+    const companyRecords = await listRecords("companies");
+    const companyNameById = buildCompanyNameMap(companyRecords, config);
     const priorityRecords = await listRecords("contactPriority");
-    const matchingRecord = findContactPriorityByCompany(priorityRecords, activity.company, config);
+    const matchingRecord = findContactPriorityByCompany(priorityRecords, activity.company, config, companyNameById);
 
     if (!matchingRecord || !config.fields.contactPriority.lastContact) {
       return { updated: false, reason: "not_found" };
     }
 
-    const existing = normalizeContactPriorityRecord(matchingRecord, config);
+    const existing = normalizeContactPriorityRecord(matchingRecord, config, companyNameById);
     const nextDate = activity.date ? toIsoDate(activity.date) : "";
 
     if (!nextDate) {
@@ -854,7 +875,7 @@ async function syncContactPriorityFromActivity(activity, config) {
 
     return {
       updated: true,
-      record: normalizeContactPriorityRecord(updated, config),
+      record: normalizeContactPriorityRecord(updated, config, companyNameById),
     };
   } catch (error) {
     if (error.status === 404) {
@@ -1497,7 +1518,7 @@ async function getDashboardData() {
     .map((record) => normalizeCompanyRecord(record, config))
     .filter((record) => record.company);
   const contactPriority = contactPriorityRecords
-    .map((record, index) => normalizeContactPriorityRecord(record, config, index))
+    .map((record, index) => normalizeContactPriorityRecord(record, config, companyNameById, index))
     .filter((record) => record.company);
   const activities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))

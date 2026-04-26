@@ -477,6 +477,9 @@ function buildMorningBrief(data = {}) {
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
   const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
   const contactPriorityQueue = buildContactPriorityQueue(data);
+  const totalContactPriority = Array.isArray(data.contactPriority) ? data.contactPriority.length : 0;
+  const availableContactPriority = (Array.isArray(data.contactPriority) ? data.contactPriority : [])
+    .filter((item) => item.company && !item.last_contact).length;
   const topTasks = queues.all.slice(0, 5);
   const targets = data.targets || {};
   const leadLines = getDailyLeadTargetLines(metrics, targets);
@@ -517,6 +520,11 @@ function buildMorningBrief(data = {}) {
     message,
     summary: {
       today: metrics.todayIso,
+      aList: {
+        total: totalContactPriority,
+        available: availableContactPriority,
+        shown: contactPriorityQueue.length,
+      },
       queues: {
         overdue: queues.overdue.length,
         today: queues.today.length,
