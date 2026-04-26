@@ -1454,6 +1454,7 @@ async function getDashboardData() {
         baseId: config.baseId || "",
         timezone: config.timezone,
         tables: config.tables,
+        views: config.views,
         activityCompanyLinked: config.modes.activityCompanyLinked,
       },
       warnings: ["Lipsesc AIRTABLE_TOKEN sau AIRTABLE_BASE_ID in Vercel Environment Variables."],
@@ -1560,7 +1561,18 @@ async function getDashboardData() {
       baseId: config.baseId,
       timezone: config.timezone,
       tables: config.tables,
+      views: config.views,
       activityCompanyLinked: config.modes.activityCompanyLinked,
+      debug: {
+        rawCounts: {
+          companies: companyRecords.length,
+          contactPriority: contactPriorityRecords.length,
+          activities: activityRecords.length,
+        },
+        rawSamples: {
+          contactPriorityFieldNames: contactPriorityRecords[0] ? Object.keys(contactPriorityRecords[0].fields || {}) : [],
+        },
+      },
     },
     warnings,
   };
