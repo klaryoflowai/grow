@@ -816,6 +816,54 @@ function findCompanyByName(records, companyName, config) {
   });
 }
 
+function findContactPriorityByCompany(records, companyName, config) {
+  const wanted = normalizeString(companyName).toLowerCase();
+  return records.find((record) => {
+    const name = normalizeString(record.fields?.[config.fields.contactPriority.company]).toLowerCase();
+    return name === wanted;
+  });
+}
+
+async function syncContactPriorityFromActivity(activity, config) {
+  if (!isLiveActivityRecord(activity)) {
+    return { updated: false, reason: "planned_activity" };
+  }
+
+  try {
+    const priorityRecords = await listRecords("contactPriority");
+    const matchingRecord = findContactPriorityByCompany(priorityRecords, activity.company, config);
+
+    if (!matchingRecord || !config.fields.contactPriority.lastContact) {
+      return { updated: false, reason: "not_found" };
+    }
+
+    const existing = normalizeContactPriorityRecord(matchingRecord, config);
+    const nextDate = activity.date ? toIsoDate(activity.date) : "";
+
+    if (!nextDate) {
+      return { updated: false, reason: "missing_date" };
+    }
+
+    if (existing.last_contact && existing.last_contact >= nextDate) {
+      return { updated: false, reason: "already_current" };
+    }
+
+    const updated = await updateRecord("contactPriority", matchingRecord.id, {
+      [config.fields.contactPriority.lastContact]: nextDate,
+    });
+
+    return {
+      updated: true,
+      record: normalizeContactPriorityRecord(updated, config),
+    };
+  } catch (error) {
+    if (error.status === 404) {
+      return { updated: false, reason: "table_missing" };
+    }
+    throw error;
+  }
+}
+
 async function upsertCompany(payload) {
   const config = getRequiredConfig();
   const companyName = normalizeString(payload.company);
@@ -1108,6 +1156,17 @@ async function createActivity(payload) {
   const createdCompanyNameById = new Map([[touched.record.id, touched.normalized.company]]);
   let scorecardSync = { updated: false, reason: "not_attempted" };
   let trendSync = { updated: false, reason: "not_attempted" };
+  let contactPrioritySync = { updated: false, reason: "not_attempted" };
+
+  try {
+    contactPrioritySync = await syncContactPriorityFromActivity(activity, config);
+  } catch (error) {
+    contactPrioritySync = {
+      updated: false,
+      reason: "contact_priority_sync_failed",
+      message: error.message,
+    };
+  }
 
   try {
     scorecardSync = await syncScorecardFromActivity(activity, config, existingActivities);
@@ -1133,6 +1192,7 @@ async function createActivity(payload) {
     activity: normalizeActivityRecord(createdRecord, config, createdCompanyNameById),
     company: touched.normalized,
     duplicate: false,
+    contact_priority_sync: contactPrioritySync,
     scorecard_sync: scorecardSync,
     trend_sync: trendSync,
   };

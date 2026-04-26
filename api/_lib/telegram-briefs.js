@@ -367,16 +367,10 @@ function buildLeadMeasureLine(line) {
 
 function buildContactPriorityQueue(data = {}) {
   const contactPriority = Array.isArray(data.contactPriority) ? data.contactPriority : [];
-  const liveActivityCompanies = new Set(
-    (data.activities || [])
-      .filter((activity) => isLiveActivity(activity))
-      .map((activity) => normalizeCompanyKey(activity.company))
-      .filter(Boolean)
-  );
 
   return contactPriority
     .filter((item) => item.company)
-    .filter((item) => !liveActivityCompanies.has(normalizeCompanyKey(item.company)))
+    .filter((item) => !item.last_contact)
     .sort((left, right) => {
       if (left.rank !== right.rank) return left.rank - right.rank;
       return left.position - right.position;
