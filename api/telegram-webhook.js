@@ -3,6 +3,7 @@ const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
 const { buildIntelligenceReport } = require("./_lib/intelligence");
 const { normalizeString } = require("./_lib/normalize");
 const { sendTelegramMessage } = require("./_lib/telegram");
+const { buildAListCommandMessage, buildNextCommandMessage } = require("./_lib/telegram-briefs");
 
 function getWebhookSecret() {
   return process.env.TELEGRAM_WEBHOOK_SECRET || process.env.CRON_SECRET || "";
@@ -25,6 +26,17 @@ function parseTelegramCommand(text = "") {
 
   if (/^\/help(?:@\w+)?$/i.test(raw) || /^help$/i.test(raw)) {
     return { type: "help" };
+  }
+
+  if (/^\/(?:next|followup|follow-up)(?:@\w+)?$/i.test(raw) || /^(?:next|followup|follow-up)$/i.test(raw)) {
+    return { type: "next" };
+  }
+
+  if (
+    /^\/(?:a-list|alist|a_list|priority)(?:@\w+)?$/i.test(raw)
+    || /^(?:a-list|alist|a_list|priority)$/i.test(raw)
+  ) {
+    return { type: "a_list" };
   }
 
   const intelLongMatch = raw.match(/^\/(?:intel\+|intelplus|research\+|skyview\+)(?:@\w+)?\s+(.+)$/i)
@@ -58,11 +70,15 @@ function buildHelpMessage() {
     "",
     "• <code>/intel Nume Companie</code> — brief scurt, bun fix inainte de apel",
     "• <code>/intel+ Nume Companie</code> — versiune extinsa, cu mai mult context si intrebari",
+    "• <code>/next</code> — top follow-up-uri urgente pentru azi",
+    "• <code>/a-list</code> — top 5 companii noi prioritare pentru primul touch",
     "• <code>/help</code> — afiseaza comenzile disponibile",
     "",
     "Exemplu:",
     "• <code>/intel GARMA-GRUP</code>",
     "• <code>/intel+ GARMA-GRUP</code>",
+    "• <code>/next</code>",
+    "• <code>/a-list</code>",
   ].join("\n");
 }
 
@@ -125,6 +141,38 @@ module.exports = async function handler(request, response) {
         variant: command.variant || "short",
         found: report.found,
         company: report.context?.company || command.company,
+      });
+      return;
+    }
+
+    if (command.type === "next") {
+      const data = await getDashboardData();
+      const report = buildNextCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "next",
+        summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "a_list") {
+      const data = await getDashboardData();
+      const report = buildAListCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "a_list",
+        summary: report.summary,
       });
       return;
     }

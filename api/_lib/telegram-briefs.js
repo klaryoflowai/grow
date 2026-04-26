@@ -540,6 +540,81 @@ function buildMorningBrief(data = {}) {
   };
 }
 
+function buildNextCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
+  const topTasks = queues.all.slice(0, 5);
+
+  const message = [
+    "<b>Grow · Next</b>",
+    `<i>${escapeHtml(formatFullDate(metrics.todayIso, timezone))} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Top follow-up azi</b>",
+    topTasks.length
+      ? topTasks.map((account) => describeTask(account, metrics.todayIso)).join("\n")
+      : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",
+    "",
+    "<b>Snapshot</b>",
+    `• ${formatCount(queues.overdue.length, "cont intarziat", "conturi intarziate")}`,
+    `• ${formatCount(queues.today.length, "cont de facut azi", "conturi de facut azi")}`,
+    `• ${formatCount(queues.stale.length, "cont rece peste 7 zile", "conturi reci peste 7 zile")}`,
+    "",
+    "<i>Comanda: /next</i>",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      today: metrics.todayIso,
+      queues: {
+        overdue: queues.overdue.length,
+        today: queues.today.length,
+        stale: queues.stale.length,
+      },
+      shown: topTasks.length,
+    },
+  };
+}
+
+function buildAListCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const contactPriorityQueue = buildContactPriorityQueue(data);
+  const totalContactPriority = Array.isArray(data.contactPriority) ? data.contactPriority.length : 0;
+  const availableContactPriority = (Array.isArray(data.contactPriority) ? data.contactPriority : [])
+    .filter((item) => item.company && !item.last_contact).length;
+
+  const message = [
+    "<b>Grow · A-List</b>",
+    `<i>${escapeHtml(formatFullDate(metrics.todayIso, timezone))} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Top 5 companii noi de contactat</b>",
+    contactPriorityQueue.length
+      ? contactPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
+      : "• Nu exista companii noi ramase in Contact Priority fara touch live.",
+    "",
+    "<b>Snapshot</b>",
+    `• ${totalContactPriority} companii totale in Contact Priority`,
+    `• ${availableContactPriority} eligibile acum pentru primul touch`,
+    `• ${contactPriorityQueue.length} afisate in acest raspuns`,
+    "",
+    "<i>Comanda: /a-list</i>",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      today: metrics.todayIso,
+      aList: {
+        total: totalContactPriority,
+        available: availableContactPriority,
+        shown: contactPriorityQueue.length,
+      },
+    },
+  };
+}
+
 function buildEveningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
@@ -607,6 +682,8 @@ function buildEveningBrief(data = {}) {
 }
 
 module.exports = {
+  buildAListCommandMessage,
   buildEveningBrief,
   buildMorningBrief,
+  buildNextCommandMessage,
 };

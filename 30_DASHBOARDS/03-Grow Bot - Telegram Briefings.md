@@ -69,11 +69,17 @@ Botul poate raspunde si la comenzi primite in chat.
 Comenzi disponibile:
 
 - `/intel Nume Companie`
+- `/intel+ Nume Companie`
+- `/next`
+- `/a-list`
 - `/help`
 
 Exemplu:
 
 - `/intel GARMA-GRUP`
+- `/intel+ GARMA-GRUP`
+- `/next`
+- `/a-list`
 
 Raportul de intelligence combina:
 

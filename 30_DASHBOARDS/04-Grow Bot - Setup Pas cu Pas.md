@@ -200,7 +200,7 @@ Botul este considerat live cand:
 
 ## Pasul 10 - Activeaza comenzile Telegram
 
-Ca botul sa raspunda la comenzi de tip `/intel`, activezi webhook-ul o singura data.
+Ca botul sa raspunda la comenzi de tip `/intel`, `/intel+`, `/next` sau `/a-list`, activezi webhook-ul o singura data.
 
 1. Deschizi:
 
@@ -218,6 +218,9 @@ https://grow-seven-alpha.vercel.app/api/telegram-webhook-info?key=CRON_SECRETUL_
 
 ```text
 /intel GARMA-GRUP
+/intel+ GARMA-GRUP
+/next
+/a-list
 ```
 
 Sau:
@@ -239,6 +242,17 @@ Raportul este scurt si gandit pentru primul touch sau pentru pregatirea follow-u
 - semnale publice rapide
 - stiri recente
 - unghi recomandat de abordare
+
+## Alte comenzi utile
+
+- `/intel+ Nume Companie`
+Versiune extinsa, cu mai mult context, ipoteze de validat si intrebari de calibrare.
+
+- `/next`
+Top follow-up-urile urgente pentru ziua curenta, pe aceeasi logica din Morning Brief.
+
+- `/a-list`
+Top 5 companii noi prioritare din `Contact Priority` care nu au inca `Last contact`.
 
 ## Troubleshooting rapid
 
