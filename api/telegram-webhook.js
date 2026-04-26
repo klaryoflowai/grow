@@ -5,11 +5,13 @@ const { normalizeString } = require("./_lib/normalize");
 const { sendTelegramMessage } = require("./_lib/telegram");
 const {
   buildAListCommandMessage,
+  buildFocusCommandMessage,
   buildNextCommandMessage,
   buildPipelineCommandMessage,
   buildScorecardCommandMessage,
   buildTargetsCommandMessage,
   buildTodayCommandMessage,
+  buildWeekCommandMessage,
 } = require("./_lib/telegram-briefs");
 
 function getWebhookSecret() {
@@ -41,6 +43,14 @@ function parseTelegramCommand(text = "") {
 
   if (/^\/today(?:@\w+)?$/i.test(raw) || /^today$/i.test(raw)) {
     return { type: "today" };
+  }
+
+  if (/^\/focus(?:@\w+)?$/i.test(raw) || /^focus$/i.test(raw)) {
+    return { type: "focus" };
+  }
+
+  if (/^\/week(?:@\w+)?$/i.test(raw) || /^week$/i.test(raw)) {
+    return { type: "week" };
   }
 
   if (/^\/pipeline(?:@\w+)?$/i.test(raw) || /^pipeline$/i.test(raw)) {
@@ -93,7 +103,9 @@ function buildHelpMessage() {
     "",
     "• <code>/intel Nume Companie</code> — brief scurt, bun fix inainte de apel",
     "• <code>/intel+ Nume Companie</code> — versiune extinsa, cu mai mult context si intrebari",
+    "• <code>/focus</code> — ce merita facut acum: follow-up + A-list + ritm azi",
     "• <code>/today</code> — mini brief de executie pentru ziua curenta",
+    "• <code>/week</code> — snapshot operational live al saptamanii",
     "• <code>/pipeline</code> — snapshot rapid al portofoliului activ",
     "• <code>/scorecard</code> — overview rapid al scorecard-ului saptamanii",
     "• <code>/targets</code> — progres fata de targetele lunare si lead measures",
@@ -104,7 +116,9 @@ function buildHelpMessage() {
     "Exemplu:",
     "• <code>/intel GARMA-GRUP</code>",
     "• <code>/intel+ GARMA-GRUP</code>",
+    "• <code>/focus</code>",
     "• <code>/today</code>",
+    "• <code>/week</code>",
     "• <code>/pipeline</code>",
     "• <code>/scorecard</code>",
     "• <code>/targets</code>",
@@ -203,6 +217,38 @@ module.exports = async function handler(request, response) {
       response.status(200).json({
         ok: true,
         handled: "today",
+        summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "focus") {
+      const data = await getDashboardData();
+      const report = buildFocusCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "focus",
+        summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "week") {
+      const data = await getDashboardData();
+      const report = buildWeekCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "week",
         summary: report.summary,
       });
       return;

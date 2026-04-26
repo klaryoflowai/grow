@@ -70,7 +70,9 @@ Comenzi disponibile:
 
 - `/intel Nume Companie`
 - `/intel+ Nume Companie`
+- `/focus`
 - `/today`
+- `/week`
 - `/pipeline`
 - `/scorecard`
 - `/targets`
@@ -82,7 +84,9 @@ Exemplu:
 
 - `/intel GARMA-GRUP`
 - `/intel+ GARMA-GRUP`
+- `/focus`
 - `/today`
+- `/week`
 - `/pipeline`
 - `/scorecard`
 - `/targets`

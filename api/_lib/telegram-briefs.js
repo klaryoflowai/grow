@@ -811,6 +811,107 @@ function buildTargetsCommandMessage(data = {}) {
   };
 }
 
+function buildFocusCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
+  const contactPriorityQueue = buildContactPriorityQueue(data).slice(0, 3);
+  const topTasks = queues.all.slice(0, 3);
+  const targets = data.targets || {};
+  const leadLines = getDailyLeadTargetLines(metrics, targets);
+
+  const message = [
+    "<b>Grow · Focus</b>",
+    `<i>${escapeHtml(formatFullDate(metrics.todayIso, timezone))} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Focus principal</b>",
+    `• ${escapeHtml(buildFocusLine(queues, metrics))}`,
+    "",
+    "<b>Top 3 follow-up acum</b>",
+    topTasks.length
+      ? topTasks.map((account) => describeTask(account, metrics.todayIso)).join("\n")
+      : "• Nu exista follow-up-uri urgente acum.",
+    "",
+    "<b>Top 3 prospectare noua</b>",
+    contactPriorityQueue.length
+      ? contactPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
+      : "• Nu exista companii noi eligibile acum in Contact Priority.",
+    "",
+    "<b>Lead measures azi</b>",
+    leadLines.map((line) => `• ${escapeHtml(line.label)}: ${line.today}/${line.todayTarget}`).join("\n"),
+    "",
+    "<i>Comanda: /focus</i>",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      today: metrics.todayIso,
+      topTasks: topTasks.length,
+      aListShown: contactPriorityQueue.length,
+      queues: {
+        overdue: queues.overdue.length,
+        today: queues.today.length,
+        stale: queues.stale.length,
+      },
+    },
+  };
+}
+
+function buildWeekCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
+  const targets = data.targets || {};
+  const leadLines = getDailyLeadTargetLines(metrics, targets);
+
+  const weeklyLeadLines = leadLines.map((line) => (
+    `• ${escapeHtml(line.label)}: ${line.week}/${line.weekTarget}`
+  ));
+
+  const message = [
+    "<b>Grow · Week</b>",
+    `<i>${escapeHtml(metrics.weekStart)} → ${escapeHtml(metrics.weekEnd)} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Cadenta saptamanii</b>",
+    `• ${metrics.movedCompanies} companii miscate`,
+    `• ${metrics.newCompanies} companii noi`,
+    `• ${metrics.followUps} follow-up`,
+    `• ${metrics.weeklyTouches} touch-uri totale`,
+    "",
+    "<b>Funnel live saptamana</b>",
+    `• ${formatCount(metrics.weekCounts.contacted, "contact", "contacte")}`,
+    `• ${formatCount(metrics.weekCounts.meeting, "meeting", "meetings")}`,
+    `• ${formatCount(metrics.weekCounts.offer, "oferta", "oferte")}`,
+    `• ${formatCount(metrics.weekCounts.contract_signed, "contract", "contracte")}`,
+    "",
+    "<b>Lead measures saptamana</b>",
+    weeklyLeadLines.join("\n"),
+    "",
+    "<b>Presiune pipeline</b>",
+    `• ${formatCount(queues.overdue.length, "cont intarziat", "conturi intarziate")}`,
+    `• ${formatCount(queues.today.length, "cont de facut azi", "conturi de facut azi")}`,
+    `• ${formatCount(queues.stale.length, "cont rece peste 7 zile", "conturi reci peste 7 zile")}`,
+    "",
+    "<i>Comanda: /week</i>",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      weekStart: metrics.weekStart,
+      weekEnd: metrics.weekEnd,
+      movement: {
+        moved: metrics.movedCompanies,
+        newCompanies: metrics.newCompanies,
+        followUps: metrics.followUps,
+        touches: metrics.weeklyTouches,
+      },
+      weekCounts: metrics.weekCounts,
+    },
+  };
+}
+
 function buildEveningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
@@ -880,10 +981,12 @@ function buildEveningBrief(data = {}) {
 module.exports = {
   buildAListCommandMessage,
   buildEveningBrief,
+  buildFocusCommandMessage,
   buildMorningBrief,
   buildNextCommandMessage,
   buildPipelineCommandMessage,
   buildScorecardCommandMessage,
   buildTargetsCommandMessage,
   buildTodayCommandMessage,
+  buildWeekCommandMessage,
 };

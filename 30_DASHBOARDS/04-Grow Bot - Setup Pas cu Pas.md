@@ -200,7 +200,7 @@ Botul este considerat live cand:
 
 ## Pasul 10 - Activeaza comenzile Telegram
 
-Ca botul sa raspunda la comenzi de tip `/intel`, `/intel+`, `/today`, `/pipeline`, `/scorecard`, `/targets`, `/next` sau `/a-list`, activezi webhook-ul o singura data.
+Ca botul sa raspunda la comenzi de tip `/intel`, `/intel+`, `/focus`, `/today`, `/week`, `/pipeline`, `/scorecard`, `/targets`, `/next` sau `/a-list`, activezi webhook-ul o singura data.
 
 1. Deschizi:
 
@@ -219,7 +219,9 @@ https://grow-seven-alpha.vercel.app/api/telegram-webhook-info?key=CRON_SECRETUL_
 ```text
 /intel GARMA-GRUP
 /intel+ GARMA-GRUP
+/focus
 /today
+/week
 /pipeline
 /scorecard
 /targets
@@ -252,8 +254,14 @@ Raportul este scurt si gandit pentru primul touch sau pentru pregatirea follow-u
 - `/intel+ Nume Companie`
 Versiune extinsa, cu mai mult context, ipoteze de validat si intrebari de calibrare.
 
+- `/focus`
+Iti spune ce merita facut acum: focus principal, top follow-up-uri, top A-list si ritmul de astazi.
+
 - `/today`
 Mini brief de executie cu due azi, intarzieri, rezultate live si lead measures pe ziua curenta.
+
+- `/week`
+Snapshot operational live al saptamanii: companii miscate, funnel live, lead measures si presiunea actuala din pipeline.
 
 - `/pipeline`
 Snapshot scurt cu conturi in miscare, oferta/negociere, semnate, parcate si potential workers in pipeline.
