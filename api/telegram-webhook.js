@@ -27,12 +27,24 @@ function parseTelegramCommand(text = "") {
     return { type: "help" };
   }
 
+  const intelLongMatch = raw.match(/^\/(?:intel\+|intelplus|research\+|skyview\+)(?:@\w+)?\s+(.+)$/i)
+    || raw.match(/^(?:intel\+|intelplus|research\+|skyview\+)\s+(.+)$/i);
+
+  if (intelLongMatch) {
+    return {
+      type: "intel",
+      variant: "long",
+      company: normalizeString(intelLongMatch[1]),
+    };
+  }
+
   const intelMatch = raw.match(/^\/(?:intel|research|skyview)(?:@\w+)?\s+(.+)$/i)
     || raw.match(/^(?:intel|research|skyview)\s+(.+)$/i);
 
   if (intelMatch) {
     return {
       type: "intel",
+      variant: "short",
       company: normalizeString(intelMatch[1]),
     };
   }
@@ -44,11 +56,13 @@ function buildHelpMessage() {
   return [
     "<b>Grow Bot · Comenzi</b>",
     "",
-    "• <code>/intel Nume Companie</code> — raport scurt cu context intern + semnale publice",
+    "• <code>/intel Nume Companie</code> — brief scurt, bun fix inainte de apel",
+    "• <code>/intel+ Nume Companie</code> — versiune extinsa, cu mai mult context si intrebari",
     "• <code>/help</code> — afiseaza comenzile disponibile",
     "",
     "Exemplu:",
     "• <code>/intel GARMA-GRUP</code>",
+    "• <code>/intel+ GARMA-GRUP</code>",
   ].join("\n");
 }
 
@@ -97,7 +111,9 @@ module.exports = async function handler(request, response) {
 
     if (command.type === "intel") {
       const data = await getDashboardData();
-      const report = await buildIntelligenceReport(data, command.company);
+      const report = await buildIntelligenceReport(data, command.company, {
+        variant: command.variant || "short",
+      });
       await sendTelegramMessage(report.message, {
         chatId,
         replyToMessageId: message.message_id,
@@ -106,6 +122,7 @@ module.exports = async function handler(request, response) {
       response.status(200).json({
         ok: true,
         handled: "intel",
+        variant: command.variant || "short",
         found: report.found,
         company: report.context?.company || command.company,
       });

@@ -638,7 +638,57 @@ function renderLinkItem(item = {}, suffix = "") {
   return `• ${safeTitle}${safeSuffix}`;
 }
 
-async function buildIntelligenceReport(data = {}, companyName = "") {
+function buildSnapshotSection(context = {}) {
+  return [
+    "<b>Snapshot intern</b>",
+    `• Sector: ${escapeHtml(context.sector || "-")}`,
+    context.rank ? `• A-list: #${context.rank}` : "",
+    context.decisionMaker ? `• Factor decizie: ${escapeHtml(context.decisionMaker)}` : "",
+    context.mobile ? `• Mobil: ${escapeHtml(context.mobile)}` : "",
+    context.pipelineStage ? `• Pipeline: ${escapeHtml(context.pipelineStage)}` : "• Pipeline: Necontactat / fara tracking",
+    context.accountHealth ? `• Sanatate cont: ${escapeHtml(context.accountHealth)}` : "",
+    context.potentialWorkers ? `• Potential workers: ${context.potentialWorkers}` : "",
+    context.lastContact ? `• Ultimul contact: ${escapeHtml(formatDate(context.lastContact))}` : "• Ultimul contact: -",
+    context.nextStep ? `• Next step: ${escapeHtml(context.nextStep)}${context.nextStepDate ? ` · ${escapeHtml(formatDate(context.nextStepDate))}` : ""}` : "",
+    context.recruitmentSignal ? `• Semnal recrutare: ${escapeHtml(context.recruitmentSignal)}` : "",
+    context.notes ? `• Note interne: ${escapeHtml(context.notes)}` : "",
+  ].filter(Boolean);
+}
+
+function buildRecentActivitySection(context = {}) {
+  return [
+    "<b>Activitate recenta</b>",
+    context.recentActivities.length
+      ? context.recentActivities.map((activity) => summarizeActivity(activity)).join("\n")
+      : "• Nu exista activitate salvata inca pentru aceasta companie.",
+  ];
+}
+
+function buildProfileSection(siteProfile = null) {
+  return [
+    "<b>Profil public probabil</b>",
+    siteProfile?.link
+      ? `• Site probabil: <a href="${escapeHtml(siteProfile.link)}">${escapeHtml(siteProfile.domain || siteProfile.link)}</a>`
+      : "• Nu am identificat clar un site oficial din cautarea initiala.",
+    siteProfile?.title ? `• Titlu site: ${escapeHtml(siteProfile.title)}` : "",
+    siteProfile?.heading ? `• Heading principal: ${escapeHtml(siteProfile.heading)}` : "",
+    siteProfile?.description ? `• Descriere: ${escapeHtml(truncate(siteProfile.description, 220))}` : "",
+    ...(siteProfile?.paragraphs || []).map((item) => `• Homepage: ${escapeHtml(item)}`),
+  ].filter(Boolean);
+}
+
+function buildSection(title = "", body = []) {
+  const lines = [title, ...(Array.isArray(body) ? body : [body])].filter(Boolean);
+  return lines.length ? lines.join("\n") : "";
+}
+
+function buildFooter(context = {}, variant = "short") {
+  const command = variant === "long" ? "/intel+" : "/intel";
+  return `<i>Comanda: ${command} ${escapeHtml(context.company || "")}</i>`;
+}
+
+async function buildIntelligenceReport(data = {}, companyName = "", options = {}) {
+  const variant = normalizeString(options.variant).toLowerCase() === "long" ? "long" : "short";
   const context = buildContext(data, companyName);
   if (!normalizeString(context.company)) {
     return {
@@ -667,17 +717,6 @@ async function buildIntelligenceReport(data = {}, companyName = "") {
     .filter((item) => !siteProfile || item.link !== siteProfile.link)
     .slice(0, 2);
 
-  const profileSection = [
-    "<b>Profil public probabil</b>",
-    siteProfile?.link
-      ? `• Site probabil: <a href="${escapeHtml(siteProfile.link)}">${escapeHtml(siteProfile.domain || siteProfile.link)}</a>`
-      : "• Nu am identificat clar un site oficial din cautarea initiala.",
-    siteProfile?.title ? `• Titlu site: ${escapeHtml(siteProfile.title)}` : "",
-    siteProfile?.heading ? `• Heading principal: ${escapeHtml(siteProfile.heading)}` : "",
-    siteProfile?.description ? `• Descriere: ${escapeHtml(truncate(siteProfile.description, 220))}` : "",
-    ...(siteProfile?.paragraphs || []).map((item) => `• Homepage: ${escapeHtml(item)}`),
-  ].filter(Boolean);
-
   const companySignalsSection = filteredWebSignals.length
     ? [
       "<b>Semnale publice despre companie</b>",
@@ -699,54 +738,52 @@ async function buildIntelligenceReport(data = {}, companyName = "") {
     ]
     : [];
 
-  const report = [
-    `<b>Intel · ${escapeHtml(context.company)}</b>`,
-    "<i>Sky view scurt pentru abordare</i>",
-    "",
-    "<b>Snapshot intern</b>",
-    `• Sector: ${escapeHtml(context.sector || "-")}`,
-    context.rank ? `• A-list: #${context.rank}` : "",
-    context.decisionMaker ? `• Factor decizie: ${escapeHtml(context.decisionMaker)}` : "",
-    context.mobile ? `• Mobil: ${escapeHtml(context.mobile)}` : "",
-    context.pipelineStage ? `• Pipeline: ${escapeHtml(context.pipelineStage)}` : "• Pipeline: Necontactat / fara tracking",
-    context.accountHealth ? `• Sanatate cont: ${escapeHtml(context.accountHealth)}` : "",
-    context.potentialWorkers ? `• Potential workers: ${context.potentialWorkers}` : "",
-    context.lastContact ? `• Ultimul contact: ${escapeHtml(formatDate(context.lastContact))}` : "• Ultimul contact: -",
-    context.nextStep ? `• Next step: ${escapeHtml(context.nextStep)}${context.nextStepDate ? ` · ${escapeHtml(formatDate(context.nextStepDate))}` : ""}` : "",
-    context.recruitmentSignal ? `• Semnal recrutare: ${escapeHtml(context.recruitmentSignal)}` : "",
-    context.notes ? `• Note interne: ${escapeHtml(context.notes)}` : "",
-    "",
-    profileSection.join("\n"),
-    "",
-    "<b>Activitate recenta</b>",
-    context.recentActivities.length
-      ? context.recentActivities.map((activity) => summarizeActivity(activity)).join("\n")
-      : "• Nu exista activitate salvata inca pentru aceasta companie.",
-    "",
-    companySignalsSection.join("\n"),
-    companySignalsSection.length ? "" : "",
-    companyNewsSection.join("\n"),
-    companyNewsSection.length ? "" : "",
-    sectorSection.join("\n"),
-    sectorSection.length ? "" : "",
-    "<b>Ipoteze de validat</b>",
-    operationalHypotheses.length
-      ? operationalHypotheses.map((item) => `• ${escapeHtml(item)}`).join("\n")
-      : "• Incepe cu o ipoteza simpla: unde pierd ritm sau capacitate din lipsa de personal executiv.",
-    "",
-    "<b>Intrebari de calibrare</b>",
-    discoveryQuestions.map((item) => `• ${escapeHtml(item)}`).join("\n"),
-    "",
-    "<b>Unghi de abordare</b>",
-    suggestions.map((item) => `• ${escapeHtml(item)}`).join("\n"),
-    "",
-    `<i>Comanda: /intel ${escapeHtml(context.company)}</i>`,
-  ].filter(Boolean).join("\n");
+  const reportSections = [
+    `<b>${variant === "long" ? "Intel+ " : "Intel "}· ${escapeHtml(context.company)}</b>`,
+    `<i>${variant === "long" ? "Sky view extins pentru abordare" : "Brief scurt pentru apel"}</i>`,
+    buildSection("", buildSnapshotSection(context)),
+    buildSection("", buildProfileSection(siteProfile)),
+    buildSection("", buildRecentActivitySection(context)),
+    buildSection(
+      "<b>Unghi de abordare</b>",
+      suggestions.map((item) => `• ${escapeHtml(item)}`)
+    ),
+  ];
+
+  if (variant === "long") {
+    reportSections.push(
+      companySignalsSection.join("\n"),
+      companyNewsSection.join("\n"),
+      sectorSection.join("\n"),
+      buildSection(
+        "<b>Ipoteze de validat</b>",
+        operationalHypotheses.length
+          ? operationalHypotheses.map((item) => `• ${escapeHtml(item)}`)
+          : ["• Incepe cu o ipoteza simpla: unde pierd ritm sau capacitate din lipsa de personal executiv."]
+      ),
+      buildSection(
+        "<b>Intrebari de calibrare</b>",
+        discoveryQuestions.map((item) => `• ${escapeHtml(item)}`)
+      )
+    );
+  } else {
+    reportSections.push(
+      buildSection(
+        "<b>Intrebari cheie</b>",
+        discoveryQuestions.slice(0, 2).map((item) => `• ${escapeHtml(item)}`)
+      )
+    );
+  }
+
+  reportSections.push(buildFooter(context, variant));
+
+  const report = reportSections.filter(Boolean).join("\n\n");
 
   return {
     found: true,
     message: report,
     context,
+    variant,
   };
 }
 

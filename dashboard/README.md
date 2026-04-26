@@ -220,7 +220,8 @@ Evening briefing includes:
 
 Telegram commands:
 
-- `/intel Nume Companie` -> short intelligence report from Airtable + public signals
+- `/intel Nume Companie` -> short pre-call brief from Airtable + public footprint
+- `/intel+ Nume Companie` -> extended company intelligence with hypotheses and discovery questions
 - `/help` -> command help
 
 Webhook setup:
