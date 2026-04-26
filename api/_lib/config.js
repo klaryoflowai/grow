@@ -35,6 +35,7 @@ function getAirtableConfig() {
     timezone: readEnv("AIRTABLE_TIMEZONE", "Europe/Chisinau"),
     tables: {
       companies: readEnv("AIRTABLE_TABLE_COMPANIES", "Companies"),
+      contactPriority: readEnv("AIRTABLE_TABLE_CONTACT_PRIORITY", "Contact Priority"),
       activities: readEnv("AIRTABLE_TABLE_ACTIVITIES", "Activities"),
       targets: readEnv("AIRTABLE_TABLE_TARGETS", "Targets"),
       scorecard: readEnv("AIRTABLE_TABLE_SCORECARD", "Scorecard"),
@@ -43,6 +44,7 @@ function getAirtableConfig() {
     },
     views: {
       companies: readEnv("AIRTABLE_VIEW_COMPANIES"),
+      contactPriority: readEnv("AIRTABLE_VIEW_CONTACT_PRIORITY"),
       activities: readEnv("AIRTABLE_VIEW_ACTIVITIES"),
       targets: readEnv("AIRTABLE_VIEW_TARGETS"),
       scorecard: readEnv("AIRTABLE_VIEW_SCORECARD"),
@@ -65,6 +67,15 @@ function getAirtableConfig() {
         stageChangedDate: readEnv("AIRTABLE_FIELD_COMPANY_STAGE_CHANGED_DATE", "Data Schimbare Stadiu"),
         sector: readEnv("AIRTABLE_FIELD_COMPANY_SECTOR", "Sector"),
         notes: readEnv("AIRTABLE_FIELD_COMPANY_NOTES", "Notes"),
+      },
+      contactPriority: {
+        rank: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_RANK", "Nr."),
+        company: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_COMPANY", "Company"),
+        sector: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_SECTOR", "Sector"),
+        lastContact: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_LAST_CONTACT", "Last contact"),
+        decisionMaker: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_DECISION_MAKER", "Factor decizie"),
+        mobile: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_MOBILE", "Mobil"),
+        notes: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_NOTES", "Notes"),
       },
       activities: {
         date: readEnv("AIRTABLE_FIELD_ACTIVITY_DATE", "Date"),

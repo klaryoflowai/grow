@@ -365,6 +365,33 @@ function buildLeadMeasureLine(line) {
   return `• ${escapeHtml(line.label)}: ${line.today}/${line.todayTarget} azi · ${line.week}/${line.weekTarget} sapt · ${line.month}/${line.monthTarget} luna${offDayNote}`;
 }
 
+function buildContactPriorityQueue(data = {}) {
+  const contactPriority = Array.isArray(data.contactPriority) ? data.contactPriority : [];
+  const liveActivityCompanies = new Set(
+    (data.activities || [])
+      .filter((activity) => isLiveActivity(activity))
+      .map((activity) => normalizeCompanyKey(activity.company))
+      .filter(Boolean)
+  );
+
+  return contactPriority
+    .filter((item) => item.company)
+    .filter((item) => !liveActivityCompanies.has(normalizeCompanyKey(item.company)))
+    .sort((left, right) => {
+      if (left.rank !== right.rank) return left.rank - right.rank;
+      return left.position - right.position;
+    })
+    .slice(0, 5);
+}
+
+function describePriorityContact(item = {}) {
+  const parts = [`• <b>${escapeHtml(item.company || "Companie fara nume")}</b>`];
+  if (item.sector) parts.push(`· ${escapeHtml(item.sector)}`);
+  if (item.decision_maker) parts.push(`· decident: ${escapeHtml(item.decision_maker)}`);
+  if (item.mobile) parts.push(`· ${escapeHtml(item.mobile)}`);
+  return parts.join(" ");
+}
+
 function describeTask(account = {}, todayIso = "") {
   const company = escapeHtml(account.company || "Companie fara nume");
   const stage = normalizeString(account.pipeline_stage) || "Fara stadiu";
@@ -455,6 +482,7 @@ function buildMorningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
   const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
+  const contactPriorityQueue = buildContactPriorityQueue(data);
   const topTasks = queues.all.slice(0, 5);
   const targets = data.targets || {};
   const leadLines = getDailyLeadTargetLines(metrics, targets);
@@ -471,7 +499,12 @@ function buildMorningBrief(data = {}) {
     `• ${formatCount(queues.today.length, "cont de facut azi", "conturi de facut azi")}`,
     `• ${formatCount(queues.stale.length, "cont rece peste 7 zile", "conturi reci peste 7 zile")}`,
     "",
-    "<b>Top taskuri</b>",
+    "<b>A-List azi</b>",
+    contactPriorityQueue.length
+      ? contactPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
+      : "• Nu exista companii noi ramase in Contact Priority fara touch live.",
+    "",
+    "<b>Top follow-up azi</b>",
     topTasks.length
       ? topTasks.map((account) => describeTask(account, metrics.todayIso)).join("\n")
       : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",

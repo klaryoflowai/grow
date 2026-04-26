@@ -262,6 +262,29 @@ function normalizeCompanyRecord(record, config) {
   };
 }
 
+function normalizeContactPriorityRecord(record, config, position = 0) {
+  const fields = record.fields || {};
+  return {
+    id: record.id,
+    position,
+    rank: toNumber(fields[config.fields.contactPriority.rank]) || position + 1,
+    company: normalizeString(fields[config.fields.contactPriority.company]),
+    sector: normalizeString(fields[config.fields.contactPriority.sector]),
+    last_contact: toIsoDate(
+      config.fields.contactPriority.lastContact ? fields[config.fields.contactPriority.lastContact] : ""
+    ),
+    decision_maker: normalizeString(
+      config.fields.contactPriority.decisionMaker ? fields[config.fields.contactPriority.decisionMaker] : ""
+    ),
+    mobile: normalizeString(
+      config.fields.contactPriority.mobile ? fields[config.fields.contactPriority.mobile] : ""
+    ),
+    notes: normalizeString(
+      config.fields.contactPriority.notes ? fields[config.fields.contactPriority.notes] : ""
+    ),
+  };
+}
+
 function buildCompanyNameMap(companyRecords, config) {
   const map = new Map();
   companyRecords.forEach((record) => {
@@ -1339,6 +1362,7 @@ async function getDashboardData() {
     return {
       configured: false,
       companies: [],
+      contactPriority: [],
       activities: [],
       targets: { period: currentPeriod, ...defaultTargets },
       dailyScores: [],
@@ -1358,10 +1382,18 @@ async function getDashboardData() {
   const warnings = [];
   const companyRecords = await listRecords("companies");
   const activityRecords = await listRecords("activities");
+  let contactPriorityRecords = [];
   let targetRecords = [];
   let scorecardRecords = [];
   let scorecardTrendRecords = [];
   let leadMeasureDailyRecords = [];
+
+  try {
+    contactPriorityRecords = await listRecords("contactPriority");
+  } catch (error) {
+    if (error.status !== 404) throw error;
+    warnings.push("Tabela Contact Priority nu a fost gasita. Blocul A-List din Telegram ramane gol.");
+  }
 
   try {
     targetRecords = await listRecords("targets");
@@ -1404,6 +1436,9 @@ async function getDashboardData() {
   const companies = companyRecords
     .map((record) => normalizeCompanyRecord(record, config))
     .filter((record) => record.company);
+  const contactPriority = contactPriorityRecords
+    .map((record, index) => normalizeContactPriorityRecord(record, config, index))
+    .filter((record) => record.company);
   const activities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
@@ -1433,6 +1468,7 @@ async function getDashboardData() {
   return {
     configured: true,
     companies: hydratedCompanies,
+    contactPriority,
     activities,
     targets,
     dailyScores,
