@@ -30,6 +30,12 @@ module.exports = async function handler(request, response) {
         dryRun: true,
         configured: isTelegramConfigured(),
         summary: briefing.summary,
+        warnings: data.warnings || [],
+        debug: {
+          contactPriorityTable: data.connection?.tables?.contactPriority || "",
+          contactPriorityCount: Array.isArray(data.contactPriority) ? data.contactPriority.length : 0,
+          contactPrioritySample: Array.isArray(data.contactPriority) ? data.contactPriority.slice(0, 3) : [],
+        },
         message: briefing.message,
       });
       return;
