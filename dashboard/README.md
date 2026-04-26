@@ -68,6 +68,8 @@ The Vercel serverless layer lives in:
 - `api/activities.js`
 - `api/companies.js`
 - `api/lead-measures-daily.js`
+- `api/telegram-morning.js`
+- `api/telegram-evening.js`
 - `api/targets.js`
 
 Shared Airtable helpers live in:
@@ -163,6 +165,55 @@ Recommended Airtable fields:
 - `Lead Measures Daily -> Field Visits`
 - `Lead Measures Daily -> Warm Outreach`
 - `Lead Measures Daily -> Notes`
+
+## Telegram Briefings
+
+The repo now includes two secure Vercel endpoints for Telegram summaries:
+
+- `/api/telegram-morning`
+- `/api/telegram-evening`
+
+Both endpoints:
+
+- read the same Airtable-backed data as the dashboard
+- require `CRON_SECRET`
+- support preview mode with `?dryRun=1`
+
+Environment variables needed:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `CRON_SECRET`
+
+Recommended free setup:
+
+1. create a Telegram bot with `@BotFather`
+2. add `TELEGRAM_BOT_TOKEN` in Vercel
+3. send one message to the bot from your Telegram account
+4. discover your chat id
+5. add `TELEGRAM_CHAT_ID` in Vercel
+6. set any long random value as `CRON_SECRET`
+7. redeploy
+8. test previews:
+   - `/api/telegram-morning?key=YOUR_SECRET&dryRun=1`
+   - `/api/telegram-evening?key=YOUR_SECRET&dryRun=1`
+9. configure two free jobs in `cron-job.org`:
+   - `08:00 Europe/Chisinau` -> `/api/telegram-morning?key=YOUR_SECRET`
+   - `19:00 Europe/Chisinau` -> `/api/telegram-evening?key=YOUR_SECRET`
+
+Morning briefing includes:
+
+- top follow-up accounts due today
+- overdue and stale accounts
+- daily/weekly/monthly key lead measures
+- current weekly movement snapshot
+
+Evening briefing includes:
+
+- today's contacts, meetings, offers, contracts
+- today's key lead measures
+- recent saved actions
+- what needs attention tomorrow
 
 Recommended Romanian pipeline options:
 
