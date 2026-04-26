@@ -69,8 +69,8 @@ function getAirtableConfig() {
         notes: readEnv("AIRTABLE_FIELD_COMPANY_NOTES", "Notes"),
       },
       contactPriority: {
-        rank: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_RANK", "Nr."),
-        company: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_COMPANY", "Company"),
+        rank: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_RANK", "Number"),
+        company: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_COMPANY", "Copmany"),
         companyLookup: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_COMPANY_LOOKUP", "Company Name"),
         sector: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_SECTOR", "Sector"),
         lastContact: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_LAST_CONTACT", "Last contact"),
