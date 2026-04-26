@@ -1,7 +1,7 @@
-const { getDashboardData } = require("./_lib/airtable");
+const { createActivity, getDashboardData } = require("./_lib/airtable");
 const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
 const { buildIntelligenceReport } = require("./_lib/intelligence");
-const { normalizeString } = require("./_lib/normalize");
+const { normalizeActivity, normalizeString, toIsoDate } = require("./_lib/normalize");
 const { sendTelegramMessage } = require("./_lib/telegram");
 const {
   buildAListCommandMessage,
@@ -29,12 +29,193 @@ function isAuthorizedWebhook(request) {
   return actualSecret === expectedSecret;
 }
 
+function getTodayIsoDate(timezone = "Europe/Chisinau") {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return year && month && day ? `${year}-${month}-${day}` : new Date().toISOString().slice(0, 10);
+}
+
+function addDays(isoDate = "", days = 0) {
+  if (!isoDate) return "";
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeQuickDateToken(value = "", timezone = "Europe/Chisinau") {
+  const raw = normalizeString(value).toLowerCase();
+  if (!raw) return "";
+
+  const today = getTodayIsoDate(timezone);
+  if (["azi", "today"].includes(raw)) return today;
+  if (["maine", "mâine", "tomorrow"].includes(raw)) return addDays(today, 1);
+  if (["poimaine", "poimâine"].includes(raw)) return addDays(today, 2);
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const dotted = raw.match(/^(\d{1,2})[./-](\d{1,2})$/);
+  if (dotted) {
+    const year = Number(today.slice(0, 4));
+    const month = String(Number(dotted[2])).padStart(2, "0");
+    const day = String(Number(dotted[1])).padStart(2, "0");
+    let iso = `${year}-${month}-${day}`;
+    if (iso < today) {
+      iso = `${year + 1}-${month}-${day}`;
+    }
+    return iso;
+  }
+
+  return "";
+}
+
+function splitPipeParts(text = "") {
+  return normalizeString(text)
+    .split("|")
+    .map((item) => normalizeString(item))
+    .filter(Boolean);
+}
+
+function buildLogHelpMessage() {
+  return [
+    "<b>Format /log</b>",
+    "• <code>/log Companie | tip | rezultat | next step | data next step | note</code>",
+    "",
+    "Tipuri utile:",
+    "• <code>whatsapp</code>, <code>apel</code>, <code>meeting</code>, <code>oferta</code>, <code>semnat</code>",
+    "",
+    "Exemplu:",
+    "• <code>/log GARMA-GRUP | whatsapp | Mesaj WhatsApp trimis | call followup | maine | a raspuns secretara</code>",
+  ].join("\n");
+}
+
+function buildPlanHelpMessage() {
+  return [
+    "<b>Format /plan</b>",
+    "• <code>/plan Companie | next step | data | note</code>",
+    "",
+    "Exemplu:",
+    "• <code>/plan GARMA-GRUP | call Valentin pentru prim contact | maine | intra dupa 10:00</code>",
+  ].join("\n");
+}
+
+function parseLogPayload(text = "", timezone = "Europe/Chisinau") {
+  const raw = normalizeString(text);
+  const match = raw.match(/^\/?log(?:@\w+)?\s+(.+)$/i);
+  const payload = match ? match[1] : raw.replace(/^log\s+/i, "");
+  const parts = splitPipeParts(payload);
+
+  if (parts.length < 3) {
+    return { ok: false, error: buildLogHelpMessage() };
+  }
+
+  const [company, activityTypeRaw, outcome, nextStep = "", nextStepDateRaw = "", notes = ""] = parts;
+  const activityType = normalizeActivity(activityTypeRaw);
+  const nextStepDate = normalizeQuickDateToken(nextStepDateRaw, timezone);
+
+  return {
+    ok: Boolean(company && activityType && outcome),
+    error: company && activityType && outcome ? "" : buildLogHelpMessage(),
+    payload: {
+      date: getTodayIsoDate(timezone),
+      company,
+      activity_type: activityType,
+      outcome,
+      next_step: nextStep,
+      next_step_date: nextStepDate,
+      notes,
+    },
+  };
+}
+
+function parsePlanPayload(text = "", timezone = "Europe/Chisinau") {
+  const raw = normalizeString(text);
+  const match = raw.match(/^\/?plan(?:@\w+)?\s+(.+)$/i);
+  const payload = match ? match[1] : raw.replace(/^plan\s+/i, "");
+  const parts = splitPipeParts(payload);
+
+  if (parts.length < 3) {
+    return { ok: false, error: buildPlanHelpMessage() };
+  }
+
+  const [company, nextStep, dateRaw, notes = ""] = parts;
+  const nextStepDate = normalizeQuickDateToken(dateRaw, timezone);
+  if (!nextStepDate) {
+    return { ok: false, error: `${buildPlanHelpMessage()}\n\n• Data trebuie sa fie de tip <code>YYYY-MM-DD</code>, <code>DD.MM</code>, <code>azi</code>, <code>maine</code> sau <code>poimaine</code>.` };
+  }
+
+  return {
+    ok: Boolean(company && nextStep && nextStepDate),
+    error: company && nextStep && nextStepDate ? "" : buildPlanHelpMessage(),
+    payload: {
+      date: getTodayIsoDate(timezone),
+      company,
+      activity_type: "planned",
+      outcome: "Planificat",
+      next_step: nextStep,
+      next_step_date: nextStepDate,
+      notes,
+    },
+  };
+}
+
+function buildSavedActivityMessage(result = {}, kind = "log") {
+  const activity = result.activity || {};
+  const company = normalizeString(activity.company || result.company?.company || "");
+  const nextStep = normalizeString(activity.next_step);
+  const nextStepDate = toIsoDate(activity.next_step_date);
+  const duplicate = result.duplicate ? " (detectata ca dublura recenta)" : "";
+
+  if (kind === "plan") {
+    return [
+      `<b>Plan salvat</b>${duplicate}`,
+      `• ${company || "Companie"}`,
+      nextStep ? `• Next step: ${nextStep}` : "",
+      nextStepDate ? `• Data: ${nextStepDate}` : "",
+    ].filter(Boolean).join("\n");
+  }
+
+  return [
+    `<b>Activitate salvata</b>${duplicate}`,
+    `• ${company || "Companie"} · ${activity.activity_type || "contacted"}`,
+    activity.outcome ? `• Rezultat: ${activity.outcome}` : "",
+    nextStep ? `• Next step: ${nextStep}` : "",
+    nextStepDate ? `• Data next step: ${nextStepDate}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function buildSaveErrorMessage(error, kind = "log") {
+  const title = kind === "plan" ? "Nu am putut salva planul" : "Nu am putut salva activitatea";
+  return [
+    `<b>${title}</b>`,
+    `• ${normalizeString(error?.message) || "A aparut o eroare neasteptata."}`,
+    "",
+    kind === "plan" ? buildPlanHelpMessage() : buildLogHelpMessage(),
+  ].join("\n");
+}
+
 function parseTelegramCommand(text = "") {
   const raw = normalizeString(text);
   if (!raw) return { type: "empty" };
 
   if (/^\/help(?:@\w+)?$/i.test(raw) || /^help$/i.test(raw)) {
     return { type: "help" };
+  }
+
+  if (/^\/log(?:@\w+)?(?:\s+.+)?$/i.test(raw) || /^log(?:\s+.+)?$/i.test(raw)) {
+    return { type: "log", raw };
+  }
+
+  if (/^\/plan(?:@\w+)?(?:\s+.+)?$/i.test(raw) || /^plan(?:\s+.+)?$/i.test(raw)) {
+    return { type: "plan", raw };
   }
 
   if (/^\/(?:next|followup|follow-up)(?:@\w+)?$/i.test(raw) || /^(?:next|followup|follow-up)$/i.test(raw)) {
@@ -103,6 +284,8 @@ function buildHelpMessage() {
     "",
     "• <code>/intel Nume Companie</code> — brief scurt, bun fix inainte de apel",
     "• <code>/intel+ Nume Companie</code> — versiune extinsa, cu mai mult context si intrebari",
+    "• <code>/log</code> — salveaza rapid o activitate reala in Activities",
+    "• <code>/plan</code> — salveaza rapid un next step planificat",
     "• <code>/focus</code> — ce merita facut acum: follow-up + A-list + ritm azi",
     "• <code>/today</code> — mini brief de executie pentru ziua curenta",
     "• <code>/week</code> — snapshot operational live al saptamanii",
@@ -116,6 +299,8 @@ function buildHelpMessage() {
     "Exemplu:",
     "• <code>/intel GARMA-GRUP</code>",
     "• <code>/intel+ GARMA-GRUP</code>",
+    "• <code>/log GARMA-GRUP | whatsapp | Mesaj WhatsApp trimis | call followup | maine</code>",
+    "• <code>/plan GARMA-GRUP | call Valentin | maine | dupa 10:00</code>",
     "• <code>/focus</code>",
     "• <code>/today</code>",
     "• <code>/week</code>",
@@ -187,6 +372,88 @@ module.exports = async function handler(request, response) {
         found: report.found,
         company: report.context?.company || command.company,
       });
+      return;
+    }
+
+    if (command.type === "log") {
+      const timezone = process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+      const parsed = parseLogPayload(command.raw, timezone);
+      if (!parsed.ok) {
+        await sendTelegramMessage(parsed.error, {
+          chatId,
+          replyToMessageId: message.message_id,
+          disableNotification: true,
+        });
+        response.status(200).json({ ok: true, handled: "log_help" });
+        return;
+      }
+
+      try {
+        const result = await createActivity(parsed.payload);
+        await sendTelegramMessage(buildSavedActivityMessage(result, "log"), {
+          chatId,
+          replyToMessageId: message.message_id,
+          disableNotification: true,
+        });
+        response.status(200).json({
+          ok: true,
+          handled: "log",
+          duplicate: Boolean(result.duplicate),
+          company: result.activity?.company || result.company?.company || parsed.payload.company,
+        });
+      } catch (error) {
+        await sendTelegramMessage(buildSaveErrorMessage(error, "log"), {
+          chatId,
+          replyToMessageId: message.message_id,
+          disableNotification: true,
+        });
+        response.status(200).json({
+          ok: true,
+          handled: "log_error",
+          error: normalizeString(error?.message),
+        });
+      }
+      return;
+    }
+
+    if (command.type === "plan") {
+      const timezone = process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+      const parsed = parsePlanPayload(command.raw, timezone);
+      if (!parsed.ok) {
+        await sendTelegramMessage(parsed.error, {
+          chatId,
+          replyToMessageId: message.message_id,
+          disableNotification: true,
+        });
+        response.status(200).json({ ok: true, handled: "plan_help" });
+        return;
+      }
+
+      try {
+        const result = await createActivity(parsed.payload);
+        await sendTelegramMessage(buildSavedActivityMessage(result, "plan"), {
+          chatId,
+          replyToMessageId: message.message_id,
+          disableNotification: true,
+        });
+        response.status(200).json({
+          ok: true,
+          handled: "plan",
+          duplicate: Boolean(result.duplicate),
+          company: result.activity?.company || result.company?.company || parsed.payload.company,
+        });
+      } catch (error) {
+        await sendTelegramMessage(buildSaveErrorMessage(error, "plan"), {
+          chatId,
+          replyToMessageId: message.message_id,
+          disableNotification: true,
+        });
+        response.status(200).json({
+          ok: true,
+          handled: "plan_error",
+          error: normalizeString(error?.message),
+        });
+      }
       return;
     }
 

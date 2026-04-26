@@ -70,6 +70,8 @@ Comenzi disponibile:
 
 - `/intel Nume Companie`
 - `/intel+ Nume Companie`
+- `/log Companie | tip | rezultat | next step | data | note`
+- `/plan Companie | next step | data | note`
 - `/focus`
 - `/today`
 - `/week`
@@ -84,6 +86,8 @@ Exemplu:
 
 - `/intel GARMA-GRUP`
 - `/intel+ GARMA-GRUP`
+- `/log GARMA-GRUP | whatsapp | Mesaj WhatsApp trimis | call followup | maine`
+- `/plan GARMA-GRUP | call Valentin | maine | dupa 10:00`
 - `/focus`
 - `/today`
 - `/week`

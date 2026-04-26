@@ -222,6 +222,8 @@ Telegram commands:
 
 - `/intel Nume Companie` -> short pre-call brief from Airtable + public footprint
 - `/intel+ Nume Companie` -> extended company intelligence with hypotheses and discovery questions
+- `/log Companie | tip | rezultat | next step | data | note` -> quick real activity input
+- `/plan Companie | next step | data | note` -> quick planned next step input
 - `/focus` -> what matters now: follow-ups, A-list, and today's pace
 - `/today` -> short execution brief for the current day
 - `/week` -> live operational weekly snapshot
