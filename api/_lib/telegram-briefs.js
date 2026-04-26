@@ -9,6 +9,7 @@ const {
 const { escapeHtml } = require("./telegram");
 
 const CLOSED_PIPELINE_STAGES = new Set(["Necontactat", "Contract semnat", "Parcat", "Pierdut"]);
+const OFFER_PIPELINE_STAGES = new Set(["Oferta", "Negociere"]);
 
 function getTodayIsoDate(timezone = "Europe/Chisinau") {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -187,6 +188,10 @@ function isTrackedAccount(account = {}) {
 
 function isMovingAccount(account = {}) {
   return isTrackedAccount(account) && isPipelineOpen(account.pipeline_stage);
+}
+
+function isOfferStage(stage = "") {
+  return OFFER_PIPELINE_STAGES.has(normalizeString(stage));
 }
 
 function getAlertPriority(account = {}, todayIso = "") {
@@ -615,6 +620,98 @@ function buildAListCommandMessage(data = {}) {
   };
 }
 
+function buildTodayCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
+  const targets = data.targets || {};
+  const leadLines = getDailyLeadTargetLines(metrics, targets);
+
+  const message = [
+    "<b>Grow · Today</b>",
+    `<i>${escapeHtml(formatFullDate(metrics.todayIso, timezone))} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Ce trebuie miscat azi</b>",
+    `• ${formatCount(queues.today.length, "cont de facut azi", "conturi de facut azi")}`,
+    `• ${formatCount(queues.overdue.length, "cont intarziat", "conturi intarziate")}`,
+    `• ${formatCount(queues.stale.length, "cont rece peste 7 zile", "conturi reci peste 7 zile")}`,
+    "",
+    "<b>Rezultate live azi</b>",
+    `• ${formatCount(metrics.todayCounts.contacted, "contact", "contacte")}`,
+    `• ${formatCount(metrics.todayCounts.meeting, "meeting", "meetings")}`,
+    `• ${formatCount(metrics.todayCounts.offer, "oferta", "oferte")}`,
+    `• ${formatCount(metrics.todayCounts.contract_signed, "contract", "contracte")}`,
+    `• ${formatCount(metrics.todayMovedCompanies, "companie miscata", "companii miscate")}`,
+    "",
+    "<b>Lead measures azi</b>",
+    leadLines.map(buildLeadMeasureLine).join("\n"),
+    "",
+    "<i>Comanda: /today</i>",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      today: metrics.todayIso,
+      queues: {
+        overdue: queues.overdue.length,
+        today: queues.today.length,
+        stale: queues.stale.length,
+      },
+      results: metrics.todayCounts,
+      todayMovedCompanies: metrics.todayMovedCompanies,
+    },
+  };
+}
+
+function buildPipelineCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const trackedAccounts = (data.companies || []).filter((account) => isTrackedAccount(account));
+  const activeAccounts = trackedAccounts.filter((account) => isMovingAccount(account));
+  const counts = {
+    active: activeAccounts.length,
+    offers: trackedAccounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
+    signed: trackedAccounts.filter((account) => normalizeString(account.pipeline_stage) === "Contract semnat").length,
+    standby: trackedAccounts.filter((account) => isStandbyAccount(account)).length,
+    workersInPipeline: activeAccounts.reduce((sum, account) => sum + toNumber(account.workers), 0),
+  };
+
+  const message = [
+    "<b>Grow · Pipeline</b>",
+    `<i>${escapeHtml(formatFullDate(metrics.todayIso, timezone))} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Snapshot pipeline</b>",
+    `• ${counts.active} conturi in miscare`,
+    `• ${counts.offers} in oferta sau negociere`,
+    `• ${counts.signed} contracte semnate`,
+    `• ${counts.standby} conturi parcate`,
+    `• ${counts.workersInPipeline} muncitori potentiali in pipeline`,
+    "",
+    "<b>Cadenta saptamanii</b>",
+    `• ${metrics.movedCompanies} companii miscate`,
+    `• ${metrics.newCompanies} companii noi`,
+    `• ${metrics.followUps} follow-up`,
+    `• ${metrics.weeklyTouches} touch-uri totale`,
+    "",
+    "<i>Comanda: /pipeline</i>",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      today: metrics.todayIso,
+      pipeline: counts,
+      movement: {
+        moved: metrics.movedCompanies,
+        newCompanies: metrics.newCompanies,
+        followUps: metrics.followUps,
+        touches: metrics.weeklyTouches,
+      },
+    },
+  };
+}
+
 function buildEveningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
@@ -686,4 +783,6 @@ module.exports = {
   buildEveningBrief,
   buildMorningBrief,
   buildNextCommandMessage,
+  buildPipelineCommandMessage,
+  buildTodayCommandMessage,
 };

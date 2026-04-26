@@ -70,6 +70,8 @@ Comenzi disponibile:
 
 - `/intel Nume Companie`
 - `/intel+ Nume Companie`
+- `/today`
+- `/pipeline`
 - `/next`
 - `/a-list`
 - `/help`
@@ -78,6 +80,8 @@ Exemplu:
 
 - `/intel GARMA-GRUP`
 - `/intel+ GARMA-GRUP`
+- `/today`
+- `/pipeline`
 - `/next`
 - `/a-list`
 

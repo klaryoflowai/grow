@@ -3,7 +3,12 @@ const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
 const { buildIntelligenceReport } = require("./_lib/intelligence");
 const { normalizeString } = require("./_lib/normalize");
 const { sendTelegramMessage } = require("./_lib/telegram");
-const { buildAListCommandMessage, buildNextCommandMessage } = require("./_lib/telegram-briefs");
+const {
+  buildAListCommandMessage,
+  buildNextCommandMessage,
+  buildPipelineCommandMessage,
+  buildTodayCommandMessage,
+} = require("./_lib/telegram-briefs");
 
 function getWebhookSecret() {
   return process.env.TELEGRAM_WEBHOOK_SECRET || process.env.CRON_SECRET || "";
@@ -30,6 +35,14 @@ function parseTelegramCommand(text = "") {
 
   if (/^\/(?:next|followup|follow-up)(?:@\w+)?$/i.test(raw) || /^(?:next|followup|follow-up)$/i.test(raw)) {
     return { type: "next" };
+  }
+
+  if (/^\/today(?:@\w+)?$/i.test(raw) || /^today$/i.test(raw)) {
+    return { type: "today" };
+  }
+
+  if (/^\/pipeline(?:@\w+)?$/i.test(raw) || /^pipeline$/i.test(raw)) {
+    return { type: "pipeline" };
   }
 
   if (
@@ -70,6 +83,8 @@ function buildHelpMessage() {
     "",
     "• <code>/intel Nume Companie</code> — brief scurt, bun fix inainte de apel",
     "• <code>/intel+ Nume Companie</code> — versiune extinsa, cu mai mult context si intrebari",
+    "• <code>/today</code> — mini brief de executie pentru ziua curenta",
+    "• <code>/pipeline</code> — snapshot rapid al portofoliului activ",
     "• <code>/next</code> — top follow-up-uri urgente pentru azi",
     "• <code>/a-list</code> — top 5 companii noi prioritare pentru primul touch",
     "• <code>/help</code> — afiseaza comenzile disponibile",
@@ -77,6 +92,8 @@ function buildHelpMessage() {
     "Exemplu:",
     "• <code>/intel GARMA-GRUP</code>",
     "• <code>/intel+ GARMA-GRUP</code>",
+    "• <code>/today</code>",
+    "• <code>/pipeline</code>",
     "• <code>/next</code>",
     "• <code>/a-list</code>",
   ].join("\n");
@@ -156,6 +173,38 @@ module.exports = async function handler(request, response) {
       response.status(200).json({
         ok: true,
         handled: "next",
+        summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "today") {
+      const data = await getDashboardData();
+      const report = buildTodayCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "today",
+        summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "pipeline") {
+      const data = await getDashboardData();
+      const report = buildPipelineCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "pipeline",
         summary: report.summary,
       });
       return;
