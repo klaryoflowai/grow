@@ -7,6 +7,8 @@ const {
   buildAListCommandMessage,
   buildNextCommandMessage,
   buildPipelineCommandMessage,
+  buildScorecardCommandMessage,
+  buildTargetsCommandMessage,
   buildTodayCommandMessage,
 } = require("./_lib/telegram-briefs");
 
@@ -43,6 +45,14 @@ function parseTelegramCommand(text = "") {
 
   if (/^\/pipeline(?:@\w+)?$/i.test(raw) || /^pipeline$/i.test(raw)) {
     return { type: "pipeline" };
+  }
+
+  if (/^\/scorecard(?:@\w+)?$/i.test(raw) || /^scorecard$/i.test(raw)) {
+    return { type: "scorecard" };
+  }
+
+  if (/^\/targets(?:@\w+)?$/i.test(raw) || /^targets$/i.test(raw)) {
+    return { type: "targets" };
   }
 
   if (
@@ -85,6 +95,8 @@ function buildHelpMessage() {
     "• <code>/intel+ Nume Companie</code> — versiune extinsa, cu mai mult context si intrebari",
     "• <code>/today</code> — mini brief de executie pentru ziua curenta",
     "• <code>/pipeline</code> — snapshot rapid al portofoliului activ",
+    "• <code>/scorecard</code> — overview rapid al scorecard-ului saptamanii",
+    "• <code>/targets</code> — progres fata de targetele lunare si lead measures",
     "• <code>/next</code> — top follow-up-uri urgente pentru azi",
     "• <code>/a-list</code> — top 5 companii noi prioritare pentru primul touch",
     "• <code>/help</code> — afiseaza comenzile disponibile",
@@ -94,6 +106,8 @@ function buildHelpMessage() {
     "• <code>/intel+ GARMA-GRUP</code>",
     "• <code>/today</code>",
     "• <code>/pipeline</code>",
+    "• <code>/scorecard</code>",
+    "• <code>/targets</code>",
     "• <code>/next</code>",
     "• <code>/a-list</code>",
   ].join("\n");
@@ -205,6 +219,38 @@ module.exports = async function handler(request, response) {
       response.status(200).json({
         ok: true,
         handled: "pipeline",
+        summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "scorecard") {
+      const data = await getDashboardData();
+      const report = buildScorecardCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "scorecard",
+        summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "targets") {
+      const data = await getDashboardData();
+      const report = buildTargetsCommandMessage(data);
+      await sendTelegramMessage(report.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "targets",
         summary: report.summary,
       });
       return;

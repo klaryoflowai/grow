@@ -224,6 +224,8 @@ Telegram commands:
 - `/intel+ Nume Companie` -> extended company intelligence with hypotheses and discovery questions
 - `/today` -> short execution brief for the current day
 - `/pipeline` -> quick active pipeline snapshot
+- `/scorecard` -> quick weekly scorecard overview
+- `/targets` -> progress against monthly targets and lead measures
 - `/next` -> top follow-up queue for today
 - `/a-list` -> top 5 new priority companies from Contact Priority
 - `/help` -> command help

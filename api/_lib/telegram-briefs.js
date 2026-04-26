@@ -272,6 +272,7 @@ function buildTodayAndWeeklyMetrics(data = {}, timezone = "Europe/Chisinau") {
 
   const todayActivities = liveActivities.filter((activity) => toIsoDate(activity.date) === todayIso);
   const weekActivities = liveActivities.filter((activity) => isWithinRange(toIsoDate(activity.date), weekStart, weekEnd));
+  const monthActivities = liveActivities.filter((activity) => isWithinRange(toIsoDate(activity.date), monthStart, monthEnd));
 
   const firstTouchByCompany = new Map();
   liveActivities
@@ -309,8 +310,10 @@ function buildTodayAndWeeklyMetrics(data = {}, timezone = "Europe/Chisinau") {
     monthEnd,
     todayActivities,
     weekActivities,
+    monthActivities,
     todayCounts: countActivities(todayActivities),
     weekCounts: countActivities(weekActivities),
+    monthCounts: countActivities(monthActivities),
     todayLeadMeasures,
     weekLeadMeasures,
     monthLeadMeasures,
@@ -368,6 +371,12 @@ function getDailyLeadTargetLines(metrics, targets = {}) {
 function buildLeadMeasureLine(line) {
   const offDayNote = line.offDay ? " · off day" : "";
   return `• ${escapeHtml(line.label)}: ${line.today}/${line.todayTarget} azi · ${line.week}/${line.weekTarget} sapt · ${line.month}/${line.monthTarget} luna${offDayNote}`;
+}
+
+function buildTargetProgressLine(label, actual, target, unit = "") {
+  const suffix = unit ? ` ${unit}` : "";
+  const remaining = Math.max(target - actual, 0);
+  return `• ${escapeHtml(label)}: ${actual}/${target}${suffix} · raman ${remaining}${suffix}`;
 }
 
 function buildContactPriorityQueue(data = {}) {
@@ -712,6 +721,96 @@ function buildPipelineCommandMessage(data = {}) {
   };
 }
 
+function buildScorecardCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const scorecard = data.scorecard || {};
+  const weekLabel = scorecard.week_label || "Saptamana curenta";
+
+  const message = [
+    "<b>Grow · Scorecard</b>",
+    `<i>${escapeHtml(weekLabel)} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Power Three</b>",
+    `• Workers MTD: ${toNumber(scorecard.new_contract_workers_mtd)}`,
+    `• Dream100 P1: ${toNumber(scorecard.dream100_p1_prospects)}`,
+    `• Sales Velocity: ${toNumber(scorecard.sales_velocity_days) || "-"} zile`,
+    "",
+    "<b>Lead measures saptamana</b>",
+    `• Cold Calls: ${toNumber(scorecard.cold_calls)}`,
+    `• WhatsApp: ${toNumber(scorecard.linkedin_messages)}`,
+    `• Field Visits: ${toNumber(scorecard.field_visits)}`,
+    `• Warm Outreach: ${toNumber(scorecard.warm_outreach)}`,
+    "",
+    "<b>Lag measures saptamana</b>",
+    `• Meetings: ${toNumber(scorecard.meetings_set)}`,
+    `• Oferte: ${toNumber(scorecard.offers_sent)}`,
+    `• Contracte: ${toNumber(scorecard.contracts_signed)}`,
+    `• Workers Signed: ${toNumber(scorecard.workers_signed)}`,
+    `• Workers Delivered: ${toNumber(scorecard.workers_delivered)}`,
+    scorecard.notes ? "" : "",
+    scorecard.notes ? `<b>Note</b>\n• ${escapeHtml(scorecard.notes)}` : "",
+    "",
+    "<i>Comanda: /scorecard</i>",
+  ].filter(Boolean).join("\n");
+
+  return {
+    message,
+    summary: {
+      week_start: scorecard.week_start || "",
+      week_label: weekLabel,
+      powerThree: {
+        newContractWorkersMtd: toNumber(scorecard.new_contract_workers_mtd),
+        dream100P1Prospects: toNumber(scorecard.dream100_p1_prospects),
+        salesVelocityDays: toNumber(scorecard.sales_velocity_days),
+      },
+    },
+  };
+}
+
+function buildTargetsCommandMessage(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const targets = data.targets || {};
+  const leadLines = getDailyLeadTargetLines(metrics, targets);
+
+  const monthlyTargetLines = [
+    buildTargetProgressLine("Contactate", metrics.monthCounts.contacted, toNumber(targets.contacted)),
+    buildTargetProgressLine("Meetings", metrics.monthCounts.meeting, toNumber(targets.meetings)),
+    buildTargetProgressLine("Oferte", metrics.monthCounts.offer, toNumber(targets.offers)),
+    buildTargetProgressLine("Contracte", metrics.monthCounts.contract_signed, toNumber(targets.contracts)),
+  ];
+
+  const weeklyLeadTargetLines = leadLines.map((line) => (
+    `• ${escapeHtml(line.label)}: ${line.week}/${line.weekTarget} sapt · ${line.month}/${line.monthTarget} luna`
+  ));
+
+  const message = [
+    "<b>Grow · Targets</b>",
+    `<i>${escapeHtml(metrics.monthStart.slice(0, 7))} · ${escapeHtml(formatLocalTime(timezone))}</i>`,
+    "",
+    "<b>Targete lunare comerciale</b>",
+    monthlyTargetLines.join("\n"),
+    "",
+    "<b>Lead measures</b>",
+    weeklyLeadTargetLines.join("\n"),
+    "",
+    "<i>Comanda: /targets</i>",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      period: metrics.monthStart.slice(0, 7),
+      monthly: {
+        contacted: { actual: metrics.monthCounts.contacted, target: toNumber(targets.contacted) },
+        meetings: { actual: metrics.monthCounts.meeting, target: toNumber(targets.meetings) },
+        offers: { actual: metrics.monthCounts.offer, target: toNumber(targets.offers) },
+        contracts: { actual: metrics.monthCounts.contract_signed, target: toNumber(targets.contracts) },
+      },
+    },
+  };
+}
+
 function buildEveningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
@@ -784,5 +883,7 @@ module.exports = {
   buildMorningBrief,
   buildNextCommandMessage,
   buildPipelineCommandMessage,
+  buildScorecardCommandMessage,
+  buildTargetsCommandMessage,
   buildTodayCommandMessage,
 };
