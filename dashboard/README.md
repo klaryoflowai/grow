@@ -27,7 +27,7 @@ The pipeline conversion cards and execution summaries are built on top of these 
 
 The dedicated weekly scorecard page now uses three Airtable tables:
 
-- `Scorecard` = one row per week
+- `Scorecard Weekly` = one row per week
 - `Scorecard Trend` = one row per day
 - `Lead Measures Daily` = one row per day for Hormozi-style execution metrics
 

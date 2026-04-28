@@ -678,12 +678,18 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        await apiJson("/api/scorecard", {
+        const result = await apiJson("/api/scorecard", {
           method: "PUT",
           body: serializeScorecardPayload(record),
         });
         await refreshData({ silent: true });
-        updateScorecardStatus(`Scorecard-ul pentru ${record.week_label} a fost salvat in Airtable.`);
+        const ignoredFields = Array.isArray(result?.scorecard?.ignored_fields)
+          ? result.scorecard.ignored_fields.filter(Boolean)
+          : [];
+        const ignoredFieldsSuffix = ignoredFields.length
+          ? ` Unele campuri au fost omise pentru ca nu exista in schema Airtable: ${ignoredFields.join(", ")}.`
+          : "";
+        updateScorecardStatus(`Scorecard-ul pentru ${record.week_label} a fost salvat in Airtable.${ignoredFieldsSuffix}`);
       } catch (error) {
         updateScorecardStatus(`Airtable nu a putut salva scorecard-ul. ${error.message}`);
         return;

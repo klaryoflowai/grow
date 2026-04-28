@@ -39,7 +39,7 @@ function getAirtableConfig() {
       contactPriority: readEnv("AIRTABLE_TABLE_CONTACT_PRIORITY", "Contact Priority"),
       activities: readEnv("AIRTABLE_TABLE_ACTIVITIES", "Activities"),
       targets: readEnv("AIRTABLE_TABLE_TARGETS", "Targets"),
-      scorecard: readEnv("AIRTABLE_TABLE_SCORECARD", "Scorecard"),
+      scorecard: readEnv("AIRTABLE_TABLE_SCORECARD", "Scorecard Weekly"),
       scorecardTrend: readEnv("AIRTABLE_TABLE_SCORECARD_TREND", "Scorecard Trend"),
       leadMeasuresDaily: readEnv("AIRTABLE_TABLE_LEAD_MEASURES_DAILY", "Lead Measures Daily"),
     },

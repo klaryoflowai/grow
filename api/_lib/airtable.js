@@ -220,6 +220,15 @@ function isMissingFieldError(error, fieldName = "") {
   );
 }
 
+function getUnknownFieldName(error) {
+  const message = normalizeString(error?.message);
+  if (!message) return "";
+  const match = message.match(/unknown field name:\s*"([^"]+)"/i)
+    || message.match(/cannot find field\s*"([^"]+)"/i)
+    || message.match(/field\s*"([^"]+)"\s*does not exist/i);
+  return match?.[1] || "";
+}
+
 function isInvalidSelectOptionError(error) {
   const message = normalizeString(error?.message).toLowerCase();
   return (
@@ -1334,29 +1343,72 @@ async function upsertScorecard(payload) {
     [config.fields.scorecard.notes]: normalizeString(payload.notes),
   };
 
+  const optionalFieldNames = new Set([
+    config.fields.scorecard.weekEnd,
+    config.fields.scorecard.weekLabel,
+    config.fields.scorecard.newContractWorkersMtd,
+    config.fields.scorecard.dream100P1Prospects,
+    config.fields.scorecard.salesVelocityDays,
+    config.fields.scorecard.coldCalls,
+    config.fields.scorecard.fieldVisits,
+    config.fields.scorecard.warmOutreach,
+    config.fields.scorecard.meetingsSet,
+    config.fields.scorecard.offersSent,
+    config.fields.scorecard.contractsSigned,
+    config.fields.scorecard.workersSigned,
+    config.fields.scorecard.workersDelivered,
+    config.fields.scorecard.notes,
+    "WhatsApp Messages",
+    "LinkedIn Messages",
+  ].filter(Boolean));
+
+  const ignoredFields = [];
+  const fallbackMessageField = messageFieldName === "WhatsApp Messages"
+    ? "LinkedIn Messages"
+    : "WhatsApp Messages";
   let record;
+  let activeFields = { ...fields };
+  let activeMessageField = messageFieldName;
 
-  try {
-    record = existingRecord
-      ? await updateRecord("scorecard", existingRecord.id, fields)
-      : await createRecord("scorecard", fields);
-  } catch (error) {
-    const fallbackMessageField = messageFieldName === "WhatsApp Messages"
-      ? "LinkedIn Messages"
-      : "WhatsApp Messages";
+  for (;;) {
+    try {
+      record = existingRecord
+        ? await updateRecord("scorecard", existingRecord.id, activeFields)
+        : await createRecord("scorecard", activeFields);
+      break;
+    } catch (error) {
+      if (
+        activeMessageField
+        && isMissingFieldError(error, activeMessageField)
+        && Object.prototype.hasOwnProperty.call(activeFields, activeMessageField)
+        && fallbackMessageField
+        && fallbackMessageField !== activeMessageField
+      ) {
+        delete activeFields[activeMessageField];
+        activeFields[fallbackMessageField] = messageFieldValue;
+        activeMessageField = fallbackMessageField;
+        continue;
+      }
 
-    if (!isMissingFieldError(error, messageFieldName)) {
+      const unknownFieldName = getUnknownFieldName(error);
+      if (
+        unknownFieldName
+        && optionalFieldNames.has(unknownFieldName)
+        && Object.prototype.hasOwnProperty.call(activeFields, unknownFieldName)
+      ) {
+        delete activeFields[unknownFieldName];
+        ignoredFields.push(unknownFieldName);
+        continue;
+      }
+
       throw error;
     }
-
-    delete fields[messageFieldName];
-    fields[fallbackMessageField] = messageFieldValue;
-    record = existingRecord
-      ? await updateRecord("scorecard", existingRecord.id, fields)
-      : await createRecord("scorecard", fields);
   }
 
-  return withComputedSalesVelocity(normalizeScorecardRecord(record, config), activities);
+  return {
+    ...withComputedSalesVelocity(normalizeScorecardRecord(record, config), activities),
+    ignored_fields: ignoredFields,
+  };
 }
 
 async function upsertLeadMeasuresDaily(payload) {
