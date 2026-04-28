@@ -124,6 +124,7 @@ Recommended Airtable fields:
 - `Targets -> Meetings Target`
 - `Targets -> Offers Target`
 - `Targets -> Contracts Target`
+- `Targets -> Moved Companies Weekly`
 - `Targets -> Cold Calls Daily`
 - `Targets -> Cold Calls Weekly`
 - `Targets -> Cold Calls Monthly`
@@ -210,6 +211,7 @@ Morning briefing includes:
 - overdue and stale accounts
 - daily/weekly/monthly key lead measures
 - current weekly movement snapshot
+- weekly movement target for `Companii miscate / saptamana`
 
 Evening briefing includes:
 

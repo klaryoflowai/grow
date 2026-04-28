@@ -3,6 +3,7 @@ const defaultTargets = {
   meetings: 12,
   offers: 6,
   contracts: 4,
+  movedCompaniesWeekly: 35,
   coldCallsDaily: 10,
   coldCallsWeekly: 50,
   coldCallsMonthly: 200,
@@ -33,10 +34,6 @@ const scorecardTargets = {
     meetingToOffer: 70,
     offerToSigned: 20,
   },
-};
-
-const heroTargets = {
-  movedCompaniesPerWeek: 35,
 };
 
 const wigPlan = {
@@ -248,6 +245,7 @@ const elements = {
     meetings: document.getElementById("target-meetings"),
     offers: document.getElementById("target-offers"),
     contracts: document.getElementById("target-contracts"),
+    movedCompaniesWeekly: document.getElementById("target-moved-companies-weekly"),
     coldCallsDaily: document.getElementById("target-cold-calls-daily"),
     coldCallsWeekly: document.getElementById("target-cold-calls-weekly"),
     coldCallsMonthly: document.getElementById("target-cold-calls-monthly"),
@@ -458,6 +456,7 @@ function bindEvents() {
       meetings: toNumber(elements.targets.meetings.value),
       offers: toNumber(elements.targets.offers.value),
       contracts: toNumber(elements.targets.contracts.value),
+      movedCompaniesWeekly: toNumber(elements.targets.movedCompaniesWeekly.value),
       coldCallsDaily: toNumber(elements.targets.coldCallsDaily.value),
       coldCallsWeekly: toNumber(elements.targets.coldCallsWeekly.value),
       coldCallsMonthly: toNumber(elements.targets.coldCallsMonthly.value),
@@ -997,6 +996,7 @@ function hydrateInputs() {
   elements.targets.meetings.value = state.targets.meetings;
   elements.targets.offers.value = state.targets.offers;
   elements.targets.contracts.value = state.targets.contracts;
+  elements.targets.movedCompaniesWeekly.value = state.targets.movedCompaniesWeekly;
   elements.targets.coldCallsDaily.value = state.targets.coldCallsDaily;
   elements.targets.coldCallsWeekly.value = state.targets.coldCallsWeekly;
   elements.targets.coldCallsMonthly.value = state.targets.coldCallsMonthly;
@@ -1257,11 +1257,15 @@ function loadTargets() {
 }
 
 function normalizeTargets(value = {}) {
+  const movedCompaniesWeeklyValue = value.movedCompaniesWeekly ?? value.moved_companies_weekly;
   return {
     contacted: toNumber(value.contacted ?? value.leads ?? defaultTargets.contacted),
     meetings: toNumber(value.meetings ?? defaultTargets.meetings),
     offers: toNumber(value.offers ?? defaultTargets.offers),
     contracts: toNumber(value.contracts ?? defaultTargets.contracts),
+    movedCompaniesWeekly: normalizeString(movedCompaniesWeeklyValue) === ""
+      ? defaultTargets.movedCompaniesWeekly
+      : toNumber(movedCompaniesWeeklyValue),
     coldCallsDaily: toNumber(value.coldCallsDaily ?? value.cold_calls_daily ?? defaultTargets.coldCallsDaily),
     coldCallsWeekly: toNumber(value.coldCallsWeekly ?? value.cold_calls_weekly ?? defaultTargets.coldCallsWeekly),
     coldCallsMonthly: toNumber(value.coldCallsMonthly ?? value.cold_calls_monthly ?? defaultTargets.coldCallsMonthly),
@@ -2585,11 +2589,14 @@ function buildCompanyMovementMetrics(activities = [], rangeStart = null, rangeEn
 function getHeroMovementMetrics(now = new Date()) {
   const weekStart = parseDate(getWeekStart(getTodayIsoDate()));
   const weekEnd = parseDate(getWeekEnd(getTodayIsoDate()));
+  const monthStart = parseDate(`${getTodayIsoDate().slice(0, 7)}-01`);
+  const monthEnd = parseDate(getMonthEnd(getTodayIsoDate()));
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
 
   return {
     weekly: buildCompanyMovementMetrics(getCurrentWeekLiveActivities(), weekStart, weekEnd),
+    monthly: buildCompanyMovementMetrics(getMonthlyActivities(), monthStart, monthEnd),
     today: buildCompanyMovementMetrics(getTodayActivities(), today, today),
   };
 }
@@ -2615,7 +2622,7 @@ function renderPacingCard() {
 
   const movement = getHeroMovementMetrics();
   const { total, elapsed } = getCurrentWeekWorkingDaysInfo();
-  const target = heroTargets.movedCompaniesPerWeek || 1;
+  const target = state.targets.movedCompaniesWeekly ?? defaultTargets.movedCompaniesWeekly ?? 1;
   const expectedByNow = Math.round((target / total) * elapsed);
   const ratio = expectedByNow > 0 ? movement.weekly.moved / expectedByNow : 1;
 
@@ -2643,7 +2650,7 @@ function renderPacingCard() {
       Saptamana asta: <strong>${movement.weekly.newCompanies}</strong> noi · <strong>${movement.weekly.followUp}</strong> follow-up
       <span class="hero-pacing-badge" style="color:${statusColor}; border-color:${statusColor}33; background:${pacingBg};">${statusLabel}</span>
     </div>
-    <div class="hero-pacing-meta">Azi: ${movement.today.moved} companii miscate · ${movement.today.followUp} follow-up · ${movement.weekly.totalTouches} touch-uri totale · Asteptat pana azi: ${expectedByNow} · zi lucratoare ${elapsed} din ${total}</div>
+    <div class="hero-pacing-meta">Azi: ${movement.today.moved} companii unice miscate · ${movement.today.totalTouches} touch-uri azi · ${movement.today.followUp} follow-up · Luna asta: ${movement.monthly.moved} companii miscate · ${movement.weekly.totalTouches} touch-uri totale saptamana asta · Asteptat pana azi: ${expectedByNow} · zi lucratoare ${elapsed} din ${total}</div>
   `;
 }
 

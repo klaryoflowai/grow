@@ -556,6 +556,7 @@ function withComputedSalesVelocity(scorecard, activities = []) {
 
 function normalizeTargetsRecord(record, config) {
   const fields = record.fields || {};
+  const movedCompaniesWeeklyValue = fields[config.fields.targets.movedCompaniesWeekly];
   return {
     id: record.id,
     period: normalizePeriod(fields[config.fields.targets.period], config.timezone),
@@ -563,6 +564,9 @@ function normalizeTargetsRecord(record, config) {
     meetings: toNumber(fields[config.fields.targets.meetings]),
     offers: toNumber(fields[config.fields.targets.offers]),
     contracts: toNumber(fields[config.fields.targets.contracts]),
+    movedCompaniesWeekly: normalizeString(movedCompaniesWeeklyValue) === ""
+      ? defaultTargets.movedCompaniesWeekly
+      : toNumber(movedCompaniesWeeklyValue),
     coldCallsDaily: toNumber(fields[config.fields.targets.coldCallsDaily]),
     coldCallsWeekly: toNumber(fields[config.fields.targets.coldCallsWeekly]),
     coldCallsMonthly: toNumber(fields[config.fields.targets.coldCallsMonthly]),
@@ -823,10 +827,35 @@ function selectCurrentScorecard(records, config) {
 
 function selectTargets(records, config) {
   const currentPeriod = getCurrentPeriod(config.timezone);
-  const normalized = records.map((record) => normalizeTargetsRecord(record, config));
-  return normalized.find((record) => record.period === currentPeriod)
-    || normalized[0]
-    || { period: currentPeriod, ...defaultTargets };
+  const targetValueFields = [
+    config.fields.targets.contacted,
+    config.fields.targets.meetings,
+    config.fields.targets.offers,
+    config.fields.targets.contracts,
+    config.fields.targets.movedCompaniesWeekly,
+    config.fields.targets.coldCallsDaily,
+    config.fields.targets.coldCallsWeekly,
+    config.fields.targets.coldCallsMonthly,
+    config.fields.targets.whatsappMessagesDaily,
+    config.fields.targets.whatsappMessagesWeekly,
+    config.fields.targets.whatsappMessagesMonthly,
+    config.fields.targets.fieldVisitsDaily,
+    config.fields.targets.fieldVisitsWeekly,
+    config.fields.targets.fieldVisitsMonthly,
+    config.fields.targets.warmOutreachDaily,
+    config.fields.targets.warmOutreachWeekly,
+    config.fields.targets.warmOutreachMonthly,
+  ];
+  const normalized = records.map((record) => ({
+    data: normalizeTargetsRecord(record, config),
+    hasValues: targetValueFields.some((fieldName) => normalizeString(record.fields?.[fieldName]) !== ""),
+  }));
+  const currentMatches = normalized.filter((record) => record.data.period === currentPeriod);
+  const selected = currentMatches.find((record) => record.hasValues)
+    || currentMatches[0]
+    || normalized.find((record) => record.hasValues)
+    || normalized[0];
+  return selected?.data || { period: currentPeriod, ...defaultTargets };
 }
 
 function findCompanyByName(records, companyName, config) {
@@ -1237,6 +1266,7 @@ async function upsertTargets(payload) {
     [config.fields.targets.meetings]: toNumber(payload.meetings),
     [config.fields.targets.offers]: toNumber(payload.offers),
     [config.fields.targets.contracts]: toNumber(payload.contracts),
+    [config.fields.targets.movedCompaniesWeekly]: toNumber(payload.movedCompaniesWeekly),
     [config.fields.targets.coldCallsDaily]: toNumber(payload.coldCallsDaily),
     [config.fields.targets.coldCallsWeekly]: toNumber(payload.coldCallsWeekly),
     [config.fields.targets.coldCallsMonthly]: toNumber(payload.coldCallsMonthly),

@@ -28,6 +28,6 @@ Aceasta tabela alimenteaza:
 
 ## Legatura cu celelalte tabele
 
-- `Targets` tine planul zilnic / saptamanal / lunar.
+- `Targets` tine planul zilnic / saptamanal / lunar, inclusiv `Moved Companies Weekly` pentru cardul de ritm.
 - `Lead Measures Daily` tine executia reala de zi cu zi.
 - `Scorecard` ramane snapshot-ul saptamanal de vineri.
