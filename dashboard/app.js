@@ -1740,8 +1740,18 @@ function syncManualScorecardFromActivity(activity, existingActivities = []) {
 
   const shouldIncrementWhatsApp = isWhatsAppMessageOutcome(activity.outcome);
   const shouldIncrementDream100 = isFirstLiveCompanyTouch(activity, existingActivities);
+  const normalizedActivityType = normalizeActivity(activity.activity_type);
+  const shouldIncrementMeetings = normalizedActivityType === "meeting";
+  const shouldIncrementOffers = normalizedActivityType === "offer";
+  const shouldIncrementContracts = normalizedActivityType === "contract_signed";
 
-  if (!shouldIncrementWhatsApp && !shouldIncrementDream100) {
+  if (
+    !shouldIncrementWhatsApp
+    && !shouldIncrementDream100
+    && !shouldIncrementMeetings
+    && !shouldIncrementOffers
+    && !shouldIncrementContracts
+  ) {
     return { updated: false, reason: "not_scorecard_activity" };
   }
 
@@ -1761,6 +1771,9 @@ function syncManualScorecardFromActivity(activity, existingActivities = []) {
     ...baseRecord,
     linkedin_messages: toNumber(baseRecord.linkedin_messages) + (shouldIncrementWhatsApp ? 1 : 0),
     dream100_p1_prospects: toNumber(baseRecord.dream100_p1_prospects) + (shouldIncrementDream100 ? 1 : 0),
+    meetings_set: toNumber(baseRecord.meetings_set) + (shouldIncrementMeetings ? 1 : 0),
+    offers_sent: toNumber(baseRecord.offers_sent) + (shouldIncrementOffers ? 1 : 0),
+    contracts_signed: toNumber(baseRecord.contracts_signed) + (shouldIncrementContracts ? 1 : 0),
   });
 
   upsertManualScorecard(nextRecord);
@@ -1769,9 +1782,15 @@ function syncManualScorecardFromActivity(activity, existingActivities = []) {
     week_start: weekStart,
     linkedin_messages: nextRecord.linkedin_messages,
     dream100_p1_prospects: nextRecord.dream100_p1_prospects,
+    meetings_set: nextRecord.meetings_set,
+    offers_sent: nextRecord.offers_sent,
+    contracts_signed: nextRecord.contracts_signed,
     metrics_updated: [
       shouldIncrementDream100 ? "dream100_p1_prospects" : "",
       shouldIncrementWhatsApp ? "whatsapp_messages" : "",
+      shouldIncrementMeetings ? "meetings_set" : "",
+      shouldIncrementOffers ? "offers_sent" : "",
+      shouldIncrementContracts ? "contracts_signed" : "",
     ].filter(Boolean),
   };
 }
@@ -2133,6 +2152,15 @@ function formatScorecardSyncBadge(scorecardSync = {}) {
     }
     if (scorecardSync.metrics_updated.includes("whatsapp_messages")) {
       labels.push("WhatsApp");
+    }
+    if (scorecardSync.metrics_updated.includes("meetings_set")) {
+      labels.push("Meetings");
+    }
+    if (scorecardSync.metrics_updated.includes("offers_sent")) {
+      labels.push("Oferte");
+    }
+    if (scorecardSync.metrics_updated.includes("contracts_signed")) {
+      labels.push("Contracte");
     }
   }
 

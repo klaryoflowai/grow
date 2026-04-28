@@ -678,8 +678,18 @@ function getScorecardMessageFieldName(config, fields = {}) {
 async function syncScorecardFromActivity(activity, config, existingActivities = []) {
   const shouldIncrementWhatsApp = isWhatsAppMessageOutcome(activity.outcome);
   const shouldIncrementDream100 = isFirstLiveCompanyTouch(activity, existingActivities);
+  const normalizedActivityType = normalizeActivity(activity.activity_type);
+  const shouldIncrementMeetings = normalizedActivityType === "meeting";
+  const shouldIncrementOffers = normalizedActivityType === "offer";
+  const shouldIncrementContracts = normalizedActivityType === "contract_signed";
 
-  if (!shouldIncrementWhatsApp && !shouldIncrementDream100) {
+  if (
+    !shouldIncrementWhatsApp
+    && !shouldIncrementDream100
+    && !shouldIncrementMeetings
+    && !shouldIncrementOffers
+    && !shouldIncrementContracts
+  ) {
     return { updated: false, reason: "not_scorecard_activity" };
   }
 
@@ -709,8 +719,14 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
   const messageFieldName = getScorecardMessageFieldName(config, existingRecord?.fields || {});
   const currentMessages = normalizedExistingRecord?.linkedin_messages || 0;
   const currentDream100 = normalizedExistingRecord?.dream100_p1_prospects || 0;
+  const currentMeetings = normalizedExistingRecord?.meetings_set || 0;
+  const currentOffers = normalizedExistingRecord?.offers_sent || 0;
+  const currentContracts = normalizedExistingRecord?.contracts_signed || 0;
   const nextMessages = currentMessages + (shouldIncrementWhatsApp ? 1 : 0);
   const nextDream100 = currentDream100 + (shouldIncrementDream100 ? 1 : 0);
+  const nextMeetings = currentMeetings + (shouldIncrementMeetings ? 1 : 0);
+  const nextOffers = currentOffers + (shouldIncrementOffers ? 1 : 0);
+  const nextContracts = currentContracts + (shouldIncrementContracts ? 1 : 0);
   const fields = existingRecord
     ? {}
     : {
@@ -726,6 +742,18 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
 
   if (shouldIncrementDream100) {
     fields[config.fields.scorecard.dream100P1Prospects] = nextDream100;
+  }
+
+  if (shouldIncrementMeetings) {
+    fields[config.fields.scorecard.meetingsSet] = nextMeetings;
+  }
+
+  if (shouldIncrementOffers) {
+    fields[config.fields.scorecard.offersSent] = nextOffers;
+  }
+
+  if (shouldIncrementContracts) {
+    fields[config.fields.scorecard.contractsSigned] = nextContracts;
   }
 
   let record;
@@ -755,9 +783,15 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
     week_start: weekStart,
     linkedin_messages: shouldIncrementWhatsApp ? nextMessages : currentMessages,
     dream100_p1_prospects: shouldIncrementDream100 ? nextDream100 : currentDream100,
+    meetings_set: shouldIncrementMeetings ? nextMeetings : currentMeetings,
+    offers_sent: shouldIncrementOffers ? nextOffers : currentOffers,
+    contracts_signed: shouldIncrementContracts ? nextContracts : currentContracts,
     metrics_updated: [
       shouldIncrementDream100 ? "dream100_p1_prospects" : "",
       shouldIncrementWhatsApp ? "whatsapp_messages" : "",
+      shouldIncrementMeetings ? "meetings_set" : "",
+      shouldIncrementOffers ? "offers_sent" : "",
+      shouldIncrementContracts ? "contracts_signed" : "",
     ].filter(Boolean),
     scorecard: normalizeScorecardRecord(record, config),
   };
