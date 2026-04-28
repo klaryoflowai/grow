@@ -198,6 +198,7 @@ const elements = {
   weeklyTouchChip: document.getElementById("weekly-touch-chip"),
   dueTodayChip: document.getElementById("due-today-chip"),
   overdueChip: document.getElementById("overdue-chip"),
+  pipelineWorkersChip: document.getElementById("pipeline-workers-chip"),
   dataModePill: document.getElementById("data-mode-pill"),
   statusMessage: document.getElementById("status-message"),
   retryConnection: document.getElementById("retry-connection"),
@@ -2501,6 +2502,7 @@ function renderPage() {
 function render() {
   const weeklyMovement = getHeroMovementMetrics();
   const openPipelineActions = getOpenPipelineActionCounts();
+  const movingPipelineWorkers = getMovingPipelineWorkersTotal();
   elements.dataModePill.textContent = !state.bootstrapReady
     ? "Se conecteaza..."
     : state.apiEnabled
@@ -2511,6 +2513,7 @@ function render() {
   elements.weeklyTouchChip.textContent = `${weeklyMovement.weekly.totalTouches} touch-uri`;
   elements.dueTodayChip.textContent = `${openPipelineActions.dueToday} conturi`;
   elements.overdueChip.textContent = `${openPipelineActions.overdue} conturi`;
+  elements.pipelineWorkersChip.textContent = `${movingPipelineWorkers}`;
 
   renderPacingCard();
   renderChecklist();
@@ -2649,6 +2652,12 @@ function getOpenPipelineActionCounts(now = new Date()) {
     dueToday: 0,
     overdue: 0,
   });
+}
+
+function getMovingPipelineWorkersTotal() {
+  return state.accounts
+    .filter((account) => isMovingAccount(account))
+    .reduce((sum, account) => sum + (toNumber(account.workers) || 0), 0);
 }
 
 function renderPacingCard() {
@@ -4413,7 +4422,7 @@ function renderPipeline() {
     offers: trackedAccounts.filter((account) => isOfferStage(account.pipeline_stage)).length,
     signed: trackedAccounts.filter((account) => account.pipeline_stage === "Contract semnat").length,
     standby: trackedAccounts.filter((account) => isStandbyAccount(account)).length,
-    workersInPipeline: activeAccs.reduce((sum, a) => sum + (a.workers || 0), 0),
+    workersInPipeline: getMovingPipelineWorkersTotal(),
   };
 
   elements.pipelineSummary.innerHTML = `
