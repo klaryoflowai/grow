@@ -65,7 +65,7 @@ Briefing-ul de seara include:
 
 ## Ce trimite vineri: Weekly Expert Board Review
 
-Endpoint: `/api/telegram-weekly-review`
+Endpoint: `/api/telegram-evening?weeklyReview=1`
 
 Review-ul saptamanal foloseste datele din Airtable si contextul din Vault:
 
@@ -174,8 +174,8 @@ Preview fara trimitere reala:
 
 - `/api/telegram-morning?key=CRON_SECRET&dryRun=1`
 - `/api/telegram-evening?key=CRON_SECRET&dryRun=1`
-- `/api/telegram-weekly-review?key=CRON_SECRET&dryRun=1`
-- `/api/telegram-weekly-review?key=CRON_SECRET&force=1`
+- `/api/telegram-evening?weeklyReview=1&key=CRON_SECRET&dryRun=1`
+- `/api/telegram-evening?weeklyReview=1&key=CRON_SECRET&force=1`
 
 Acest mod este bun pentru:
 
@@ -191,7 +191,7 @@ Job-uri:
 
 - `08:00 Europe/Chisinau` -> `/api/telegram-morning?key=CRON_SECRET`
 - `19:00 Europe/Chisinau` -> `/api/telegram-evening?key=CRON_SECRET`
-- `18:00 vineri Europe/Chisinau` -> `/api/telegram-weekly-review?key=CRON_SECRET&force=1`
+- `18:00 vineri Europe/Chisinau` -> `/api/telegram-evening?weeklyReview=1&key=CRON_SECRET&force=1`
 
 Avantaj:
 
