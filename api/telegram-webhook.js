@@ -3,6 +3,7 @@ const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
 const { buildIntelligenceReport } = require("./_lib/intelligence");
 const { normalizeActivity, normalizeString, toIsoDate } = require("./_lib/normalize");
 const { sendTelegramMessage } = require("./_lib/telegram");
+const { buildWeeklyExpertReview } = require("./_lib/weekly-review");
 const {
   buildAListCommandMessage,
   buildFocusCommandMessage,
@@ -234,6 +235,10 @@ function parseTelegramCommand(text = "") {
     return { type: "week" };
   }
 
+  if (/^\/(?:review|weeklyreview|weekly-review|board)(?:@\w+)?$/i.test(raw) || /^(?:review|weeklyreview|weekly-review|board)$/i.test(raw)) {
+    return { type: "weekly_review" };
+  }
+
   if (/^\/pipeline(?:@\w+)?$/i.test(raw) || /^pipeline$/i.test(raw)) {
     return { type: "pipeline" };
   }
@@ -289,6 +294,7 @@ function buildHelpMessage() {
     "• <code>/focus</code> — ce merita facut acum: follow-up + A-list + ritm azi",
     "• <code>/today</code> — mini brief de executie pentru ziua curenta",
     "• <code>/week</code> — snapshot operational live al saptamanii",
+    "• <code>/review</code> — review saptamanal de tip board de experti",
     "• <code>/pipeline</code> — snapshot rapid al portofoliului activ",
     "• <code>/scorecard</code> — overview rapid al scorecard-ului saptamanii",
     "• <code>/targets</code> — progres fata de targetele lunare si lead measures",
@@ -304,6 +310,7 @@ function buildHelpMessage() {
     "• <code>/focus</code>",
     "• <code>/today</code>",
     "• <code>/week</code>",
+    "• <code>/review</code>",
     "• <code>/pipeline</code>",
     "• <code>/scorecard</code>",
     "• <code>/targets</code>",
@@ -517,6 +524,22 @@ module.exports = async function handler(request, response) {
         ok: true,
         handled: "week",
         summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "weekly_review") {
+      const data = await getDashboardData();
+      const review = await buildWeeklyExpertReview(data);
+      await sendTelegramMessage(review.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "weekly_review",
+        summary: review.summary,
       });
       return;
     }

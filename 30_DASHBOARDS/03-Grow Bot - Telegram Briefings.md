@@ -6,6 +6,7 @@
 
 - `08:00` -> ce trebuie miscat azi
 - `19:00` -> ce s-a facut azi si ce ramane pentru maine
+- `vineri 18:00` -> review saptamanal de tip board de experti
 
 Nu este un CRM separat. Botul doar citeste din sistemul existent si trimite rezumatul intr-un format foarte scurt.
 
@@ -62,6 +63,42 @@ Briefing-ul de seara include:
 - ce cere atentie maine
 - cadenta curenta a saptamanii
 
+## Ce trimite vineri: Weekly Expert Board Review
+
+Endpoint: `/api/telegram-weekly-review`
+
+Review-ul saptamanal foloseste datele din Airtable si contextul din Vault:
+
+- `Scorecard Weekly`
+- `Lead Measures Daily`
+- `Activities`
+- `Companies`
+- `Contact Priority`
+- note din activitati si intalniri
+- `Next Step` si `Next Step Date`
+- modificari de stadiu din `Data Schimbare Stadiu`
+- `Stadiu Pipeline`
+- `Sanatate Cont`
+- context strategic din Strategy Map, 4DX, Scaling Up si ICP
+
+Review-ul raspunde la:
+
+- ce rezultate au fost obtinute fata de WIG si Rocks
+- unde trebuie disciplina mai stricta
+- ce trebuie imbunatatit in cadenta de sales
+- ce recomandari are board-ul de experti
+- cum crestem vanzarile in saptamana urmatoare
+- ce clienti noi si sectoare merita abordate
+- ce unghiuri de mesaj trebuie testate
+
+Board-ul de experti simulat:
+
+- Sales Strategy Advisor
+- 4DX Execution Coach
+- RevOps / Pipeline Analyst
+- Dream 100 Prospecting Coach
+- Customer Success / Delivery Risk Advisor
+
 ## Comenzi Telegram
 
 Botul poate raspunde si la comenzi primite in chat.
@@ -75,6 +112,7 @@ Comenzi disponibile:
 - `/focus`
 - `/today`
 - `/week`
+- `/review`
 - `/pipeline`
 - `/scorecard`
 - `/targets`
@@ -91,6 +129,7 @@ Exemplu:
 - `/focus`
 - `/today`
 - `/week`
+- `/review`
 - `/pipeline`
 - `/scorecard`
 - `/targets`
@@ -112,6 +151,8 @@ In Vercel trebuie sa existe:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `CRON_SECRET`
+- `OPENAI_API_KEY`
+- `OPENAI_WEEKLY_REVIEW_MODEL`
 
 Important:
 
@@ -133,6 +174,8 @@ Preview fara trimitere reala:
 
 - `/api/telegram-morning?key=CRON_SECRET&dryRun=1`
 - `/api/telegram-evening?key=CRON_SECRET&dryRun=1`
+- `/api/telegram-weekly-review?key=CRON_SECRET&dryRun=1`
+- `/api/telegram-weekly-review?key=CRON_SECRET&force=1`
 
 Acest mod este bun pentru:
 
@@ -148,6 +191,7 @@ Job-uri:
 
 - `08:00 Europe/Chisinau` -> `/api/telegram-morning?key=CRON_SECRET`
 - `19:00 Europe/Chisinau` -> `/api/telegram-evening?key=CRON_SECRET`
+- `18:00 vineri Europe/Chisinau` -> `/api/telegram-weekly-review?key=CRON_SECRET&force=1`
 
 Avantaj:
 
