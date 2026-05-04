@@ -58,7 +58,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260425a";
+const appBuild = "20260504a";
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 
 const activityTheme = {
