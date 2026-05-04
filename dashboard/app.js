@@ -199,6 +199,7 @@ const elements = {
   dueTodayChip: document.getElementById("due-today-chip"),
   overdueChip: document.getElementById("overdue-chip"),
   pipelineWorkersChip: document.getElementById("pipeline-workers-chip"),
+  activeCompaniesChip: document.getElementById("active-companies-chip"),
   dataModePill: document.getElementById("data-mode-pill"),
   statusMessage: document.getElementById("status-message"),
   retryConnection: document.getElementById("retry-connection"),
@@ -2503,6 +2504,7 @@ function render() {
   const weeklyMovement = getHeroMovementMetrics();
   const openPipelineActions = getOpenPipelineActionCounts();
   const movingPipelineWorkers = getMovingPipelineWorkersTotal();
+  const activeCompaniesCount = state.accounts.filter((account) => isMovingAccount(account)).length;
   elements.dataModePill.textContent = !state.bootstrapReady
     ? "Se conecteaza..."
     : state.apiEnabled
@@ -2514,6 +2516,7 @@ function render() {
   elements.dueTodayChip.textContent = `${openPipelineActions.dueToday} conturi`;
   elements.overdueChip.textContent = `${openPipelineActions.overdue} conturi`;
   elements.pipelineWorkersChip.textContent = `${movingPipelineWorkers}`;
+  elements.activeCompaniesChip.textContent = `${activeCompaniesCount} companii`;
 
   renderPacingCard();
   renderChecklist();
