@@ -279,6 +279,54 @@ async function commandContactPriority(args) {
   ]);
 }
 
+async function commandLookup(args) {
+  const query = normalizeString(args._.slice(1).join(" ") || args.company || args.q || "");
+  if (!query) {
+    throw new Error("Indica numele companiei. Exemplu: node tools/airtable.js lookup Darmadan SDM srl");
+  }
+
+  const config = requireConfig();
+  const [companyRecords, priorityRecords] = await Promise.all([
+    listRecords("companies", { limit: 1000 }),
+    listRecords("contactPriority", { limit: 1000 }),
+  ]);
+  const companies = companyRecords.map((record) => normalizeCompanyRecord(record, config));
+  const companyNameById = new Map(companies.map((company) => [company.id, company.company]));
+  const companyByName = new Map(companies.map((company) => [normalizeCompanyKey(company.company), company]));
+  const wanted = normalizeCompanyKey(query);
+  const companyMatches = companies
+    .filter((company) => {
+      const key = normalizeCompanyKey(company.company);
+      return key && (key.includes(wanted) || wanted.includes(key));
+    })
+    .slice(0, 10);
+  const priorityMatches = priorityRecords
+    .map((record) => normalizeContactPriorityRecord(record, config, companyNameById, companyByName))
+    .filter((row) => {
+      const key = normalizeCompanyKey(row.company);
+      return key && (key.includes(wanted) || wanted.includes(key));
+    })
+    .slice(0, 10);
+
+  console.log("Companies matches:");
+  printTable(companyMatches, [
+    { key: "company", label: "Company" },
+    { key: "pipeline_stage", label: "Stage" },
+    { key: "next_step", label: "Next Step" },
+    { key: "next_step_date", label: "Next Step Date" },
+  ]);
+  console.log("");
+  console.log("Contact Priority matches:");
+  printTable(priorityMatches, [
+    { key: "company", label: "Company" },
+    { key: "pipeline_stage", label: "Stage" },
+    { key: "decision_maker", label: "Factor decizie" },
+    { key: "mobile", label: "Mobil" },
+    { key: "contact_person", label: "Persoana Contact" },
+    { key: "secondary_phone", label: "Tel contact rang 2" },
+  ]);
+}
+
 function printHelp() {
   console.log(`
 Grow Airtable CLI
@@ -287,11 +335,13 @@ Usage:
   node tools/airtable.js tables
   node tools/airtable.js records <table-key> [--limit 20] [--json]
   node tools/airtable.js contact-priority [--stage Necontactat] [--limit 10] [--json]
+  node tools/airtable.js lookup <company-name>
 
 Examples:
   node tools/airtable.js tables
   node tools/airtable.js records companies --limit 5
   node tools/airtable.js contact-priority --stage Necontactat --limit 10
+  node tools/airtable.js lookup Darmadan SDM srl
 
 Env:
   Reads .env.local, then .env, then process env.
@@ -321,6 +371,11 @@ async function main() {
 
   if (["contact-priority", "priority"].includes(command)) {
     await commandContactPriority(args);
+    return;
+  }
+
+  if (["lookup", "find"].includes(command)) {
+    await commandLookup(args);
     return;
   }
 
