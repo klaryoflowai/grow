@@ -560,7 +560,6 @@ function buildMorningBrief(data = {}) {
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
   const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
   const uncontactedPriorityQueue = buildUncontactedContactPriorityQueue(data, 10);
-  const contactPriorityByCompany = buildContactPriorityIndex(data);
   const totalContactPriority = Array.isArray(data.contactPriority) ? data.contactPriority.length : 0;
   const availableContactPriority = (Array.isArray(data.contactPriority) ? data.contactPriority : [])
     .filter((item) => item.company && !item.last_contact).length;
@@ -591,7 +590,7 @@ function buildMorningBrief(data = {}) {
         .map((account) => describeTask(
           account,
           metrics.todayIso,
-          findContactPriorityForCompany(contactPriorityByCompany, account.company)
+          account
         ))
         .join("\n")
       : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",

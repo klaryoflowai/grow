@@ -242,6 +242,9 @@ function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
   const rawStage = normalizeString(pipelineStageField ? fields[pipelineStageField] : "");
+  const readField = (...fieldNames) => fieldNames
+    .map((fieldName) => (fieldName ? fields[fieldName] : ""))
+    .find((value) => normalizeString(value)) || "";
 
   return {
     id: record.id,
@@ -257,6 +260,10 @@ function normalizeCompanyRecord(record, config) {
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.companies.nextStepDate]),
+    decision_maker: normalizeString(readField(config.fields.companies.decisionMaker, "Factor decizie", "Factor Decizie")),
+    mobile: normalizeString(readField(config.fields.companies.mobile, "Mobil", "Mobile", "Telefon", "Tel")),
+    contact_person: normalizeString(readField(config.fields.companies.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")),
+    secondary_phone: normalizeString(readField(config.fields.companies.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
     standby_reason: normalizeString(
       config.fields.companies.standbyReason ? fields[config.fields.companies.standbyReason] : ""
     ),

@@ -164,6 +164,10 @@ function normalizeCompanyRecord(record, config) {
     last_contact: toIsoDate(fieldValue(fields, config.fields.companies.lastContact)),
     next_step: normalizeString(fieldValue(fields, config.fields.companies.nextStep)),
     next_step_date: toIsoDate(fieldValue(fields, config.fields.companies.nextStepDate)),
+    decision_maker: normalizeString(firstFieldValue(fields, config.fields.companies.decisionMaker, "Factor decizie", "Factor Decizie")),
+    mobile: normalizeString(firstFieldValue(fields, config.fields.companies.mobile, "Mobil", "Mobile", "Telefon", "Tel")),
+    contact_person: normalizeString(firstFieldValue(fields, config.fields.companies.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")),
+    secondary_phone: normalizeString(firstFieldValue(fields, config.fields.companies.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
   };
 }
 
@@ -314,6 +318,9 @@ async function commandLookup(args) {
     { key: "pipeline_stage", label: "Stage" },
     { key: "next_step", label: "Next Step" },
     { key: "next_step_date", label: "Next Step Date" },
+    { key: "mobile", label: "Mobil" },
+    { key: "contact_person", label: "Persoana Contact" },
+    { key: "secondary_phone", label: "Tel contact rang 2" },
   ]);
   console.log("");
   console.log("Contact Priority matches:");
