@@ -555,6 +555,33 @@ function buildFocusLine(queues, metrics) {
   return "Pastreaza mixul sanatos: companii noi abordate plus follow-up disciplinat pe conturile calde.";
 }
 
+function sortTasksByPriority(tasks = [], todayIso = "") {
+  return tasks
+    .slice()
+    .sort((left, right) => getAlertPriority(right, todayIso) - getAlertPriority(left, todayIso));
+}
+
+function buildFollowUpSection(title = "", tasks = [], todayIso = "", limit = 5) {
+  if (!tasks.length) return "";
+  return [
+    `<b>${escapeHtml(title)}</b>`,
+    ...sortTasksByPriority(tasks, todayIso)
+      .slice(0, limit)
+      .map((account) => describeTask(account, todayIso, account)),
+  ].join("\n");
+}
+
+function buildTopFollowUpBlock(queues = {}, todayIso = "") {
+  const sections = [
+    buildFollowUpSection("Due azi", queues.today || [], todayIso, 5),
+    buildFollowUpSection("Intarziate", queues.overdue || [], todayIso, 5),
+  ].filter(Boolean);
+
+  return sections.length
+    ? sections.join("\n")
+    : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.";
+}
+
 function buildMorningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
@@ -563,7 +590,6 @@ function buildMorningBrief(data = {}) {
   const totalContactPriority = Array.isArray(data.contactPriority) ? data.contactPriority.length : 0;
   const availableContactPriority = (Array.isArray(data.contactPriority) ? data.contactPriority : [])
     .filter((item) => item.company && !item.last_contact).length;
-  const topTasks = queues.all.slice(0, 5);
   const targets = data.targets || {};
   const leadLines = getDailyLeadTargetLines(metrics, targets);
 
@@ -585,15 +611,7 @@ function buildMorningBrief(data = {}) {
       : "• Nu exista companii cu Stadiu Pipeline = Necontactat in Contact Priority.",
     "",
     "<b>Top follow-up azi</b>",
-    topTasks.length
-      ? topTasks
-        .map((account) => describeTask(
-          account,
-          metrics.todayIso,
-          account
-        ))
-        .join("\n")
-      : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",
+    buildTopFollowUpBlock(queues, metrics.todayIso),
     "",
     "<b>Key Lead Measures</b>",
     leadLines.map(buildLeadMeasureLine).join("\n"),
