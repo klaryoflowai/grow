@@ -571,10 +571,16 @@ function buildFollowUpSection(title = "", tasks = [], todayIso = "", limit = 5) 
   ].join("\n");
 }
 
-function buildTopFollowUpBlock(queues = {}, todayIso = "") {
+function buildTopFollowUpBlock(queues = {}, todayIso = "", limit = 10) {
+  const todayTasks = sortTasksByPriority(queues.today || [], todayIso).slice(0, limit);
+  const overdueTasks = sortTasksByPriority(queues.overdue || [], todayIso).slice(
+    0,
+    Math.max(limit - todayTasks.length, 0)
+  );
+
   const sections = [
-    buildFollowUpSection("Due azi", queues.today || [], todayIso, 5),
-    buildFollowUpSection("Intarziate", queues.overdue || [], todayIso, 5),
+    buildFollowUpSection("Due azi", todayTasks, todayIso, limit),
+    buildFollowUpSection("Intarziate", overdueTasks, todayIso, limit),
   ].filter(Boolean);
 
   return sections.length
