@@ -297,6 +297,9 @@ function normalizeContactPriorityRecord(record, config, companyNameById, positio
     position,
     rank: toNumber(fields[config.fields.contactPriority.rank]) || position + 1,
     company: resolveContactPriorityCompany(fields, config, companyNameById),
+    pipeline_stage: normalizePipelineStage(
+      config.fields.contactPriority.pipelineStage ? fields[config.fields.contactPriority.pipelineStage] : ""
+    ),
     sector: normalizeString(fields[config.fields.contactPriority.sector]),
     last_contact: toIsoDate(
       config.fields.contactPriority.lastContact ? fields[config.fields.contactPriority.lastContact] : ""

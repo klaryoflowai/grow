@@ -73,6 +73,7 @@ function getAirtableConfig() {
         rank: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_RANK", "Number"),
         company: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_COMPANY", "Copmany"),
         companyLookup: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_COMPANY_LOOKUP", "Company Name"),
+        pipelineStage: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_PIPELINE_STAGE", "Stadiu Pipeline"),
         sector: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_SECTOR", "Sector"),
         lastContact: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_LAST_CONTACT", "Last contact"),
         decisionMaker: readEnv("AIRTABLE_FIELD_CONTACT_PRIORITY_DECISION_MAKER", "Factor decizie"),

@@ -79,6 +79,24 @@ For live Grow data, use Vercel instead of GitHub Pages:
 4. adjust Airtable field names only in env vars if your schema differs
 5. redeploy and open `/dashboard/`
 
+## Airtable CLI
+
+Local Airtable operations should go through the project CLI instead of ad hoc curl/API snippets.
+The CLI reads `.env.local`, then `.env`, then the current shell environment.
+
+Useful commands:
+
+```bash
+node tools/airtable.js tables
+node tools/airtable.js records companies --limit 5
+node tools/airtable.js contact-priority --stage Necontactat --limit 10
+```
+
+Required local variables:
+
+- `AIRTABLE_TOKEN`
+- `AIRTABLE_BASE_ID`
+
 ## Metadata Standards
 
 Use ASCII, lowercase, snake_case properties for Dataview stability.
