@@ -260,7 +260,15 @@ function normalizeCompanyRecord(record, config) {
     last_contact: toIsoDate(fields[config.fields.companies.lastContact]),
     next_step: normalizeString(fields[config.fields.companies.nextStep]),
     next_step_date: toIsoDate(fields[config.fields.companies.nextStepDate]),
-    decision_maker: normalizeString(readField(config.fields.companies.decisionMaker, "Factor decizie", "Factor Decizie")),
+    decision_maker: normalizeString(readField(
+      config.fields.companies.decisionMaker,
+      "Factor decizie",
+      "Factor Decizie",
+      "Factor de decizie",
+      "Factor De Decizie",
+      "Factor de Decizie (Nume/Funcție)",
+      "Factor de Decizie (Nume/Functie)"
+    )),
     mobile: normalizeString(readField(config.fields.companies.mobile, "Mobil", "Mobile", "Telefon", "Tel")),
     contact_person: normalizeString(readField(config.fields.companies.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")),
     secondary_phone: normalizeString(readField(config.fields.companies.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
@@ -316,7 +324,15 @@ function normalizeContactPriorityRecord(record, config, companyNameById, positio
       config.fields.contactPriority.lastContact ? fields[config.fields.contactPriority.lastContact] : ""
     ),
     decision_maker: normalizeString(
-      readField(config.fields.contactPriority.decisionMaker, "Factor decizie", "Factor Decizie")
+      readField(
+        config.fields.contactPriority.decisionMaker,
+        "Factor decizie",
+        "Factor Decizie",
+        "Factor de decizie",
+        "Factor De Decizie",
+        "Factor de Decizie (Nume/Funcție)",
+        "Factor de Decizie (Nume/Functie)"
+      )
     ),
     mobile: normalizeString(
       readField(config.fields.contactPriority.mobile, "Mobil", "Mobile", "Telefon", "Tel")

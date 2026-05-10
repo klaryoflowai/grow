@@ -63,7 +63,7 @@ function getAirtableConfig() {
         lastContact: readEnv("AIRTABLE_FIELD_COMPANY_LAST_CONTACT", "Last Contact"),
         nextStep: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP", "Next Step"),
         nextStepDate: readEnv("AIRTABLE_FIELD_COMPANY_NEXT_STEP_DATE", "Next Step Date"),
-        decisionMaker: readEnv("AIRTABLE_FIELD_COMPANY_DECISION_MAKER", "Factor decizie"),
+        decisionMaker: readEnv("AIRTABLE_FIELD_COMPANY_DECISION_MAKER", "Factor de Decizie (Nume/Funcție)"),
         mobile: readEnv("AIRTABLE_FIELD_COMPANY_MOBILE", "Mobil"),
         contactPerson: readEnv("AIRTABLE_FIELD_COMPANY_CONTACT_PERSON", "Persoana Contact"),
         secondaryPhone: readEnv("AIRTABLE_FIELD_COMPANY_SECONDARY_PHONE", "Tel contact rang 2"),
