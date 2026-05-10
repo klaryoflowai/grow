@@ -7,6 +7,7 @@ const { buildWeeklyExpertReview } = require("./_lib/weekly-review");
 const {
   buildAListCommandMessage,
   buildFocusCommandMessage,
+  buildMorningBrief,
   buildNextCommandMessage,
   buildPipelineCommandMessage,
   buildScorecardCommandMessage,
@@ -227,6 +228,10 @@ function parseTelegramCommand(text = "") {
     return { type: "today" };
   }
 
+  if (/^\/morning(?:@\w+)?$/i.test(raw) || /^(?:morning|dimineata|dimineață)$/i.test(raw)) {
+    return { type: "morning" };
+  }
+
   if (/^\/focus(?:@\w+)?$/i.test(raw) || /^focus$/i.test(raw)) {
     return { type: "focus" };
   }
@@ -292,6 +297,7 @@ function buildHelpMessage() {
     "• <code>/log</code> — salveaza rapid o activitate reala in Activities",
     "• <code>/plan</code> — salveaza rapid un next step planificat",
     "• <code>/focus</code> — ce merita facut acum: follow-up + A-list + ritm azi",
+    "• <code>/morning</code> — retrimite briefing-ul de dimineata",
     "• <code>/today</code> — mini brief de executie pentru ziua curenta",
     "• <code>/week</code> — snapshot operational live al saptamanii",
     "• <code>/review</code> — review saptamanal de tip board de experti",
@@ -308,6 +314,7 @@ function buildHelpMessage() {
     "• <code>/log GARMA-GRUP | whatsapp | Mesaj WhatsApp trimis | call followup | maine</code>",
     "• <code>/plan GARMA-GRUP | call Valentin | maine | dupa 10:00</code>",
     "• <code>/focus</code>",
+    "• <code>/morning</code>",
     "• <code>/today</code>",
     "• <code>/week</code>",
     "• <code>/review</code>",
@@ -492,6 +499,22 @@ module.exports = async function handler(request, response) {
         ok: true,
         handled: "today",
         summary: report.summary,
+      });
+      return;
+    }
+
+    if (command.type === "morning") {
+      const data = await getDashboardData();
+      const briefing = buildMorningBrief(data);
+      await sendTelegramMessage(briefing.message, {
+        chatId,
+        replyToMessageId: message.message_id,
+        disableNotification: true,
+      });
+      response.status(200).json({
+        ok: true,
+        handled: "morning",
+        summary: briefing.summary,
       });
       return;
     }
