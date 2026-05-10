@@ -424,6 +424,17 @@ function buildUncontactedContactPriorityQueue(data = {}, limit = 10) {
     .slice(0, limit);
 }
 
+function buildContactPriorityIndex(data = {}) {
+  const contactPriority = Array.isArray(data.contactPriority) ? data.contactPriority : [];
+  return contactPriority.reduce((index, item) => {
+    const key = normalizeCompanyKey(item.company);
+    if (key && !index.has(key)) {
+      index.set(key, item);
+    }
+    return index;
+  }, new Map());
+}
+
 function describePriorityContact(item = {}) {
   const parts = [`• <b>${escapeHtml(item.company || "Companie fara nume")}</b>`];
   if (item.sector) parts.push(`· ${escapeHtml(item.sector)}`);
@@ -432,10 +443,21 @@ function describePriorityContact(item = {}) {
   return parts.join(" ");
 }
 
-function describeTask(account = {}, todayIso = "") {
+function buildContactParts(contact = {}) {
+  const parts = [];
+  if (contact.decision_maker) parts.push(`decident: ${escapeHtml(contact.decision_maker)}`);
+  if (contact.mobile) parts.push(`mobil: ${escapeHtml(contact.mobile)}`);
+  if (contact.contact_person) parts.push(`contact: ${escapeHtml(contact.contact_person)}`);
+  if (contact.secondary_phone) parts.push(`tel 2: ${escapeHtml(contact.secondary_phone)}`);
+  return parts;
+}
+
+function describeTask(account = {}, todayIso = "", contact = {}) {
   const company = escapeHtml(account.company || "Companie fara nume");
   const stage = normalizeString(account.pipeline_stage) || "Fara stadiu";
   const stagePart = stage ? ` · ${escapeHtml(stage)}` : "";
+  const contactParts = buildContactParts(contact);
+  const contactPart = contactParts.length ? ` · ${contactParts.join(" · ")}` : "";
 
   if (isStandbyAccount(account) && account.reactivation_date) {
     const delta = dayDiff(account.reactivation_date, todayIso);
@@ -445,7 +467,7 @@ function describeTask(account = {}, todayIso = "") {
         ? "reactivare azi"
         : `reactivare in ${formatCount(Math.abs(delta), "zi", "zile")}`;
     const action = normalizeString(account.next_step) || normalizeString(account.standby_reason) || "revino pe cont";
-    return `• <b>${company}</b> — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}`;
+    return `• <b>${company}</b> — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}${contactPart}`;
   }
 
   if (account.next_step_date) {
@@ -456,16 +478,16 @@ function describeTask(account = {}, todayIso = "") {
         ? "azi"
         : `in ${formatCount(Math.abs(delta), "zi", "zile")}`;
     const action = normalizeString(account.next_step) || "next step";
-    return `• <b>${company}</b> — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}`;
+    return `• <b>${company}</b> — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}${contactPart}`;
   }
 
   if (!account.last_contact) {
-    return `• <b>${company}</b> — initiaza primul touch${stagePart}`;
+    return `• <b>${company}</b> — initiaza primul touch${stagePart}${contactPart}`;
   }
 
   const silentDays = dayDiff(account.last_contact, todayIso);
   const action = normalizeString(account.next_step) || "revino pe cont";
-  return `• <b>${company}</b> — ${escapeHtml(action)} · ${formatCount(silentDays, "zi", "zile")} fara touch${stagePart}`;
+  return `• <b>${company}</b> — ${escapeHtml(action)} · ${formatCount(silentDays, "zi", "zile")} fara touch${stagePart}${contactPart}`;
 }
 
 function summarizeActivity(activity = {}) {
@@ -522,11 +544,12 @@ function buildMorningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
   const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
-  const contactPriorityQueue = buildContactPriorityQueue(data);
   const uncontactedPriorityQueue = buildUncontactedContactPriorityQueue(data, 10);
+  const contactPriorityByCompany = buildContactPriorityIndex(data);
   const totalContactPriority = Array.isArray(data.contactPriority) ? data.contactPriority.length : 0;
   const availableContactPriority = (Array.isArray(data.contactPriority) ? data.contactPriority : [])
     .filter((item) => item.company && !item.last_contact).length;
+  const topTasks = queues.all.slice(0, 5);
   const targets = data.targets || {};
   const leadLines = getDailyLeadTargetLines(metrics, targets);
 
@@ -543,14 +566,20 @@ function buildMorningBrief(data = {}) {
     `• ${formatCount(queues.stale.length, "cont rece peste 7 zile", "conturi reci peste 7 zile")}`,
     "",
     "<b>A-List azi</b>",
-    contactPriorityQueue.length
-      ? contactPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
-      : "• Nu exista companii noi ramase in Contact Priority fara touch live.",
-    "",
-    "<b>Top follow-up azi</b>",
     uncontactedPriorityQueue.length
       ? uncontactedPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
       : "• Nu exista companii cu Stadiu Pipeline = Necontactat in Contact Priority.",
+    "",
+    "<b>Top follow-up azi</b>",
+    topTasks.length
+      ? topTasks
+        .map((account) => describeTask(
+          account,
+          metrics.todayIso,
+          contactPriorityByCompany.get(normalizeCompanyKey(account.company)) || {}
+        ))
+        .join("\n")
+      : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",
     "",
     "<b>Key Lead Measures</b>",
     leadLines.map(buildLeadMeasureLine).join("\n"),
@@ -569,7 +598,7 @@ function buildMorningBrief(data = {}) {
       aList: {
         total: totalContactPriority,
         available: availableContactPriority,
-        shown: contactPriorityQueue.length,
+        shown: uncontactedPriorityQueue.length,
         uncontactedShown: uncontactedPriorityQueue.length,
       },
       queues: {

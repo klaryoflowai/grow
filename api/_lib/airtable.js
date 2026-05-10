@@ -310,6 +310,12 @@ function normalizeContactPriorityRecord(record, config, companyNameById, positio
     mobile: normalizeString(
       config.fields.contactPriority.mobile ? fields[config.fields.contactPriority.mobile] : ""
     ),
+    contact_person: normalizeString(
+      config.fields.contactPriority.contactPerson ? fields[config.fields.contactPriority.contactPerson] : ""
+    ),
+    secondary_phone: normalizeString(
+      config.fields.contactPriority.secondaryPhone ? fields[config.fields.contactPriority.secondaryPhone] : ""
+    ),
     recruitment_signal: normalizeString(
       config.fields.contactPriority.recruitmentSignal ? fields[config.fields.contactPriority.recruitmentSignal] : ""
     ),

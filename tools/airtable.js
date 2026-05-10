@@ -182,6 +182,8 @@ function normalizeContactPriorityRecord(record, config, companyById = new Map(),
     last_contact: toIsoDate(fieldValue(fields, config.fields.contactPriority.lastContact)),
     decision_maker: normalizeString(fieldValue(fields, config.fields.contactPriority.decisionMaker)),
     mobile: normalizeString(fieldValue(fields, config.fields.contactPriority.mobile)),
+    contact_person: normalizeString(fieldValue(fields, config.fields.contactPriority.contactPerson)),
+    secondary_phone: normalizeString(fieldValue(fields, config.fields.contactPriority.secondaryPhone)),
     notes: normalizeString(fieldValue(fields, config.fields.contactPriority.notes)),
   };
 }
@@ -265,6 +267,8 @@ async function commandContactPriority(args) {
     { key: "pipeline_stage", label: "Stage" },
     { key: "decision_maker", label: "Factor decizie" },
     { key: "mobile", label: "Mobil" },
+    { key: "contact_person", label: "Persoana Contact" },
+    { key: "secondary_phone", label: "Tel contact rang 2" },
     { key: "sector", label: "Sector" },
   ]);
 }
