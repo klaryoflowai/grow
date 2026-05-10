@@ -144,6 +144,12 @@ function fieldValue(fields = {}, fieldName = "") {
   return fieldName ? fields[fieldName] : "";
 }
 
+function firstFieldValue(fields = {}, ...fieldNames) {
+  return fieldNames
+    .map((fieldName) => fieldValue(fields, fieldName))
+    .find((value) => normalizeString(value)) || "";
+}
+
 function firstArrayValue(value) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -180,10 +186,10 @@ function normalizeContactPriorityRecord(record, config, companyById = new Map(),
     pipeline_stage: pipelineStage,
     sector: normalizeString(fieldValue(fields, config.fields.contactPriority.sector)),
     last_contact: toIsoDate(fieldValue(fields, config.fields.contactPriority.lastContact)),
-    decision_maker: normalizeString(fieldValue(fields, config.fields.contactPriority.decisionMaker)),
-    mobile: normalizeString(fieldValue(fields, config.fields.contactPriority.mobile)),
-    contact_person: normalizeString(fieldValue(fields, config.fields.contactPriority.contactPerson)),
-    secondary_phone: normalizeString(fieldValue(fields, config.fields.contactPriority.secondaryPhone)),
+    decision_maker: normalizeString(firstFieldValue(fields, config.fields.contactPriority.decisionMaker, "Factor decizie", "Factor Decizie")),
+    mobile: normalizeString(firstFieldValue(fields, config.fields.contactPriority.mobile, "Mobil", "Mobile", "Telefon", "Tel")),
+    contact_person: normalizeString(firstFieldValue(fields, config.fields.contactPriority.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")),
+    secondary_phone: normalizeString(firstFieldValue(fields, config.fields.contactPriority.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
     notes: normalizeString(fieldValue(fields, config.fields.contactPriority.notes)),
   };
 }

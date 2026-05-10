@@ -292,6 +292,10 @@ function resolveContactPriorityCompany(fields, config, companyNameById) {
 
 function normalizeContactPriorityRecord(record, config, companyNameById, position = 0) {
   const fields = record.fields || {};
+  const readField = (...fieldNames) => fieldNames
+    .map((fieldName) => (fieldName ? fields[fieldName] : ""))
+    .find((value) => normalizeString(value)) || "";
+
   return {
     id: record.id,
     position,
@@ -305,16 +309,16 @@ function normalizeContactPriorityRecord(record, config, companyNameById, positio
       config.fields.contactPriority.lastContact ? fields[config.fields.contactPriority.lastContact] : ""
     ),
     decision_maker: normalizeString(
-      config.fields.contactPriority.decisionMaker ? fields[config.fields.contactPriority.decisionMaker] : ""
+      readField(config.fields.contactPriority.decisionMaker, "Factor decizie", "Factor Decizie")
     ),
     mobile: normalizeString(
-      config.fields.contactPriority.mobile ? fields[config.fields.contactPriority.mobile] : ""
+      readField(config.fields.contactPriority.mobile, "Mobil", "Mobile", "Telefon", "Tel")
     ),
     contact_person: normalizeString(
-      config.fields.contactPriority.contactPerson ? fields[config.fields.contactPriority.contactPerson] : ""
+      readField(config.fields.contactPriority.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")
     ),
     secondary_phone: normalizeString(
-      config.fields.contactPriority.secondaryPhone ? fields[config.fields.contactPriority.secondaryPhone] : ""
+      readField(config.fields.contactPriority.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")
     ),
     recruitment_signal: normalizeString(
       config.fields.contactPriority.recruitmentSignal ? fields[config.fields.contactPriority.recruitmentSignal] : ""

@@ -426,13 +426,28 @@ function buildUncontactedContactPriorityQueue(data = {}, limit = 10) {
 
 function buildContactPriorityIndex(data = {}) {
   const contactPriority = Array.isArray(data.contactPriority) ? data.contactPriority : [];
-  return contactPriority.reduce((index, item) => {
+  const index = contactPriority.reduce((map, item) => {
     const key = normalizeCompanyKey(item.company);
-    if (key && !index.has(key)) {
-      index.set(key, item);
+    if (key && !map.has(key)) {
+      map.set(key, item);
     }
-    return index;
+    return map;
   }, new Map());
+  index.items = contactPriority;
+  return index;
+}
+
+function findContactPriorityForCompany(index, companyName = "") {
+  const wanted = normalizeCompanyKey(companyName);
+  if (!wanted) return {};
+
+  const exact = index.get(wanted);
+  if (exact) return exact;
+
+  return (index.items || []).find((item) => {
+    const key = normalizeCompanyKey(item.company);
+    return key && (key.includes(wanted) || wanted.includes(key));
+  }) || {};
 }
 
 function describePriorityContact(item = {}) {
@@ -576,7 +591,7 @@ function buildMorningBrief(data = {}) {
         .map((account) => describeTask(
           account,
           metrics.todayIso,
-          contactPriorityByCompany.get(normalizeCompanyKey(account.company)) || {}
+          findContactPriorityForCompany(contactPriorityByCompany, account.company)
         ))
         .join("\n")
       : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",
