@@ -10,6 +10,14 @@ This folder contains one note per target company.
 2. Set `priority`, `industry`, `decision_maker`, and `last_contact`.
 3. Link the company note to a pipeline opportunity when the account becomes active.
 
+For the current Airtable-led Dream 300 workflow, use:
+
+- [[Dream-300-Airtable-Workflow]]
+- [[P1 Top 20 Strategic Accounts]]
+- [[P1 Decision Maker Access Playbook]]
+
+Rule: do not add new target companies before checking them against Airtable `Companies`.
+
 ## Fields That Matter Most
 
 - `priority`

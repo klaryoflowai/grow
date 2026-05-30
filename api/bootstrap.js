@@ -1,5 +1,5 @@
 const { getDashboardData } = require("./_lib/airtable");
-const { sendError, setNoStore } = require("./_lib/http");
+const { hasTruthyQueryParam, sendError, setNoStore } = require("./_lib/http");
 
 module.exports = async function handler(request, response) {
   setNoStore(response);
@@ -10,7 +10,7 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    const data = await getDashboardData();
+    const data = await getDashboardData({ fresh: hasTruthyQueryParam(request, "fresh") });
     response.status(200).json(data);
   } catch (error) {
     sendError(response, error);

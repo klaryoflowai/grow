@@ -177,6 +177,8 @@ function normalizeCompanyRecord(record, config) {
     mobile: normalizeString(firstFieldValue(fields, config.fields.companies.mobile, "Mobil", "Mobile", "Telefon", "Tel")),
     contact_person: normalizeString(firstFieldValue(fields, config.fields.companies.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")),
     secondary_phone: normalizeString(firstFieldValue(fields, config.fields.companies.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
+    tel: normalizeString(firstFieldValue(fields, config.fields.companies.tel, "Tel", "Telefon")),
+    tel_contact_rang_2: normalizeString(firstFieldValue(fields, config.fields.companies.telContactRang2, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
   };
 }
 
@@ -212,6 +214,8 @@ function normalizeContactPriorityRecord(record, config, companyById = new Map(),
     mobile: normalizeString(firstFieldValue(fields, config.fields.contactPriority.mobile, "Mobil", "Mobile", "Telefon", "Tel")),
     contact_person: normalizeString(firstFieldValue(fields, config.fields.contactPriority.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")),
     secondary_phone: normalizeString(firstFieldValue(fields, config.fields.contactPriority.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
+    tel: normalizeString(firstFieldValue(fields, config.fields.contactPriority.tel, "Tel", "Telefon")),
+    tel_contact_rang_2: normalizeString(firstFieldValue(fields, config.fields.contactPriority.telContactRang2, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
     notes: normalizeString(fieldValue(fields, config.fields.contactPriority.notes)),
   };
 }

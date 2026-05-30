@@ -1,13 +1,13 @@
-const { getDashboardData, upsertLeadMeasuresDaily } = require("./_lib/airtable");
-const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
+const { getLeadMeasuresDailyData, upsertLeadMeasuresDaily } = require("./_lib/airtable");
+const { hasTruthyQueryParam, readJsonBody, sendError, setNoStore } = require("./_lib/http");
 
 module.exports = async function handler(request, response) {
   setNoStore(response);
   try {
     if (request.method === "GET") {
-      const data = await getDashboardData();
+      const leadMeasuresDaily = await getLeadMeasuresDailyData({ fresh: hasTruthyQueryParam(request, "fresh") });
       response.status(200).json({
-        leadMeasuresDaily: data.leadMeasuresDaily || [],
+        leadMeasuresDaily: leadMeasuresDaily || [],
       });
       return;
     }

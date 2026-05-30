@@ -22,6 +22,16 @@ This Vault is designed as a sales operating system for a Director of Sales at Gr
 - `_Templates` for reusable note templates
 - `dashboard` for the interactive web dashboard, now prepared for Airtable + Vercel
 
+## Current RAG Context
+
+Imported context for sales books and P1 accounts lives here:
+
+- [[00_STRATEGY/04-RAG Source Map]]
+- [[10_SALES_ENGINE/Dream_100/P1 Top 20 Strategic Accounts]]
+- [[10_SALES_ENGINE/Dream_100/P1 Decision Maker Access Playbook]]
+- [[10_SALES_ENGINE/Scripts/P1 Account Command Prompts]]
+- [[90_ARCHIVE/Imported-Sources/2026-05-24-RAG-Sales-Books-P1-Accounts/README]]
+
 ## Recommended Obsidian Configuration
 
 Enable these core features:

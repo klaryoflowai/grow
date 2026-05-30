@@ -22,10 +22,10 @@ Aceasta tabela alimenteaza:
 | `New Contract Workers MTD` | Number | Numar total de muncitori semnati in contracte noi in luna curenta |
 | `Dream100 P1 Prospects` | Number | Cate companii P1 noi au fost abordate in saptamana |
 | `Sales Velocity Days` | Number | Media de zile de la lead la contract semnat |
-| `Cold Calls` | Number | Total apeluri reci |
-| `WhatsApp Messages` | Number | Total mesaje WhatsApp |
+| `Cold Calls` | Number | Optional / mirror automat pentru companiile mutate din `Necontactat` in pipeline |
+| `WhatsApp Messages` | Number | Legacy / optional |
 | `Field Visits` | Number | Vizite in teren / networking |
-| `Warm Outreach` | Number | Touch-uri calde din reteaua existenta / referrals |
+| `Warm Outreach` | Number | Legacy / optional |
 | `Meetings Set` | Number | Meetings confirmate |
 | `Offers Sent` | Number | Oferte trimise |
 | `Contracts Signed` | Number | Contracte semnate |
@@ -38,7 +38,7 @@ Aceasta tabela alimenteaza:
 - Un rand = o saptamana.
 - `Week Start` este cheia operationala principala.
 - Dashboard-ul cauta saptamana curenta dupa `Week Start` / `Week Key`.
-- Daca salvezi din formularul de vineri, randul este creat sau actualizat in aceasta tabela.
+- Dashboard-ul calculeaza majoritatea indicatorilor din `Activities`, `Companies` si `Lead Measures Daily`.
 
 ## Ce NU intra aici
 
@@ -46,4 +46,4 @@ Nu pune datele zilnice in `Scorecard`.
 
 Pentru panoul `Ultimele 7 zile`, foloseste tabela separata `Scorecard Trend`.
 
-Pentru executia zilnica `Cold Calls / WhatsApp / Field Visits / Warm Outreach`, foloseste tabela separata `Lead Measures Daily`.
+Pentru executia zilnica `Field Visits`, foloseste tabela separata `Lead Measures Daily`. `Cold Calls` si `Followups` se calculeaza automat din pipeline si activitati.

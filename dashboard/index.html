@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260504a" />
+    <link rel="stylesheet" href="./styles.css?v=20260530c" />
   </head>
   <body>
     <div class="shell">
@@ -22,24 +22,11 @@
               <div class="hero-mark">G</div>
               <div class="hero-brand-copy">
                 <p class="eyebrow">Grow.md Sales Scorecard</p>
-                <h1>Panou de control pentru activitate, pipeline si conversie</h1>
+                <h1>Grow Dashboard</h1>
               </div>
             </div>
-            <div class="hero-story">
-              <div class="hero-highlight-row">
-                <article class="hero-highlight">
-                  <span class="hero-highlight-label">Captura</span>
-                  <strong>adauga touch-uri si next step-uri fara sa iesi din ritm</strong>
-                </article>
-                <article class="hero-highlight">
-                  <span class="hero-highlight-label">Pipeline</span>
-                  <strong>urmaresti doar conturile active, nu toata lista Dream 100</strong>
-                </article>
-                <article class="hero-highlight">
-                  <span class="hero-highlight-label">Cadenta</span>
-                  <strong>vezi imediat ce e azi, ce e intarziat si ce a ramas rece</strong>
-                </article>
-              </div>
+            <div id="hero-next-contact" class="hero-next-contact-card">
+              <div class="hero-next-empty">Se incarca urmatoarea companie de contactat...</div>
             </div>
           </div>
           <div class="hero-side">
@@ -72,6 +59,7 @@
               <article class="hero-status-card">
                 <span class="hero-status-label">Mod date</span>
                 <strong class="hero-status-value" id="data-mode-pill">Asteapta conexiunea</strong>
+                <small class="hero-status-meta" id="data-sync-pill">Sync: in asteptare</small>
               </article>
             </div>
           </div>
@@ -84,7 +72,8 @@
           <strong>Zone dashboard</strong>
         </div>
         <nav class="page-nav" aria-label="Navigatie dashboard">
-          <button class="page-tab is-active" type="button" data-page-target="scorecard">Scorecard</button>
+          <button class="page-tab is-active" type="button" data-page-target="action-focus">Action Focus</button>
+          <button class="page-tab" type="button" data-page-target="scorecard">Scorecard</button>
           <button class="page-tab" type="button" data-page-target="checklist">Checklist</button>
           <button class="page-tab" type="button" data-page-target="overview">Panou</button>
           <button class="page-tab" type="button" data-page-target="pipeline">Pipeline</button>
@@ -94,12 +83,91 @@
       </div>
 
       <main class="layout">
+        <section class="panel span-12 action-focus-hero" data-page="action-focus">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Action Focus</p>
+              <h2>Actiunile care imping spre contracte semnate</h2>
+              <p class="panel-copy">Pagina de lucru pentru urmatoarea saptamana: conturi must-win, risc de racire, focus sectorial si escalari HQ.</p>
+            </div>
+            <a class="secondary-button action-focus-jump" href="#pipeline" data-page-jump="pipeline">Deschide pipeline</a>
+          </div>
+          <div id="action-focus-stats" class="summary-row action-focus-stats"></div>
+        </section>
+
+        <section class="panel span-12" data-page="action-focus">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Azi</p>
+              <h2>Secventa de executie</h2>
+              <p class="panel-copy">Ordinea scurta pentru zi: deblocheaza conturile mari, protejeaza follow-up-ul si cere ajutor unde tine de HQ sau client.</p>
+            </div>
+          </div>
+          <div id="action-focus-today" class="action-focus-grid"></div>
+        </section>
+
+        <section class="panel span-12" data-page="action-focus">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Must-win</p>
+              <h2>Conturi care cer presiune directa</h2>
+              <p class="panel-copy">Lista este sortata dupa Dashboard Focus, risc, etapa pipeline si potential de muncitori. Foloseste-o ca lista principala de apeluri.</p>
+            </div>
+            <div class="mini-chip" id="action-focus-must-win-chip">0 conturi</div>
+          </div>
+          <div class="table-wrap action-focus-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Companie</th>
+                  <th>Etapa</th>
+                  <th>Risc</th>
+                  <th>Actiune ceruta</th>
+                  <th>Data</th>
+                </tr>
+              </thead>
+              <tbody id="action-focus-must-win"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel span-12" data-page="action-focus">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Blocaj decident</p>
+              <h2>Protocol cand nu mai raspunde</h2>
+              <p class="panel-copy">Cadenta recomandata pentru conturile unde decidentul amana, nu raspunde sau tine urmatorul pas la el.</p>
+            </div>
+          </div>
+          <div id="action-focus-protocol" class="action-focus-protocol"></div>
+        </section>
+
+        <section class="panel span-6" data-page="action-focus">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Patterns</p>
+              <h2>Focus sectorial</h2>
+            </div>
+          </div>
+          <div id="action-focus-sector" class="action-focus-card-stack"></div>
+        </section>
+
+        <section class="panel span-6" data-page="action-focus">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">HQ</p>
+              <h2>Modificari cerute de pipeline</h2>
+            </div>
+          </div>
+          <div id="action-focus-hq" class="action-focus-card-stack"></div>
+        </section>
+
         <section class="panel span-12" data-page="scorecard">
           <div class="panel-header">
             <div>
               <p class="section-label">$100M Leads</p>
               <h2>Key Lead Measures</h2>
-              <p class="panel-copy">Cardul operational pentru activitatile critice din zi, saptamana si luna. Datele vin din tabela Lead Measures Daily, iar targetele din Targets.</p>
+              <p class="panel-copy">Cardul operational pentru activitatile critice din zi, saptamana si luna. Apelul rece vine automat din pipeline, iar restul activitatilor vin din Lead Measures Daily.</p>
             </div>
           </div>
           <div class="lead-measures-focus-layout">
@@ -111,33 +179,32 @@
                   <input name="date" type="text" data-date-picker required placeholder="Alege data" />
                 </label>
                 <label class="field">
-                  <span>Cold Calls</span>
-                  <input name="cold_calls" type="number" min="0" placeholder="0" />
-                </label>
-                <label class="field">
-                  <span>WhatsApp personalizat</span>
-                  <input name="whatsapp_messages" type="number" min="0" placeholder="0" />
-                </label>
-                <label class="field">
-                  <span>Field Visits</span>
+                  <span>Numar vizite</span>
                   <input name="field_visits" type="number" min="0" placeholder="0" />
-                </label>
-                <label class="field">
-                  <span>Warm Outreach</span>
-                  <input name="warm_outreach" type="number" min="0" placeholder="0" />
                 </label>
                 <label class="field span-2">
                   <span>Note</span>
-                  <textarea name="notes" rows="3" placeholder="Ce ai observat azi: ce a mers, ce s-a blocat, cine merita follow-up cald"></textarea>
+                  <textarea name="notes" rows="3" placeholder="Ce ai observat azi din vizite: cine merita follow-up, ce blocaj ai gasit, ce urmator pas exista"></textarea>
                 </label>
               </div>
               <div class="form-actions">
                 <button class="secondary-button" type="submit">Salveaza lead measures</button>
               </div>
-              <p class="helper">Poti completa aceeasi zi fie aici, fie direct in Airtable in tabela <strong>Lead Measures Daily</strong>. Dashboard-ul citeste aceeasi sursa.</p>
+              <p class="helper">Completezi aici doar numarul de vizite fizice. Apelul rece si followups se calculeaza automat din activitatile salvate.</p>
               <p class="status-line" id="lead-measures-form-status"></p>
             </form>
           </div>
+        </section>
+
+        <section class="panel span-12" data-page="scorecard">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Total pipeline</p>
+              <h2>Funnel cumulativ</h2>
+              <p class="panel-copy">Date totale de la inceputul dashboardului: companii contactate, parcate, pierdute si conversiile comerciale acumulate.</p>
+            </div>
+          </div>
+          <div id="cumulative-pipeline-card" class="cumulative-pipeline-card"></div>
         </section>
 
         <section class="panel span-12" data-page="scorecard">
@@ -223,81 +290,6 @@
             </div>
           </div>
           <div id="scorecard-trend-list" class="trend-list trend-list--weekly"></div>
-        </section>
-
-        <section class="panel span-12" data-page="scorecard">
-          <div class="panel-header">
-            <div>
-              <p class="section-label">Update manual</p>
-              <h2>Completeaza scorecard-ul de vineri</h2>
-              <p class="panel-copy">Fiecare rand din Airtable reprezinta o saptamana. Completezi cifrele o singura data si pagina se actualizeaza din aceeasi sursa.</p>
-            </div>
-          </div>
-          <form id="scorecard-form" class="scorecard-form">
-            <div class="scorecard-form-grid">
-              <label class="field">
-                <span>Week Start</span>
-                <input name="week_start" type="text" data-date-picker required placeholder="Alege luni" />
-              </label>
-              <label class="field">
-                <span>Contracte Noi MTD (muncitori)</span>
-                <input name="new_contract_workers_mtd" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Dream100 P1 noi abordate</span>
-                <input name="dream100_p1_prospects" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Sales Velocity (calcul automat)</span>
-                <input name="sales_velocity_days" type="number" min="0" placeholder="calcul automat" readonly />
-                <small class="field-help">Se calculeaza din Activities. Lead Date ramane memorat in Companies pentru claritate operationala.</small>
-              </label>
-              <label class="field">
-                <span>Cold Calls</span>
-                <input name="cold_calls" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>WhatsApp Messages</span>
-                <input name="linkedin_messages" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Vizite in teren</span>
-                <input name="field_visits" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Warm Outreach</span>
-                <input name="warm_outreach" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Meetings stabilite</span>
-                <input name="meetings_set" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Oferte trimise</span>
-                <input name="offers_sent" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Contracte semnate</span>
-                <input name="contracts_signed" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Muncitori semnati</span>
-                <input name="workers_signed" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field">
-                <span>Muncitori livrati</span>
-                <input name="workers_delivered" type="number" min="0" placeholder="0" />
-              </label>
-              <label class="field span-2">
-                <span>Note</span>
-                <textarea name="notes" rows="4" placeholder="Observatii de vineri, blocaje, pattern-uri sau schimbari importante"></textarea>
-              </label>
-            </div>
-            <div class="form-actions">
-              <button class="secondary-button" type="submit">Salveaza scorecard-ul</button>
-            </div>
-          </form>
-          <p class="status-line" id="scorecard-form-status"></p>
         </section>
 
         <section class="panel span-12" data-page="checklist">
@@ -560,6 +552,50 @@
                   </label>
                 </div>
                 <details class="form-details mini-form-details">
+                  <summary>Focus & risc pentru Action Focus</summary>
+                  <div class="form-details-grid">
+                    <label class="field">
+                      <span>Priority Tier</span>
+                      <select name="priority_tier">
+                        <option value="">Nu schimb</option>
+                        <option value="P1">P1</option>
+                        <option value="P2">P2</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Risk of Cooling</span>
+                      <select name="risk_of_cooling">
+                        <option value="">Nu schimb</option>
+                        <option value="Critical">Critical</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Dashboard Focus</span>
+                      <select name="dashboard_focus">
+                        <option value="">Nu schimb</option>
+                        <option value="true">Da</option>
+                        <option value="false">Nu</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Escalation Needed</span>
+                      <select name="escalation_needed">
+                        <option value="">Nu schimb</option>
+                        <option value="true">Da</option>
+                        <option value="false">Nu</option>
+                      </select>
+                    </label>
+                    <label class="field form-details-notes">
+                      <span>Client Action Required</span>
+                      <textarea name="client_action_required" rows="3" placeholder="ex: clientul confirma volumul si acordul de start"></textarea>
+                    </label>
+                  </div>
+                  <p class="helper">Aceste campuri alimenteaza pagina Action Focus si lista de conturi must-win.</p>
+                </details>
+                <details class="form-details mini-form-details">
                   <summary>Sanatate cont si semnal de risc</summary>
                   <div class="form-details-grid">
                     <fieldset class="field fieldset-reset form-details-notes">
@@ -613,9 +649,9 @@
                     <p class="section-label">Monitorizare</p>
                     <h3>Snapshot pipeline</h3>
                   </div>
-                  <div class="mini-chip">Sortare: urgenta</div>
+                  <div class="mini-chip">Sortare: next step</div>
                 </div>
-                <p class="helper">Ordine implicita: intarziate, azi, fara next step, apoi viitor. In interiorul fiecarei grupe, urca stadiile mai avansate si conturile cu potential mai mare.</p>
+                <p class="helper">Lista este separata in blocuri: intarziate, azi, saptamana aceasta si restul. In blocurile cu data, ordinea este crescatoare dupa data next step.</p>
                 <div id="pipeline-summary" class="summary-row"></div>
               </div>
               <div class="table-wrap pipeline-table-wrap">
@@ -624,10 +660,9 @@
                     <tr>
                       <th>Companie</th>
                       <th>Pipeline</th>
-                      <th>Sanatate</th>
                       <th>Ultimul rezultat</th>
-                      <th>Ultimul touch</th>
-                      <th>Urmatorul pas</th>
+                      <th>Data next step</th>
+                      <th>Next step</th>
                     </tr>
                   </thead>
                   <tbody id="accounts-table-body"></tbody>
@@ -767,55 +802,12 @@
                   </div>
                 </div>
                 <div class="target-group">
-                  <h4>WhatsApp personalizat</h4>
-                  <div class="mini-grid target-grid">
-                    <label class="field">
-                      <span>Zilnic</span>
-                      <input id="target-whatsapp-messages-daily" type="number" min="0" />
-                    </label>
-                    <label class="field">
-                      <span>Saptamanal</span>
-                      <input id="target-whatsapp-messages-weekly" type="number" min="0" />
-                    </label>
-                    <label class="field">
-                      <span>Lunar</span>
-                      <input id="target-whatsapp-messages-monthly" type="number" min="0" />
-                    </label>
-                  </div>
+                  <h4>Followups</h4>
+                  <p class="helper">Target fix: 5 / zi · 25 / saptamana · 100 / luna</p>
                 </div>
                 <div class="target-group">
-                  <h4>Field Visits</h4>
-                  <div class="mini-grid target-grid">
-                    <label class="field">
-                      <span>Zilnic</span>
-                      <input id="target-field-visits-daily" type="number" min="0" />
-                    </label>
-                    <label class="field">
-                      <span>Saptamanal</span>
-                      <input id="target-field-visits-weekly" type="number" min="0" />
-                    </label>
-                    <label class="field">
-                      <span>Lunar</span>
-                      <input id="target-field-visits-monthly" type="number" min="0" />
-                    </label>
-                  </div>
-                </div>
-                <div class="target-group">
-                  <h4>Warm Outreach</h4>
-                  <div class="mini-grid target-grid">
-                    <label class="field">
-                      <span>Zilnic</span>
-                      <input id="target-warm-outreach-daily" type="number" min="0" />
-                    </label>
-                    <label class="field">
-                      <span>Saptamanal</span>
-                      <input id="target-warm-outreach-weekly" type="number" min="0" />
-                    </label>
-                    <label class="field">
-                      <span>Lunar</span>
-                      <input id="target-warm-outreach-monthly" type="number" min="0" />
-                    </label>
-                  </div>
+                  <h4>Vizite fizice</h4>
+                  <p class="helper">Target fix: 3 / zi · 15 / saptamana · 60 / luna</p>
                 </div>
               </div>
               <button id="save-targets" class="secondary-button" type="button">Salveaza target-urile</button>
@@ -916,6 +908,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260504a"></script>
+    <script src="./app.js?v=20260530c"></script>
   </body>
 </html>

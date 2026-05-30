@@ -1,7 +1,7 @@
-const { getDashboardData } = require("./_lib/airtable");
 const { authorizeCronRequest, isDryRun } = require("./_lib/cron");
 const { sendError, setNoStore } = require("./_lib/http");
-const { buildMorningBrief } = require("./_lib/telegram-briefs");
+const { loadTelegramData } = require("./_lib/telegram-data");
+const { buildDailyPrioritiesBrief, buildMorningBrief } = require("./_lib/telegram-briefs");
 const { isTelegramConfigured, sendTelegramMessage } = require("./_lib/telegram");
 
 module.exports = async function handler(request, response) {
@@ -20,14 +20,18 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    const data = await getDashboardData();
-    const briefing = buildMorningBrief(data);
+    const data = await loadTelegramData("morning");
+    const mode = String(auth.url.searchParams.get("mode") || "").trim().toLowerCase();
+    const briefing = mode === "priorities"
+      ? buildDailyPrioritiesBrief(data)
+      : buildMorningBrief(data);
     const dryRun = isDryRun(auth.url);
 
     if (dryRun) {
       response.status(200).json({
         ok: true,
         dryRun: true,
+        mode: mode || "morning",
         configured: isTelegramConfigured(),
         summary: briefing.summary,
         message: briefing.message,
@@ -40,6 +44,7 @@ module.exports = async function handler(request, response) {
       ok: true,
       dryRun: false,
       sent: true,
+      mode: mode || "morning",
       summary: briefing.summary,
     });
   } catch (error) {

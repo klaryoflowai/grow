@@ -23,6 +23,79 @@ class AirtableError extends Error {
   }
 }
 
+const schemaReferenceCache = new Map();
+const airtableDataCache = new Map();
+const DEFAULT_AIRTABLE_CACHE_TTL_MS = 15000;
+
+function getAirtableCacheTtlMs() {
+  const configured = toNumber(process.env.AIRTABLE_CACHE_TTL_MS);
+  return configured > 0 ? configured : DEFAULT_AIRTABLE_CACHE_TTL_MS;
+}
+
+function buildAirtableDataCacheKey(config, scope = "dashboard") {
+  return JSON.stringify({
+    baseId: config.baseId,
+    scope,
+    tables: config.tables,
+    views: config.views,
+    tableIds: config.tableIds,
+    viewIds: config.viewIds,
+    activityCompanyLinked: config.modes?.activityCompanyLinked,
+  });
+}
+
+function cloneAirtableCacheValue(value) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function readAirtableDataCache(config, scope, loader, options = {}) {
+  const ttlMs = getAirtableCacheTtlMs();
+  if (options.fresh || ttlMs <= 0) {
+    return loader();
+  }
+
+  const cacheKey = buildAirtableDataCacheKey(config, scope);
+  const now = Date.now();
+  const cached = airtableDataCache.get(cacheKey);
+
+  if (cached?.value !== undefined && cached.expiresAt > now) {
+    return cloneAirtableCacheValue(cached.value);
+  }
+
+  if (cached?.promise) {
+    const value = await cached.promise;
+    return cloneAirtableCacheValue(value);
+  }
+
+  const promise = loader()
+    .then((value) => {
+      airtableDataCache.set(cacheKey, {
+        value,
+        expiresAt: Date.now() + ttlMs,
+      });
+      return value;
+    })
+    .catch((error) => {
+      airtableDataCache.delete(cacheKey);
+      throw error;
+    });
+
+  airtableDataCache.set(cacheKey, {
+    promise,
+    expiresAt: now + ttlMs,
+  });
+
+  const value = await promise;
+  return cloneAirtableCacheValue(value);
+}
+
+function invalidateAirtableDataCache() {
+  airtableDataCache.clear();
+}
+
 async function airtableRequest(config, table, options = {}) {
   const {
     method = "GET",
@@ -56,25 +129,212 @@ async function airtableRequest(config, table, options = {}) {
   return response.json();
 }
 
-async function listRecords(tableKey) {
+async function airtableMetadataRequest(config) {
+  const url = `https://api.airtable.com/v0/meta/bases/${encodeURIComponent(config.baseId)}/tables`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    let message = `Airtable metadata a raspuns cu ${response.status}.`;
+
+    try {
+      const payload = await response.json();
+      message = payload?.error?.message || payload?.message || message;
+    } catch {
+      // keep default message
+    }
+
+    throw new AirtableError(response.status, message);
+  }
+
+  return response.json();
+}
+
+function isAirtableId(value = "", prefix = "") {
+  return normalizeString(value).startsWith(prefix);
+}
+
+function getConfiguredSchemaReferences(config) {
+  const references = {
+    tableIds: { ...(config.tableIds || {}) },
+    viewIds: { ...(config.viewIds || {}) },
+  };
+
+  Object.entries(config.tables || {}).forEach(([key, table]) => {
+    if (!references.tableIds[key] && isAirtableId(table, "tbl")) {
+      references.tableIds[key] = table;
+    }
+  });
+
+  Object.entries(config.views || {}).forEach(([key, view]) => {
+    if (!references.viewIds[key] && isAirtableId(view, "viw")) {
+      references.viewIds[key] = view;
+    }
+  });
+
+  return references;
+}
+
+function findSchemaItem(items = [], configuredValue = "", idPrefix = "") {
+  const wanted = normalizeString(configuredValue);
+  if (!wanted) return null;
+  if (isAirtableId(wanted, idPrefix)) {
+    return items.find((item) => item.id === wanted) || null;
+  }
+  const wantedLower = wanted.toLowerCase();
+  return items.find((item) => normalizeString(item.name).toLowerCase() === wantedLower) || null;
+}
+
+function needsSchemaLookup(config, references) {
+  return Object.entries(config.tables || {}).some(([key, table]) => (
+    !references.tableIds[key] && !isAirtableId(table, "tbl")
+  )) || Object.entries(config.views || {}).some(([key, view]) => (
+    view && !references.viewIds[key] && !isAirtableId(view, "viw")
+  ));
+}
+
+async function resolveSchemaReferences(config, warnings = []) {
+  const references = getConfiguredSchemaReferences(config);
+
+  if (!needsSchemaLookup(config, references)) {
+    return references;
+  }
+
+  const cacheKey = JSON.stringify({
+    baseId: config.baseId,
+    tables: config.tables,
+    views: config.views,
+    tableIds: config.tableIds,
+    viewIds: config.viewIds,
+  });
+
+  if (schemaReferenceCache.has(cacheKey)) {
+    return schemaReferenceCache.get(cacheKey);
+  }
+
+  try {
+    const payload = await airtableMetadataRequest(config);
+    const schemaTables = Array.isArray(payload.tables) ? payload.tables : [];
+
+    Object.entries(config.tables || {}).forEach(([key, configuredTable]) => {
+      const table = findSchemaItem(schemaTables, references.tableIds[key] || configuredTable, "tbl");
+      if (!table) return;
+
+      references.tableIds[key] = table.id;
+
+      const configuredView = references.viewIds[key] || config.views?.[key] || "";
+      const view = findSchemaItem(table.views || [], configuredView, "viw")
+        || (!configuredView ? (table.views || [])[0] : null);
+      if (view?.id) {
+        references.viewIds[key] = view.id;
+      }
+    });
+  } catch (error) {
+    if (!references.tableIds.companies) {
+      warnings.push(
+        "Nu am putut determina ID-ul Airtable pentru tabela Companies. Pentru linkuri directe pe companii, seteaza AIRTABLE_TABLE_ID_COMPANIES sau acorda tokenului scope schema.bases:read."
+      );
+    }
+  }
+
+  schemaReferenceCache.set(cacheKey, references);
+  return references;
+}
+
+function uniqFieldNames(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function airtableFormulaString(value = "") {
+  return `'${normalizeString(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
+function airtableFieldRef(fieldName = "") {
+  return `{${normalizeString(fieldName)}}`;
+}
+
+function buildLowerEqualsFormula(fieldName = "", value = "", options = {}) {
+  const { arrayJoin = false } = options;
+  const fieldExpr = arrayJoin
+    ? `ARRAYJOIN(${airtableFieldRef(fieldName)})`
+    : airtableFieldRef(fieldName);
+  return `LOWER(${fieldExpr})=LOWER(${airtableFormulaString(value)})`;
+}
+
+function buildEqualsFormula(fieldName = "", value = "") {
+  return `${airtableFieldRef(fieldName)}=${airtableFormulaString(value)}`;
+}
+
+function buildOrFormula(parts = []) {
+  const filtered = parts.filter(Boolean);
+  if (filtered.length <= 1) return filtered[0] || "";
+  return `OR(${filtered.join(",")})`;
+}
+
+function buildAndFormula(parts = []) {
+  const filtered = parts.filter(Boolean);
+  if (filtered.length <= 1) return filtered[0] || "";
+  return `AND(${filtered.join(",")})`;
+}
+
+function buildDateRangeFormula(fieldName = "", start = "", end = "") {
+  return buildAndFormula([
+    `${airtableFieldRef(fieldName)}>=${airtableFormulaString(start)}`,
+    `${airtableFieldRef(fieldName)}<=${airtableFormulaString(end)}`,
+  ]);
+}
+
+function buildRecordIdEqualsFormula(recordId = "") {
+  return `RECORD_ID()=${airtableFormulaString(recordId)}`;
+}
+
+async function listRecords(tableKey, options = {}) {
   const config = getRequiredConfig();
   const table = config.tables[tableKey];
-  const view = config.views[tableKey];
+  const view = options.view !== undefined ? options.view : config.views[tableKey];
+  const pageSize = Math.min(Math.max(toNumber(options.pageSize) || 100, 1), 100);
+  const maxRecords = Math.max(toNumber(options.maxRecords) || 0, 0);
+  const requestedFields = uniqFieldNames(options.fields || []);
   const records = [];
   let offset = "";
 
   do {
     const params = new URLSearchParams();
-    params.set("pageSize", "100");
+    const remaining = maxRecords ? Math.max(maxRecords - records.length, 1) : pageSize;
+    params.set("pageSize", String(Math.min(pageSize, remaining)));
     if (offset) params.set("offset", offset);
     if (view) params.set("view", view);
+    if (options.filterFormula) params.set("filterByFormula", options.filterFormula);
+    if (options.sortField) {
+      params.set("sort[0][field]", options.sortField);
+      params.set("sort[0][direction]", options.sortDirection || "asc");
+    }
+    requestedFields.forEach((fieldName) => {
+      params.append("fields[]", fieldName);
+    });
 
-    const payload = await airtableRequest(config, table, { params });
+    let payload;
+    try {
+      payload = await airtableRequest(config, table, { params });
+    } catch (error) {
+      if (requestedFields.length && getUnknownFieldName(error) && !options._fieldsFallbackApplied) {
+        return listRecords(tableKey, {
+          ...options,
+          fields: [],
+          _fieldsFallbackApplied: true,
+        });
+      }
+      throw error;
+    }
     records.push(...(payload.records || []));
     offset = payload.offset || "";
-  } while (offset);
+  } while (offset && (!maxRecords || records.length < maxRecords));
 
-  return records;
+  return maxRecords ? records.slice(0, maxRecords) : records;
 }
 
 async function createRecord(tableKey, fields) {
@@ -238,6 +498,12 @@ function isInvalidSelectOptionError(error) {
   );
 }
 
+function normalizeBooleanField(value) {
+  if (typeof value === "boolean") return value;
+  const normalized = normalizeString(value).toLowerCase();
+  return ["1", "true", "yes", "da", "on", "checked"].includes(normalized);
+}
+
 function normalizeCompanyRecord(record, config) {
   const fields = record.fields || {};
   const pipelineStageField = config.fields.companies.pipelineStage;
@@ -282,7 +548,73 @@ function normalizeCompanyRecord(record, config) {
       config.fields.companies.stageChangedDate ? fields[config.fields.companies.stageChangedDate] : ""
     ),
     sector: normalizeString(fields[config.fields.companies.sector]),
+    decision_maker: normalizeString(
+      config.fields.companies.decisionMaker ? fields[config.fields.companies.decisionMaker] : ""
+    ),
+    contact_person: normalizeString(
+      config.fields.companies.contactPerson ? fields[config.fields.companies.contactPerson] : ""
+    ),
+    mobile: normalizeString(
+      config.fields.companies.mobile ? fields[config.fields.companies.mobile] : ""
+    ),
+    tel: normalizeString(
+      config.fields.companies.tel ? fields[config.fields.companies.tel] : ""
+    ),
+    tel_contact_rang_2: normalizeString(
+      config.fields.companies.telContactRang2 ? fields[config.fields.companies.telContactRang2] : ""
+    ),
     notes: normalizeString(fields[config.fields.companies.notes]),
+    priority_tier: normalizeString(
+      config.fields.companies.priorityTier ? fields[config.fields.companies.priorityTier] : ""
+    ),
+    icp_score: toNumber(
+      config.fields.companies.icpScore ? fields[config.fields.companies.icpScore] : ""
+    ),
+    pain_type: normalizeString(
+      config.fields.companies.painType ? fields[config.fields.companies.painType] : ""
+    ),
+    buying_trigger: normalizeString(
+      config.fields.companies.buyingTrigger ? fields[config.fields.companies.buyingTrigger] : ""
+    ),
+    decision_maker_access: normalizeString(
+      config.fields.companies.decisionMakerAccess ? fields[config.fields.companies.decisionMakerAccess] : ""
+    ),
+    objection_category: normalizeString(
+      config.fields.companies.objectionCategory ? fields[config.fields.companies.objectionCategory] : ""
+    ),
+    proof_asset_needed: normalizeString(
+      config.fields.companies.proofAssetNeeded ? fields[config.fields.companies.proofAssetNeeded] : ""
+    ),
+    next_step_quality: normalizeString(
+      config.fields.companies.nextStepQuality ? fields[config.fields.companies.nextStepQuality] : ""
+    ),
+    risk_of_cooling: normalizeString(
+      config.fields.companies.riskOfCooling ? fields[config.fields.companies.riskOfCooling] : ""
+    ),
+    stall_reason: normalizeString(
+      config.fields.companies.stallReason ? fields[config.fields.companies.stallReason] : ""
+    ),
+    client_action_required: normalizeString(
+      config.fields.companies.clientActionRequired ? fields[config.fields.companies.clientActionRequired] : ""
+    ),
+    nurture_type: normalizeString(
+      config.fields.companies.nurtureType ? fields[config.fields.companies.nurtureType] : ""
+    ),
+    dashboard_focus: normalizeBooleanField(
+      config.fields.companies.dashboardFocus ? fields[config.fields.companies.dashboardFocus] : ""
+    ),
+    stall_since: toIsoDate(
+      config.fields.companies.stallSince ? fields[config.fields.companies.stallSince] : ""
+    ),
+    escalation_needed: normalizeBooleanField(
+      config.fields.companies.escalationNeeded ? fields[config.fields.companies.escalationNeeded] : ""
+    ),
+    follow_up_status: normalizeString(
+      config.fields.companies.followUpStatus ? fields[config.fields.companies.followUpStatus] : ""
+    ),
+    days_since_last_contact: toNumber(
+      config.fields.companies.daysSinceLastContact ? fields[config.fields.companies.daysSinceLastContact] : ""
+    ),
   };
 }
 
@@ -343,6 +675,12 @@ function normalizeContactPriorityRecord(record, config, companyNameById, positio
     secondary_phone: normalizeString(
       readField(config.fields.contactPriority.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")
     ),
+    tel: normalizeString(
+      config.fields.contactPriority.tel ? fields[config.fields.contactPriority.tel] : ""
+    ),
+    tel_contact_rang_2: normalizeString(
+      config.fields.contactPriority.telContactRang2 ? fields[config.fields.contactPriority.telContactRang2] : ""
+    ),
     recruitment_signal: normalizeString(
       config.fields.contactPriority.recruitmentSignal ? fields[config.fields.contactPriority.recruitmentSignal] : ""
     ),
@@ -385,7 +723,7 @@ function normalizeActivityRecord(record, config, companyNameById) {
 
   return {
     id: record.id,
-    created_at: normalizeString(record.createdTime),
+    created_at: parseDate(record.createdTime),
     date: toIsoDate(fields[config.fields.activities.date]),
     company: resolveActivityCompany(fields, config, companyNameById),
     activity_type: normalizeActivity(fields[config.fields.activities.type]),
@@ -418,11 +756,40 @@ function isSameActivityFingerprint(existing = {}, incoming = {}) {
   );
 }
 
+function buildCompactActivityLogEntry(activity = {}) {
+  const parts = [
+    `[${toIsoDate(activity.date) || "fara data"}] ${normalizeActivity(activity.activity_type) || "activitate"}`,
+  ];
+  const outcome = normalizeString(activity.outcome);
+  const workers = toNumber(activity.workers_delta);
+  const nextStep = normalizeString(activity.next_step);
+  const nextStepDate = toIsoDate(activity.next_step_date);
+  const notes = normalizeString(activity.notes);
+
+  if (outcome) parts.push(`outcome: ${outcome}`);
+  if (workers) parts.push(`${workers} muncitori`);
+  if (nextStep) parts.push(`next: ${nextStep}${nextStepDate ? ` (${nextStepDate})` : ""}`);
+  if (notes) parts.push(`note: ${notes}`);
+
+  return parts.join(" | ");
+}
+
+function appendCompactActivityNotes(existingNotes = "", activity = {}) {
+  const currentNotes = normalizeString(existingNotes);
+  const entry = buildCompactActivityLogEntry(activity);
+
+  if (!currentNotes) return entry;
+  if (currentNotes.includes(entry)) return currentNotes;
+  return `${currentNotes}\n${entry}`;
+}
+
 async function findRecentDuplicateActivity(activity, config) {
   const duplicateWindowMs = 5 * 60 * 1000;
-  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const companyRecords = config.modes.activityCompanyLinked
+    ? await listRecords("companies")
+    : [];
   const companyNameById = buildCompanyNameMap(companyRecords, config);
-  const activityRecords = await listRecords("activities");
+  const activityRecords = await findPotentialDuplicateActivities(activity, config);
   const normalizedActivities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
@@ -729,16 +1096,6 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
     return { updated: false, reason: "not_scorecard_activity" };
   }
 
-  let scorecardRecords = [];
-  try {
-    scorecardRecords = await listRecords("scorecard");
-  } catch (error) {
-    if (error.status === 404) {
-      return { updated: false, reason: "missing_scorecard_table" };
-    }
-    throw error;
-  }
-
   const weekStart = getWeekStart(activity.date);
   if (!weekStart) {
     return { updated: false, reason: "invalid_week" };
@@ -747,10 +1104,15 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
   const weekEnd = getWeekEnd(weekStart);
   const weekKey = weekStart;
   const weekLabel = buildWeekLabel(weekStart, weekEnd);
-  const existingRecord = scorecardRecords.find((record) => {
-    const normalized = normalizeScorecardRecord(record, config);
-    return normalized.week_key === weekKey || normalized.week_start === weekStart;
-  });
+  let existingRecord = null;
+  try {
+    existingRecord = await findScorecardRecordByWeek(weekStart, config);
+  } catch (error) {
+    if (error.status === 404) {
+      return { updated: false, reason: "missing_scorecard_table" };
+    }
+    throw error;
+  }
   const normalizedExistingRecord = existingRecord ? normalizeScorecardRecord(existingRecord, config) : null;
   const messageFieldName = getScorecardMessageFieldName(config, existingRecord?.fields || {});
   const currentMessages = normalizedExistingRecord?.linkedin_messages || 0;
@@ -758,11 +1120,16 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
   const currentMeetings = normalizedExistingRecord?.meetings_set || 0;
   const currentOffers = normalizedExistingRecord?.offers_sent || 0;
   const currentContracts = normalizedExistingRecord?.contracts_signed || 0;
+  const currentNewContractWorkersMtd = normalizedExistingRecord?.new_contract_workers_mtd || 0;
+  const currentWorkersSigned = normalizedExistingRecord?.workers_signed || 0;
   const nextMessages = currentMessages + (shouldIncrementWhatsApp ? 1 : 0);
   const nextDream100 = currentDream100 + (shouldIncrementDream100 ? 1 : 0);
   const nextMeetings = currentMeetings + (shouldIncrementMeetings ? 1 : 0);
   const nextOffers = currentOffers + (shouldIncrementOffers ? 1 : 0);
   const nextContracts = currentContracts + (shouldIncrementContracts ? 1 : 0);
+  const workerDelta = shouldIncrementContracts ? toNumber(activity.workers_delta) : 0;
+  const nextNewContractWorkersMtd = currentNewContractWorkersMtd + workerDelta;
+  const nextWorkersSigned = currentWorkersSigned + workerDelta;
   const fields = existingRecord
     ? {}
     : {
@@ -790,6 +1157,10 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
 
   if (shouldIncrementContracts) {
     fields[config.fields.scorecard.contractsSigned] = nextContracts;
+    if (workerDelta) {
+      fields[config.fields.scorecard.newContractWorkersMtd] = nextNewContractWorkersMtd;
+      fields[config.fields.scorecard.workersSigned] = nextWorkersSigned;
+    }
   }
 
   let record;
@@ -822,12 +1193,15 @@ async function syncScorecardFromActivity(activity, config, existingActivities = 
     meetings_set: shouldIncrementMeetings ? nextMeetings : currentMeetings,
     offers_sent: shouldIncrementOffers ? nextOffers : currentOffers,
     contracts_signed: shouldIncrementContracts ? nextContracts : currentContracts,
+    new_contract_workers_mtd: workerDelta ? nextNewContractWorkersMtd : currentNewContractWorkersMtd,
+    workers_signed: workerDelta ? nextWorkersSigned : currentWorkersSigned,
     metrics_updated: [
       shouldIncrementDream100 ? "dream100_p1_prospects" : "",
       shouldIncrementWhatsApp ? "whatsapp_messages" : "",
       shouldIncrementMeetings ? "meetings_set" : "",
       shouldIncrementOffers ? "offers_sent" : "",
       shouldIncrementContracts ? "contracts_signed" : "",
+      workerDelta ? "workers_signed" : "",
     ].filter(Boolean),
     scorecard: normalizeScorecardRecord(record, config),
   };
@@ -938,12 +1312,81 @@ function selectTargets(records, config) {
 }
 
 function findCompanyByName(records, companyName, config) {
-  const wanted = normalizeString(companyName).toLowerCase();
+  const wanted = normalizeCompanyKey(companyName);
 
   return records.find((record) => {
-    const name = normalizeString(record.fields?.[config.fields.companies.company]).toLowerCase();
+    const name = normalizeCompanyKey(record.fields?.[config.fields.companies.company]);
     return name === wanted;
   });
+}
+
+function getCompanyLookupFields(config) {
+  return uniqFieldNames([
+    config.fields.companies.company,
+    config.fields.companies.pipelineStage,
+    config.fields.companies.accountHealth,
+    config.fields.companies.workers,
+    config.fields.companies.leadDate,
+    config.fields.companies.lastContact,
+    config.fields.companies.nextStep,
+    config.fields.companies.nextStepDate,
+    config.fields.companies.standbyReason,
+    config.fields.companies.reactivationDate,
+    config.fields.companies.stageChangedDate,
+    config.fields.companies.sector,
+    config.fields.companies.decisionMaker,
+    config.fields.companies.contactPerson,
+    config.fields.companies.mobile,
+    config.fields.companies.tel,
+    config.fields.companies.telContactRang2,
+    config.fields.companies.notes,
+    config.fields.companies.priorityTier,
+    config.fields.companies.icpScore,
+    config.fields.companies.painType,
+    config.fields.companies.buyingTrigger,
+    config.fields.companies.decisionMakerAccess,
+    config.fields.companies.objectionCategory,
+    config.fields.companies.proofAssetNeeded,
+    config.fields.companies.nextStepQuality,
+    config.fields.companies.riskOfCooling,
+    config.fields.companies.stallReason,
+    config.fields.companies.clientActionRequired,
+    config.fields.companies.nurtureType,
+    config.fields.companies.dashboardFocus,
+    config.fields.companies.stallSince,
+    config.fields.companies.escalationNeeded,
+    config.fields.companies.followUpStatus,
+    config.fields.companies.daysSinceLastContact,
+  ]);
+}
+
+async function findCompanyRecordByName(companyName, config) {
+  const companyField = config.fields.companies.company;
+  const records = await listRecords("companies", {
+    maxRecords: 5,
+    view: "",
+    filterFormula: buildLowerEqualsFormula(companyField, companyName),
+  });
+  return findCompanyByName(records, companyName, config) || null;
+}
+
+async function findCompanyRecordById(recordId, config) {
+  const normalizedId = normalizeString(recordId);
+  if (!isAirtableId(normalizedId, "rec")) return null;
+
+  const records = await listRecords("companies", {
+    maxRecords: 1,
+    view: "",
+    filterFormula: buildRecordIdEqualsFormula(normalizedId),
+  });
+
+  return records[0] || null;
+}
+
+async function findCompanyRecordForPayload(payload, config) {
+  const byId = await findCompanyRecordById(payload.id || payload.company_id, config);
+  if (byId) return byId;
+  return findCompanyRecordByName(payload.company, config);
 }
 
 function findContactPriorityByCompany(records, companyName, config, companyNameById = new Map()) {
@@ -954,22 +1397,181 @@ function findContactPriorityByCompany(records, companyName, config, companyNameB
   });
 }
 
+function getContactPriorityLookupFields(config) {
+  return uniqFieldNames([
+    config.fields.contactPriority.company,
+    config.fields.contactPriority.companyLookup,
+    config.fields.contactPriority.pipelineStage,
+    config.fields.contactPriority.sector,
+    config.fields.contactPriority.lastContact,
+    config.fields.contactPriority.decisionMaker,
+    config.fields.contactPriority.mobile,
+    config.fields.contactPriority.tel,
+    config.fields.contactPriority.telContactRang2,
+    config.fields.contactPriority.recruitmentSignal,
+    config.fields.contactPriority.notes,
+  ]);
+}
+
+async function findContactPriorityRecordByCompany(companyName, config) {
+  const formulas = [];
+  if (config.modes.activityCompanyLinked) {
+    formulas.push(buildLowerEqualsFormula(config.fields.contactPriority.company, companyName, { arrayJoin: true }));
+  } else if (config.fields.contactPriority.company) {
+    formulas.push(buildLowerEqualsFormula(config.fields.contactPriority.company, companyName));
+  }
+
+  if (!formulas.length) return null;
+
+  const records = await listRecords("contactPriority", {
+    maxRecords: 5,
+    filterFormula: buildOrFormula(formulas),
+  });
+  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const companyNameById = buildCompanyNameMap(companyRecords, config);
+
+  return findContactPriorityByCompany(records, companyName, config, companyNameById) || null;
+}
+
+function getActivityLookupFields(config) {
+  return uniqFieldNames([
+    config.fields.activities.date,
+    config.fields.activities.company,
+    config.fields.activities.companyLookup,
+    config.fields.activities.type,
+    config.fields.activities.outcome,
+    config.fields.activities.workers,
+    config.fields.activities.nextStep,
+    config.fields.activities.nextStepDate,
+    config.fields.activities.notes,
+  ]);
+}
+
+async function findPotentialDuplicateActivities(activity, config) {
+  const formulas = [buildEqualsFormula(config.fields.activities.date, toIsoDate(activity.date))];
+  if (config.modes.activityCompanyLinked) {
+    formulas.push(buildLowerEqualsFormula(config.fields.activities.company, activity.company, { arrayJoin: true }));
+  } else {
+    formulas.push(buildLowerEqualsFormula(config.fields.activities.company, activity.company));
+  }
+
+  const records = await listRecords("activities", {
+    maxRecords: 20,
+    filterFormula: buildAndFormula(formulas),
+  });
+
+  return records;
+}
+
+async function findActivitiesForCompanyUpToDate(companyName, date, config) {
+  const targetDate = toIsoDate(date);
+  if (!companyName || !targetDate) return [];
+
+  const formulas = [
+    `${airtableFieldRef(config.fields.activities.date)}<=${airtableFormulaString(targetDate)}`,
+  ];
+
+  if (config.modes.activityCompanyLinked) {
+    formulas.push(buildLowerEqualsFormula(config.fields.activities.company, companyName, { arrayJoin: true }));
+  } else {
+    formulas.push(buildLowerEqualsFormula(config.fields.activities.company, companyName));
+  }
+
+  return listRecords("activities", {
+    filterFormula: buildAndFormula(formulas),
+  });
+}
+
+async function findLatestActivityForCompany(companyName, config) {
+  if (!companyName) return null;
+
+  const formulas = [];
+  if (config.modes.activityCompanyLinked) {
+    formulas.push(buildLowerEqualsFormula(config.fields.activities.company, companyName, { arrayJoin: true }));
+  } else {
+    formulas.push(buildLowerEqualsFormula(config.fields.activities.company, companyName));
+  }
+
+  const records = await listRecords("activities", {
+    maxRecords: 1,
+    filterFormula: buildAndFormula(formulas),
+    sortField: config.fields.activities.date,
+    sortDirection: "desc",
+  });
+
+  return records[0] || null;
+}
+
+async function findActivitiesByDate(date, config) {
+  const targetDate = toIsoDate(date);
+  if (!targetDate) return [];
+
+  return listRecords("activities", {
+    filterFormula: buildEqualsFormula(config.fields.activities.date, targetDate),
+  });
+}
+
+function dedupeActivityRecords(records = []) {
+  const seen = new Set();
+  return records.filter((record) => {
+    if (!record?.id || seen.has(record.id)) return false;
+    seen.add(record.id);
+    return true;
+  });
+}
+
+async function findTargetsRecordByPeriod(period, config) {
+  const records = await listRecords("targets", {
+    maxRecords: 5,
+    filterFormula: buildEqualsFormula(config.fields.targets.period, period),
+  });
+  return records.find((record) => normalizeTargetsRecord(record, config).period === period) || null;
+}
+
+async function findScorecardRecordByWeek(weekStart, config) {
+  const formulas = uniqFieldNames([
+    config.fields.scorecard.weekStart ? buildEqualsFormula(config.fields.scorecard.weekStart, weekStart) : "",
+    config.fields.scorecard.weekKey ? buildEqualsFormula(config.fields.scorecard.weekKey, weekStart) : "",
+  ]);
+  const records = await listRecords("scorecard", {
+    maxRecords: 5,
+    filterFormula: buildOrFormula(formulas),
+  });
+  return records.find((record) => {
+    const normalized = normalizeScorecardRecord(record, config);
+    return normalized.week_key === weekStart || normalized.week_start === weekStart;
+  }) || null;
+}
+
+async function findLeadMeasuresDailyRecordByDate(date, config) {
+  const records = await listRecords("leadMeasuresDaily", {
+    maxRecords: 5,
+    filterFormula: buildEqualsFormula(config.fields.leadMeasuresDaily.date, date),
+  });
+  return records.find((record) => normalizeLeadMeasureDailyRecord(record, config).date === date) || null;
+}
+
+async function findScorecardTrendRecordByDate(date, config) {
+  const records = await listRecords("scorecardTrend", {
+    maxRecords: 5,
+    filterFormula: buildEqualsFormula(config.fields.scorecardTrend.date, date),
+  });
+  return records.find((record) => normalizeScorecardTrendRecord(record, config).date === date) || null;
+}
+
 async function syncContactPriorityFromActivity(activity, config) {
   if (!isLiveActivityRecord(activity)) {
     return { updated: false, reason: "planned_activity" };
   }
 
   try {
-    const companyRecords = await listRecords("companies");
-    const companyNameById = buildCompanyNameMap(companyRecords, config);
-    const priorityRecords = await listRecords("contactPriority");
-    const matchingRecord = findContactPriorityByCompany(priorityRecords, activity.company, config, companyNameById);
+    const matchingRecord = await findContactPriorityRecordByCompany(activity.company, config);
 
     if (!matchingRecord || !config.fields.contactPriority.lastContact) {
       return { updated: false, reason: "not_found" };
     }
 
-    const existing = normalizeContactPriorityRecord(matchingRecord, config, companyNameById);
+    const existing = normalizeContactPriorityRecord(matchingRecord, config, new Map());
     const nextDate = activity.date ? toIsoDate(activity.date) : "";
 
     if (!nextDate) {
@@ -986,7 +1588,7 @@ async function syncContactPriorityFromActivity(activity, config) {
 
     return {
       updated: true,
-      record: normalizeContactPriorityRecord(updated, config, companyNameById),
+      record: normalizeContactPriorityRecord(updated, config, new Map()),
     };
   } catch (error) {
     if (error.status === 404) {
@@ -1004,8 +1606,14 @@ async function upsertCompany(payload) {
     throw new AirtableError(400, "Campul company este obligatoriu.");
   }
 
-  const companyRecords = await listRecords("companies");
-  const existingRecord = findCompanyByName(companyRecords, companyName, config);
+  const existingRecord = await findCompanyRecordForPayload(
+    {
+      id: payload.id,
+      company_id: payload.company_id,
+      company: companyName,
+    },
+    config
+  );
   const existingCompany = existingRecord
     ? normalizeCompanyRecord(existingRecord, config)
     : null;
@@ -1079,6 +1687,26 @@ async function upsertCompany(payload) {
     fields[config.fields.companies.notes] = "";
   }
 
+  if ("priority_tier" in payload && config.fields.companies.priorityTier) {
+    fields[config.fields.companies.priorityTier] = normalizeString(payload.priority_tier) || null;
+  }
+
+  if ("risk_of_cooling" in payload && config.fields.companies.riskOfCooling) {
+    fields[config.fields.companies.riskOfCooling] = normalizeString(payload.risk_of_cooling) || null;
+  }
+
+  if ("dashboard_focus" in payload && config.fields.companies.dashboardFocus) {
+    fields[config.fields.companies.dashboardFocus] = normalizeBooleanField(payload.dashboard_focus);
+  }
+
+  if ("escalation_needed" in payload && config.fields.companies.escalationNeeded) {
+    fields[config.fields.companies.escalationNeeded] = normalizeBooleanField(payload.escalation_needed);
+  }
+
+  if ("client_action_required" in payload && config.fields.companies.clientActionRequired) {
+    fields[config.fields.companies.clientActionRequired] = normalizeString(payload.client_action_required);
+  }
+
   let record;
 
   try {
@@ -1097,6 +1725,7 @@ async function upsertCompany(payload) {
       record = existingRecord
         ? await updateRecord("companies", existingRecord.id, fields)
         : await createRecord("companies", fields);
+      invalidateAirtableDataCache();
       return normalizeCompanyRecord(record, config);
     }
 
@@ -1117,6 +1746,7 @@ async function upsertCompany(payload) {
         record = existingRecord
           ? await updateRecord("companies", existingRecord.id, fields)
           : await createRecord("companies", fields);
+        invalidateAirtableDataCache();
         return normalizeCompanyRecord(record, config);
       }
       if (!stringWorkersRejected) {
@@ -1130,6 +1760,7 @@ async function upsertCompany(payload) {
     }
   }
 
+  invalidateAirtableDataCache();
   return normalizeCompanyRecord(record, config);
 }
 
@@ -1142,8 +1773,14 @@ async function touchCompanyFromActivity(activity) {
     throw new AirtableError(400, "Activitatea trebuie sa aiba companie.");
   }
 
-  const companyRecords = await listRecords("companies");
-  const existingRecord = findCompanyByName(companyRecords, companyName, config);
+  const existingRecord = await findCompanyRecordForPayload(
+    {
+      id: activity.company_id,
+      company_id: activity.company_id,
+      company: companyName,
+    },
+    config
+  );
   const existingCompany = existingRecord
     ? normalizeCompanyRecord(existingRecord, config)
     : null;
@@ -1198,6 +1835,7 @@ async function touchCompanyFromActivity(activity) {
 
   return {
     record,
+    existing: existingCompany,
     normalized: normalizeCompanyRecord(record, config),
   };
 }
@@ -1206,6 +1844,7 @@ async function createActivity(payload) {
   const config = getRequiredConfig();
   const payloadDate = toIsoDate(payload.date);
   const activity = {
+    company_id: normalizeString(payload.company_id),
     date: payloadDate,
     company: normalizeString(payload.company),
     activity_type: normalizeActivity(payload.activity_type),
@@ -1220,20 +1859,10 @@ async function createActivity(payload) {
     throw new AirtableError(400, "Activitatea are nevoie de data si companie.");
   }
 
-  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const needsCompanyNameMap = config.modes.activityCompanyLinked;
+  const companyRecords = needsCompanyNameMap ? await listRecords("companies") : [];
   const companyNameById = buildCompanyNameMap(companyRecords, config);
-  const activityRecords = await listRecords("activities");
-  const existingActivities = activityRecords
-    .map((record) => normalizeActivityRecord(record, config, companyNameById))
-    .filter((record) => record.company && record.date);
-
-  const duplicateActivity = existingActivities.find((record) => {
-    if (!record.created_at) return false;
-    if (!isSameActivityFingerprint(record, activity)) return false;
-    const duplicateWindowMs = 5 * 60 * 1000;
-    const now = new Date();
-    return Math.abs(now.getTime() - record.created_at.getTime()) <= duplicateWindowMs;
-  }) || null;
+  const duplicateActivity = await findRecentDuplicateActivity(activity, config);
 
   if (duplicateActivity) {
     return {
@@ -1245,6 +1874,41 @@ async function createActivity(payload) {
   }
 
   const touched = await touchCompanyFromActivity(activity);
+  const compactActivityRecord = config.modes.compactCompanyActivities
+    ? await findLatestActivityForCompany(activity.company, config)
+    : null;
+  const isLiveActivity = isLiveActivityRecord(activity);
+  const knownExistingLeadDate = toIsoDate(touched.existing?.lead_date);
+  const shouldLoadCompanyHistory = isLiveActivity && (!knownExistingLeadDate || knownExistingLeadDate >= activity.date);
+  const shouldLoadSameDayActivities = isLiveActivity;
+  const [companyHistoryRecords, sameDayActivityRecords] = await Promise.all([
+    shouldLoadCompanyHistory
+      ? findActivitiesForCompanyUpToDate(activity.company, activity.date, config)
+      : Promise.resolve([]),
+    shouldLoadSameDayActivities
+      ? findActivitiesByDate(activity.date, config)
+      : Promise.resolve([]),
+  ]);
+  const existingActivities = dedupeActivityRecords([
+    ...companyHistoryRecords,
+    ...sameDayActivityRecords,
+  ])
+    .map((record) => normalizeActivityRecord(record, config, companyNameById))
+    .filter((record) => record.company && record.date);
+  if (isLiveActivity && knownExistingLeadDate && knownExistingLeadDate < activity.date) {
+    existingActivities.push({
+      id: `synthetic-prior-touch:${activity.company}:${knownExistingLeadDate}`,
+      created_at: null,
+      date: knownExistingLeadDate,
+      company: activity.company,
+      activity_type: "contacted",
+      outcome: "",
+      workers_delta: 0,
+      next_step: "",
+      next_step_date: "",
+      notes: "",
+    });
+  }
 
   const fields = {
     [config.fields.activities.date]: activity.date,
@@ -1271,10 +1935,19 @@ async function createActivity(payload) {
     fields[config.fields.activities.company] = activity.company;
   }
 
-  let createdRecord;
+  const savedCompanyNameById = new Map(companyNameById);
+  savedCompanyNameById.set(touched.record.id, touched.normalized.company);
+  if (compactActivityRecord) {
+    const compactActivity = normalizeActivityRecord(compactActivityRecord, config, savedCompanyNameById);
+    fields[config.fields.activities.notes] = appendCompactActivityNotes(compactActivity.notes, activity);
+  }
+
+  let savedRecord;
 
   try {
-    createdRecord = await createRecord("activities", fields);
+    savedRecord = compactActivityRecord
+      ? await updateRecord("activities", compactActivityRecord.id, fields)
+      : await createRecord("activities", fields);
   } catch (error) {
     if (activity.outcome && isInvalidSelectOptionError(error)) {
       throw new AirtableError(
@@ -1285,7 +1958,6 @@ async function createActivity(payload) {
     throw error;
   }
 
-  const createdCompanyNameById = new Map([[touched.record.id, touched.normalized.company]]);
   let scorecardSync = { updated: false, reason: "not_attempted" };
   let trendSync = { updated: false, reason: "not_attempted" };
   let contactPrioritySync = { updated: false, reason: "not_attempted" };
@@ -1320,10 +1992,12 @@ async function createActivity(payload) {
     };
   }
 
+  invalidateAirtableDataCache();
   return {
-    activity: normalizeActivityRecord(createdRecord, config, createdCompanyNameById),
+    activity: normalizeActivityRecord(savedRecord, config, savedCompanyNameById),
     company: touched.normalized,
     duplicate: false,
+    compacted: Boolean(compactActivityRecord),
     contact_priority_sync: contactPrioritySync,
     scorecard_sync: scorecardSync,
     trend_sync: trendSync,
@@ -1333,11 +2007,7 @@ async function createActivity(payload) {
 async function upsertTargets(payload) {
   const config = getRequiredConfig();
   const currentPeriod = getCurrentPeriod(config.timezone);
-  const targetRecords = await listRecords("targets");
-  const existingRecord = targetRecords.find((record) => {
-    const period = normalizeTargetsRecord(record, config).period;
-    return period === currentPeriod;
-  });
+  const existingRecord = await findTargetsRecordByPeriod(currentPeriod, config);
 
   const fields = {
     [config.fields.targets.period]: payload.period || currentPeriod,
@@ -1364,6 +2034,7 @@ async function upsertTargets(payload) {
     ? await updateRecord("targets", existingRecord.id, fields)
     : await createRecord("targets", fields);
 
+  invalidateAirtableDataCache();
   return normalizeTargetsRecord(record, config);
 }
 
@@ -1378,18 +2049,18 @@ async function upsertScorecard(payload) {
   const weekEnd = getWeekEnd(weekStart);
   const weekKey = weekStart;
   const weekLabel = buildWeekLabel(weekStart, weekEnd);
-  const scorecardRecords = await listRecords("scorecard");
-  const companyRecords = config.modes.activityCompanyLinked ? await listRecords("companies") : [];
+  const existingRecord = await findScorecardRecordByWeek(weekStart, config);
+  const companyRecords = config.modes.activityCompanyLinked
+    ? await listRecords("companies")
+    : [];
   const companyNameById = buildCompanyNameMap(companyRecords, config);
-  const activityRecords = await listRecords("activities");
+  const activityRecords = await listRecords("activities", {
+    filterFormula: buildDateRangeFormula(config.fields.activities.date, weekStart, weekEnd),
+  });
   const activities = activityRecords
     .map((record) => normalizeActivityRecord(record, config, companyNameById))
     .filter((record) => record.company && record.date);
   const velocity = calculateSalesVelocityForWindow(activities, weekStart, weekEnd);
-  const existingRecord = scorecardRecords.find((record) => {
-    const normalized = normalizeScorecardRecord(record, config);
-    return normalized.week_key === weekKey || normalized.week_start === weekStart;
-  });
   const messageFieldName = getScorecardMessageFieldName(config, existingRecord?.fields || {});
   const messageFieldValue = toNumber(payload.linkedin_messages);
 
@@ -1475,6 +2146,7 @@ async function upsertScorecard(payload) {
     }
   }
 
+  invalidateAirtableDataCache();
   return {
     ...withComputedSalesVelocity(normalizeScorecardRecord(record, config), activities),
     ignored_fields: ignoredFields,
@@ -1489,11 +2161,7 @@ async function upsertLeadMeasuresDaily(payload) {
     throw new AirtableError(400, "Lead Measures Daily are nevoie de Data.");
   }
 
-  const leadMeasureRecords = await listRecords("leadMeasuresDaily");
-  const existingRecord = leadMeasureRecords.find((record) => {
-    const normalized = normalizeLeadMeasureDailyRecord(record, config);
-    return normalized.date === date;
-  });
+  const existingRecord = await findLeadMeasuresDailyRecordByDate(date, config);
 
   const fields = {
     [config.fields.leadMeasuresDaily.date]: date,
@@ -1508,6 +2176,7 @@ async function upsertLeadMeasuresDaily(payload) {
     ? await updateRecord("leadMeasuresDaily", existingRecord.id, fields)
     : await createRecord("leadMeasuresDaily", fields);
 
+  invalidateAirtableDataCache();
   return normalizeLeadMeasureDailyRecord(record, config);
 }
 
@@ -1519,11 +2188,7 @@ async function upsertScorecardTrend(payload) {
     throw new AirtableError(400, "Trendul zilnic are nevoie de Data.");
   }
 
-  const trendRecords = await listRecords("scorecardTrend");
-  const existingRecord = trendRecords.find((record) => {
-    const normalized = normalizeScorecardTrendRecord(record, config);
-    return normalized.date === date;
-  });
+  const existingRecord = await findScorecardTrendRecordByDate(date, config);
 
   const fields = {
     [config.fields.scorecardTrend.date]: date,
@@ -1538,6 +2203,7 @@ async function upsertScorecardTrend(payload) {
     ? await updateRecord("scorecardTrend", existingRecord.id, fields)
     : await createRecord("scorecardTrend", fields);
 
+  invalidateAirtableDataCache();
   return normalizeScorecardTrendRecord(record, config);
 }
 
@@ -1547,178 +2213,352 @@ async function syncScorecardTrendFromActivity(activity, config, existingActiviti
     return { updated: false, reason: "not_trend_activity" };
   }
 
-  let trendRecords = [];
   try {
-    trendRecords = await listRecords("scorecardTrend");
+    const existingRecord = await findScorecardTrendRecordByDate(date, config);
+    const normalizedRecord = existingRecord
+      ? normalizeScorecardTrendRecord(existingRecord, config)
+      : { notes: "" };
+    const nextCounts = countActivitiesForTrend(
+      [...existingActivities, activity].filter((record) => toIsoDate(record.date) === date)
+    );
+
+    const fields = {
+      [config.fields.scorecardTrend.date]: date,
+      [config.fields.scorecardTrend.contacted]: nextCounts.contacted,
+      [config.fields.scorecardTrend.meetings]: nextCounts.meetings,
+      [config.fields.scorecardTrend.offers]: nextCounts.offers,
+      [config.fields.scorecardTrend.contracts]: nextCounts.contracts,
+      [config.fields.scorecardTrend.notes]: normalizeString(normalizedRecord.notes),
+    };
+
+    const record = existingRecord
+      ? await updateRecord("scorecardTrend", existingRecord.id, fields)
+      : await createRecord("scorecardTrend", fields);
+
+    return {
+      updated: true,
+      date,
+      counts: nextCounts,
+      trend: normalizeScorecardTrendRecord(record, config),
+    };
   } catch (error) {
     if (error.status === 404) {
       return { updated: false, reason: "missing_scorecard_trend_table" };
     }
     throw error;
   }
+}
 
-  const existingRecord = trendRecords.find((record) => {
-    const normalized = normalizeScorecardTrendRecord(record, config);
-    return normalized.date === date;
-  });
-  const normalizedRecord = existingRecord
-    ? normalizeScorecardTrendRecord(existingRecord, config)
-    : { notes: "" };
-  const nextCounts = countActivitiesForTrend(
-    [...existingActivities, activity].filter((record) => toIsoDate(record.date) === date)
-  );
-
-  const fields = {
-    [config.fields.scorecardTrend.date]: date,
-    [config.fields.scorecardTrend.contacted]: nextCounts.contacted,
-    [config.fields.scorecardTrend.meetings]: nextCounts.meetings,
-    [config.fields.scorecardTrend.offers]: nextCounts.offers,
-    [config.fields.scorecardTrend.contracts]: nextCounts.contracts,
-    [config.fields.scorecardTrend.notes]: normalizeString(normalizedRecord.notes),
-  };
-
-  const record = existingRecord
-    ? await updateRecord("scorecardTrend", existingRecord.id, fields)
-    : await createRecord("scorecardTrend", fields);
-
+function buildConnectionPayload(config, schemaReferences, debug = {}) {
   return {
-    updated: true,
-    date,
-    counts: nextCounts,
-    trend: normalizeScorecardTrendRecord(record, config),
+    baseId: config.baseId || "",
+    timezone: config.timezone,
+    tables: config.tables,
+    views: config.views,
+    tableIds: schemaReferences.tableIds,
+    viewIds: schemaReferences.viewIds,
+    activityCompanyLinked: config.modes.activityCompanyLinked,
+    debug,
   };
 }
 
-async function getDashboardData() {
-  const config = getAirtableConfig();
+function buildUnconfiguredDashboardData(config = getAirtableConfig()) {
   const currentPeriod = getCurrentPeriod(config.timezone);
-  const currentWeekStart = getCurrentWeekStart(config.timezone);
+  const schemaReferences = getConfiguredSchemaReferences(config);
+  return {
+    configured: false,
+    companies: [],
+    contactPriority: [],
+    activities: [],
+    targets: { period: currentPeriod, ...defaultTargets },
+    dailyScores: [],
+    leadMeasuresDaily: [],
+    scorecards: [],
+    scorecard: createEmptyScorecard(config.timezone),
+    connection: buildConnectionPayload(config, schemaReferences),
+    warnings: ["Lipsesc AIRTABLE_TOKEN sau AIRTABLE_BASE_ID in Vercel Environment Variables."],
+  };
+}
 
+async function getActivitiesData(options = {}) {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    return [];
+  }
+
+  return readAirtableDataCache(config, "activities", async () => {
+    const activityRecords = await listRecords("activities");
+    let companyNameById = new Map();
+
+    const needsLinkedCompanyResolution = activityRecords.some((record) => (
+      Array.isArray(record?.fields?.[config.fields.activities.company])
+    ));
+
+    if (needsLinkedCompanyResolution) {
+      const companyRecords = await listRecords("companies");
+      companyNameById = buildCompanyNameMap(companyRecords, config);
+    }
+
+    return activityRecords
+      .map((record) => normalizeActivityRecord(record, config, companyNameById))
+      .filter((record) => record.company && record.date);
+  }, options);
+}
+
+async function getCompaniesData(options = {}) {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    return [];
+  }
+
+  return readAirtableDataCache(config, "companies", async () => {
+    const [companyRecords, activities] = await Promise.all([
+      listRecords("companies"),
+      getActivitiesData(options),
+    ]);
+    const companies = companyRecords
+      .map((record) => normalizeCompanyRecord(record, config))
+      .filter((record) => record.company);
+    const derivedLeadDates = buildLeadDateIndex(activities);
+    return companies.map((company) => ({
+      ...company,
+      lead_date: company.lead_date || derivedLeadDates.get(normalizeCompanyKey(company.company)) || "",
+    }));
+  }, options);
+}
+
+async function getContactPriorityData(options = {}) {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    return [];
+  }
+
+  return readAirtableDataCache(config, "contactPriority", async () => {
+    try {
+      const [companies, contactPriorityRecords] = await Promise.all([
+        getCompaniesData(options),
+        listRecords("contactPriority"),
+      ]);
+      const companyNameById = new Map(
+        (Array.isArray(companies) ? companies : []).map((company) => [company.id, company.company])
+      );
+      return contactPriorityRecords
+        .map((record, index) => normalizeContactPriorityRecord(record, config, companyNameById, index))
+        .filter((record) => record.company);
+    } catch (error) {
+      if (error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }, options);
+}
+
+async function getTargetsData(options = {}) {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    return { period: getCurrentPeriod(config.timezone), ...defaultTargets };
+  }
+
+  return readAirtableDataCache(config, "targets", async () => {
+    try {
+      const targetRecords = await listRecords("targets");
+      return selectTargets(targetRecords, config);
+    } catch (error) {
+      if (error.status === 404) {
+        return { period: getCurrentPeriod(config.timezone), ...defaultTargets };
+      }
+      throw error;
+    }
+  }, options);
+}
+
+async function getScorecardData(options = {}) {
+  const config = getAirtableConfig();
+  const currentWeekStart = getCurrentWeekStart(config.timezone);
+  const includeComputedVelocity = options.includeComputedVelocity !== false;
   if (!isConfigured(config)) {
     return {
-      configured: false,
-      companies: [],
-      contactPriority: [],
-      activities: [],
-      targets: { period: currentPeriod, ...defaultTargets },
-      dailyScores: [],
-      leadMeasuresDaily: [],
       scorecards: [],
       scorecard: createEmptyScorecard(config.timezone),
-      connection: {
-        baseId: config.baseId || "",
-        timezone: config.timezone,
-        tables: config.tables,
-        views: config.views,
-        activityCompanyLinked: config.modes.activityCompanyLinked,
-      },
-      warnings: ["Lipsesc AIRTABLE_TOKEN sau AIRTABLE_BASE_ID in Vercel Environment Variables."],
     };
   }
 
-  const warnings = [];
-  const companyRecords = await listRecords("companies");
-  const activityRecords = await listRecords("activities");
-  let contactPriorityRecords = [];
-  let targetRecords = [];
-  let scorecardRecords = [];
-  let scorecardTrendRecords = [];
-  let leadMeasureDailyRecords = [];
+  return readAirtableDataCache(config, "scorecard", async () => {
+    let scorecardRecords = [];
+    try {
+      scorecardRecords = await listRecords("scorecard");
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
 
-  try {
-    contactPriorityRecords = await listRecords("contactPriority");
-  } catch (error) {
-    if (error.status !== 404) throw error;
-    warnings.push("Tabela Contact Priority nu a fost gasita. Blocul A-List din Telegram ramane gol.");
+    const activities = includeComputedVelocity ? await getActivitiesData(options) : [];
+    const scorecards = scorecardRecords
+      .map((record) => normalizeScorecardRecord(record, config))
+      .map((record) => includeComputedVelocity ? withComputedSalesVelocity(record, activities) : record)
+      .filter((record) => record.week_start)
+      .sort((left, right) => right.week_start.localeCompare(left.week_start));
+    const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
+      || scorecards[0]
+      || (includeComputedVelocity
+        ? withComputedSalesVelocity(createEmptyScorecard(config.timezone), activities)
+        : createEmptyScorecard(config.timezone));
+
+    return { scorecards, scorecard };
+  }, options);
+}
+
+async function getScorecardTrendData(options = {}) {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    return [];
   }
 
-  try {
-    targetRecords = await listRecords("targets");
-  } catch (error) {
-    if (error.status !== 404) throw error;
-    warnings.push("Tabela Targets nu a fost gasita. Dashboard-ul ruleaza cu target-urile implicite.");
-  }
-
-  try {
-    scorecardRecords = await listRecords("scorecard");
-  } catch (error) {
-    if (error.status === 404) {
-      warnings.push("Tabela Scorecard nu a fost gasita. Creeaza tabela Scorecard pentru noua pagina 4DX.");
-    } else {
+  return readAirtableDataCache(config, "scorecardTrend", async () => {
+    try {
+      const scorecardTrendRecords = await listRecords("scorecardTrend");
+      return scorecardTrendRecords
+        .map((record) => normalizeScorecardTrendRecord(record, config))
+        .filter((record) => record.date)
+        .sort((left, right) => right.date.localeCompare(left.date));
+    } catch (error) {
+      if (error.status === 404) {
+        return [];
+      }
       throw error;
     }
+  }, options);
+}
+
+async function getLeadMeasuresDailyData(options = {}) {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    return [];
   }
 
-  try {
-    scorecardTrendRecords = await listRecords("scorecardTrend");
-  } catch (error) {
-    if (error.status === 404) {
-      warnings.push("Tabela Scorecard Trend nu a fost gasita. Trendul zilnic foloseste fallback din Activities.");
-    } else {
+  return readAirtableDataCache(config, "leadMeasuresDaily", async () => {
+    try {
+      const leadMeasureDailyRecords = await listRecords("leadMeasuresDaily");
+      return leadMeasureDailyRecords
+        .map((record) => normalizeLeadMeasureDailyRecord(record, config))
+        .filter((record) => record.date)
+        .sort((left, right) => right.date.localeCompare(left.date));
+    } catch (error) {
+      if (error.status === 404) {
+        return [];
+      }
       throw error;
     }
+  }, options);
+}
+
+async function getDashboardData(options = {}) {
+  const config = getAirtableConfig();
+  const currentWeekStart = getCurrentWeekStart(config.timezone);
+
+  if (!isConfigured(config)) {
+    return buildUnconfiguredDashboardData(config);
   }
 
-  try {
-    leadMeasureDailyRecords = await listRecords("leadMeasuresDaily");
-  } catch (error) {
-    if (error.status === 404) {
-      warnings.push("Tabela Lead Measures Daily nu a fost gasita. Cardul Key Lead Measures asteapta tabela noua.");
-    } else {
-      throw error;
+  return readAirtableDataCache(config, "dashboard", async () => {
+    const warnings = [];
+    const companyRecords = await listRecords("companies");
+    const activityRecords = await listRecords("activities");
+    let contactPriorityRecords = [];
+    let targetRecords = [];
+    let scorecardRecords = [];
+    let scorecardTrendRecords = [];
+    let leadMeasureDailyRecords = [];
+
+    try {
+      contactPriorityRecords = await listRecords("contactPriority");
+    } catch (error) {
+      if (error.status !== 404) throw error;
+      warnings.push("Tabela Contact Priority nu a fost gasita. Blocul A-List din Telegram ramane gol.");
     }
-  }
 
-  const companyNameById = buildCompanyNameMap(companyRecords, config);
-  const companies = companyRecords
-    .map((record) => normalizeCompanyRecord(record, config))
-    .filter((record) => record.company);
-  const contactPriority = contactPriorityRecords
-    .map((record, index) => normalizeContactPriorityRecord(record, config, companyNameById, index))
-    .filter((record) => record.company);
-  const activities = activityRecords
-    .map((record) => normalizeActivityRecord(record, config, companyNameById))
-    .filter((record) => record.company && record.date);
-  const derivedLeadDates = buildLeadDateIndex(activities);
-  const hydratedCompanies = companies.map((company) => ({
-    ...company,
-    lead_date: company.lead_date || derivedLeadDates.get(normalizeCompanyKey(company.company)) || "",
-  }));
-  const targets = selectTargets(targetRecords, config);
-  const scorecards = scorecardRecords
-    .map((record) => normalizeScorecardRecord(record, config))
-    .map((record) => withComputedSalesVelocity(record, activities))
-    .filter((record) => record.week_start)
-    .sort((left, right) => right.week_start.localeCompare(left.week_start));
-  const dailyScores = scorecardTrendRecords
-    .map((record) => normalizeScorecardTrendRecord(record, config))
-    .filter((record) => record.date)
-    .sort((left, right) => right.date.localeCompare(left.date));
-  const leadMeasuresDaily = leadMeasureDailyRecords
-    .map((record) => normalizeLeadMeasureDailyRecord(record, config))
-    .filter((record) => record.date)
-    .sort((left, right) => right.date.localeCompare(left.date));
-  const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
-    || scorecards[0]
-    || withComputedSalesVelocity(createEmptyScorecard(config.timezone), activities);
+    try {
+      targetRecords = await listRecords("targets");
+    } catch (error) {
+      if (error.status !== 404) throw error;
+      warnings.push("Tabela Targets nu a fost gasita. Dashboard-ul ruleaza cu target-urile implicite.");
+    }
 
-  return {
-    configured: true,
-    companies: hydratedCompanies,
-    contactPriority,
-    activities,
-    targets,
-    dailyScores,
-    leadMeasuresDaily,
-    scorecards,
-    scorecard,
-    connection: {
-      baseId: config.baseId,
-      timezone: config.timezone,
-      tables: config.tables,
-      views: config.views,
-      activityCompanyLinked: config.modes.activityCompanyLinked,
-      debug: {
+    try {
+      scorecardRecords = await listRecords("scorecard");
+    } catch (error) {
+      if (error.status === 404) {
+        warnings.push("Tabela Scorecard nu a fost gasita. Creeaza tabela Scorecard pentru noua pagina 4DX.");
+      } else {
+        throw error;
+      }
+    }
+
+    try {
+      scorecardTrendRecords = await listRecords("scorecardTrend");
+    } catch (error) {
+      if (error.status === 404) {
+        warnings.push("Tabela Scorecard Trend nu a fost gasita. Trendul zilnic foloseste fallback din Activities.");
+      } else {
+        throw error;
+      }
+    }
+
+    try {
+      leadMeasureDailyRecords = await listRecords("leadMeasuresDaily");
+    } catch (error) {
+      if (error.status === 404) {
+        warnings.push("Tabela Lead Measures Daily nu a fost gasita. Cardul Key Lead Measures asteapta tabela noua.");
+      } else {
+        throw error;
+      }
+    }
+
+    const schemaReferences = await resolveSchemaReferences(config, warnings);
+    const companyNameById = buildCompanyNameMap(companyRecords, config);
+    const companies = companyRecords
+      .map((record) => normalizeCompanyRecord(record, config))
+      .filter((record) => record.company);
+    const contactPriority = contactPriorityRecords
+      .map((record, index) => normalizeContactPriorityRecord(record, config, companyNameById, index))
+      .filter((record) => record.company);
+    const activities = activityRecords
+      .map((record) => normalizeActivityRecord(record, config, companyNameById))
+      .filter((record) => record.company && record.date);
+    const derivedLeadDates = buildLeadDateIndex(activities);
+    const hydratedCompanies = companies.map((company) => ({
+      ...company,
+      lead_date: company.lead_date || derivedLeadDates.get(normalizeCompanyKey(company.company)) || "",
+    }));
+    const targets = selectTargets(targetRecords, config);
+    const scorecards = scorecardRecords
+      .map((record) => normalizeScorecardRecord(record, config))
+      .map((record) => withComputedSalesVelocity(record, activities))
+      .filter((record) => record.week_start)
+      .sort((left, right) => right.week_start.localeCompare(left.week_start));
+    const dailyScores = scorecardTrendRecords
+      .map((record) => normalizeScorecardTrendRecord(record, config))
+      .filter((record) => record.date)
+      .sort((left, right) => right.date.localeCompare(left.date));
+    const leadMeasuresDaily = leadMeasureDailyRecords
+      .map((record) => normalizeLeadMeasureDailyRecord(record, config))
+      .filter((record) => record.date)
+      .sort((left, right) => right.date.localeCompare(left.date));
+    const scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
+      || scorecards[0]
+      || withComputedSalesVelocity(createEmptyScorecard(config.timezone), activities);
+
+    return {
+      configured: true,
+      companies: hydratedCompanies,
+      contactPriority,
+      activities,
+      targets,
+      dailyScores,
+      leadMeasuresDaily,
+      scorecards,
+      scorecard,
+      connection: buildConnectionPayload(config, schemaReferences, {
         rawCounts: {
           companies: companyRecords.length,
           contactPriority: contactPriorityRecords.length,
@@ -1727,16 +2567,202 @@ async function getDashboardData() {
         rawSamples: {
           contactPriorityFieldNames: contactPriorityRecords[0] ? Object.keys(contactPriorityRecords[0].fields || {}) : [],
         },
-      },
-    },
-    warnings,
-  };
+      }),
+      warnings,
+    };
+  }, options);
+}
+
+async function getConnectionData(options = {}) {
+  const config = getAirtableConfig();
+  if (!isConfigured(config)) {
+    return buildUnconfiguredDashboardData(config).connection;
+  }
+
+  return readAirtableDataCache(config, "connection", async () => {
+    const references = await resolveSchemaReferences(config, []);
+    return buildConnectionPayload(config, references);
+  }, options);
+}
+
+async function getTelegramProfileData(selection = {}, options = {}) {
+  const config = getAirtableConfig();
+  const currentWeekStart = getCurrentWeekStart(config.timezone);
+
+  if (!isConfigured(config)) {
+    const base = buildUnconfiguredDashboardData(config);
+    return {
+      connection: base.connection,
+      companies: [],
+      activities: [],
+      contactPriority: [],
+      targets: selection.targets ? base.targets : {},
+      leadMeasuresDaily: [],
+      scorecard: selection.scorecard ? base.scorecard : {},
+      scorecards: [],
+      warnings: base.warnings || [],
+    };
+  }
+
+  const scope = `telegram:${JSON.stringify(selection)}`;
+  return readAirtableDataCache(config, scope, async () => {
+    const warnings = [];
+    const needActivities = Boolean(selection.activities || selection.scorecard);
+    const resolveActivityCompany = selection.resolveActivityCompany !== false;
+    const needCompanies = Boolean(
+      selection.companies
+      || selection.contactPriority
+      || (needActivities && resolveActivityCompany)
+    );
+    const activityRange = selection.activityRange || {};
+    const leadMeasuresRange = selection.leadMeasuresRange || {};
+    const jobs = [];
+
+    jobs.push(["schemaReferences", resolveSchemaReferences(config, warnings)]);
+
+    if (needCompanies) {
+      jobs.push(["companyRecords", listRecords("companies")]);
+    }
+
+    if (needActivities) {
+      const activityOptions = {};
+
+      if (activityRange.start && activityRange.end) {
+        activityOptions.filterFormula = buildDateRangeFormula(
+          config.fields.activities.date,
+          activityRange.start,
+          activityRange.end
+        );
+      }
+
+      jobs.push(["activityRecords", listRecords("activities", activityOptions)]);
+    }
+
+    if (selection.contactPriority) {
+      jobs.push(["contactPriorityRecords", listRecords("contactPriority").catch((error) => {
+        if (error.status !== 404) throw error;
+        warnings.push("Tabela Contact Priority nu a fost gasita. Blocul A-List din Telegram ramane gol.");
+        return [];
+      })]);
+    }
+
+    if (selection.targets) {
+      jobs.push(["targetRecords", listRecords("targets").catch((error) => {
+        if (error.status !== 404) throw error;
+        warnings.push("Tabela Targets nu a fost gasita. Dashboard-ul ruleaza cu target-urile implicite.");
+        return [];
+      })]);
+    }
+
+    if (selection.leadMeasuresDaily) {
+      const leadMeasureOptions = {};
+      if (leadMeasuresRange.start && leadMeasuresRange.end) {
+        leadMeasureOptions.filterFormula = buildDateRangeFormula(
+          config.fields.leadMeasuresDaily.date,
+          leadMeasuresRange.start,
+          leadMeasuresRange.end
+        );
+      }
+
+      jobs.push(["leadMeasureDailyRecords", listRecords("leadMeasuresDaily", leadMeasureOptions).catch((error) => {
+        if (error.status !== 404) throw error;
+        warnings.push("Tabela Lead Measures Daily nu a fost gasita. Cardul Key Lead Measures asteapta tabela noua.");
+        return [];
+      })]);
+    }
+
+    if (selection.scorecard) {
+      jobs.push(["scorecardRecords", listRecords("scorecard").catch((error) => {
+        if (error.status !== 404) throw error;
+        warnings.push("Tabela Scorecard nu a fost gasita. Creeaza tabela Scorecard pentru noua pagina 4DX.");
+        return [];
+      })]);
+    }
+
+    const loaded = Object.fromEntries(await Promise.all(
+      jobs.map(async ([key, promise]) => [key, await promise])
+    ));
+
+    const companyRecords = loaded.companyRecords || [];
+    const activityRecords = loaded.activityRecords || [];
+    const companyNameById = needCompanies ? buildCompanyNameMap(companyRecords, config) : new Map();
+    const activities = needActivities
+      ? activityRecords
+        .map((record) => normalizeActivityRecord(record, config, companyNameById))
+        .filter((record) => record.date && (resolveActivityCompany ? record.company : true))
+      : [];
+
+    const derivedLeadDates = needCompanies && needActivities && resolveActivityCompany
+      ? buildLeadDateIndex(activities)
+      : new Map();
+    const companies = selection.companies
+      ? companyRecords
+        .map((record) => normalizeCompanyRecord(record, config))
+        .filter((record) => record.company)
+        .map((company) => ({
+          ...company,
+          lead_date: company.lead_date || derivedLeadDates.get(normalizeCompanyKey(company.company)) || "",
+        }))
+      : [];
+
+    const contactPriority = selection.contactPriority
+      ? (loaded.contactPriorityRecords || [])
+        .map((record, index) => normalizeContactPriorityRecord(record, config, companyNameById, index))
+        .filter((record) => record.company)
+      : [];
+
+    const targets = selection.targets
+      ? selectTargets(loaded.targetRecords || [], config)
+      : {};
+
+    const leadMeasuresDaily = selection.leadMeasuresDaily
+      ? (loaded.leadMeasureDailyRecords || [])
+        .map((record) => normalizeLeadMeasureDailyRecord(record, config))
+        .filter((record) => record.date)
+        .sort((left, right) => right.date.localeCompare(left.date))
+      : [];
+
+    let scorecard = {};
+    let scorecards = [];
+    if (selection.scorecard) {
+      scorecards = (loaded.scorecardRecords || [])
+        .map((record) => normalizeScorecardRecord(record, config))
+        .map((record) => withComputedSalesVelocity(record, activities))
+        .filter((record) => record.week_start)
+        .sort((left, right) => right.week_start.localeCompare(left.week_start));
+      scorecard = scorecards.find((record) => record.week_start === currentWeekStart)
+        || scorecards[0]
+        || withComputedSalesVelocity(createEmptyScorecard(config.timezone), activities);
+    }
+
+    return {
+      connection: buildConnectionPayload(config, loaded.schemaReferences || getConfiguredSchemaReferences(config)),
+      companies,
+      activities: selection.activities ? activities : [],
+      contactPriority,
+      targets,
+      leadMeasuresDaily,
+      scorecard,
+      scorecards,
+      warnings,
+    };
+  }, options);
 }
 
 module.exports = {
   AirtableError,
   createActivity,
+  getActivitiesData,
+  getCompaniesData,
+  getConnectionData,
+  getContactPriorityData,
   getDashboardData,
+  getLeadMeasuresDailyData,
+  getScorecardData,
+  getScorecardTrendData,
+  getTelegramProfileData,
+  getTargetsData,
+  invalidateAirtableDataCache,
   upsertCompany,
   upsertScorecard,
   upsertScorecardTrend,

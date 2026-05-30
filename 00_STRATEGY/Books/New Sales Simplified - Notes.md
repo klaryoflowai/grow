@@ -16,3 +16,19 @@ Use this note to capture prospecting ideas, targeting rules, and high-output sal
 - Dream 100 stays separate from active opportunities.
 - Meetings create action items and next step dates.
 - Scripts and objection handling are kept in one place.
+
+## 2026-05-24 RAG Expansion
+
+Use New Sales Simplified as the hunting discipline for Grow:
+
+- build work from a Hit-List, not random outreach;
+- protect daily prospecting time from administration;
+- start messages with operational pain, not agency history;
+- qualify quickly: roles, volume, urgency, decision process, conditions and fear;
+- log every conversation and next step in Airtable.
+
+Core Grow version:
+
+```text
+We do not sell "foreign workers". We open conversations with operational leaders who need 24-month stability and fewer replacement cycles.
+```

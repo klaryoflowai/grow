@@ -17,7 +17,7 @@ Inainte sa incepi:
 - dashboard-ul este live pe Vercel
 - Airtable este deja conectat
 - endpoint-urile exista in repo:
-  - `/api/telegram-morning`
+  - `/api/telegram-morning` cu modurile `morning` si `priorities`
   - `/api/telegram-evening`
 
 Documentatia functionala este aici:
@@ -95,6 +95,11 @@ Adauga:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `CRON_SECRET`
+- `VAULT_GITHUB_OWNER`
+- `VAULT_GITHUB_REPO`
+- `VAULT_GITHUB_BRANCH`
+- `VAULT_GITHUB_TOKEN`
+- `VAULT_NOTES_TIMEZONE`
 
 La `CRON_SECRET` foloseste o valoare lunga si greu de ghicit.
 
@@ -108,6 +113,8 @@ Important:
 
 - valorile reale raman doar in Vercel
 - in Vault pastram doar numele variabilelor
+- `VAULT_GITHUB_TOKEN` trebuie sa fie token GitHub fine-grained cu `Contents: Read and write` doar pe repo-ul `klaryoflowai/SOIA`
+- `/note` salveaza in vault, nu in Airtable
 
 ## Pasul 5 - Fa redeploy
 
@@ -127,6 +134,12 @@ Morning:
 
 ```text
 https://grow-seven-alpha.vercel.app/api/telegram-morning?key=CRON_SECRET&dryRun=1
+```
+
+Priorities:
+
+```text
+https://grow-seven-alpha.vercel.app/api/telegram-morning?mode=priorities&key=CRON_SECRET&dryRun=1
 ```
 
 Evening:
@@ -155,6 +168,12 @@ Morning real:
 https://grow-seven-alpha.vercel.app/api/telegram-morning?key=CRON_SECRET
 ```
 
+Priorities real:
+
+```text
+https://grow-seven-alpha.vercel.app/api/telegram-morning?mode=priorities&key=CRON_SECRET
+```
+
 Evening real:
 
 ```text
@@ -170,15 +189,30 @@ Daca totul este corect, mesajul trebuie sa vina direct in Telegram.
 3. Adauga primul job:
 
 - URL:
-  `https://grow-seven-alpha.vercel.app/api/telegram-morning?key=CRON_SECRET`
+  `https://grow-seven-alpha.vercel.app/api/telegram-morning?mode=priorities&key=CRON_SECRET`
 - schedule:
   `08:00`
 - timezone:
   `Europe/Chisinau`
+- zile:
+  `luni-vineri`
 - method:
   `GET`
 
-4. Adauga al doilea job:
+4. Optional, daca vrei si briefing-ul complet, adauga un job separat:
+
+- URL:
+  `https://grow-seven-alpha.vercel.app/api/telegram-morning?key=CRON_SECRET`
+- schedule:
+  `08:05`
+- timezone:
+  `Europe/Chisinau`
+- zile:
+  `luni-vineri`
+- method:
+  `GET`
+
+5. Adauga job-ul de seara:
 
 - URL:
   `https://grow-seven-alpha.vercel.app/api/telegram-evening?key=CRON_SECRET`
@@ -221,6 +255,13 @@ https://grow-seven-alpha.vercel.app/api/telegram-webhook-info?key=CRON_SECRETUL_
 /intel+ GARMA-GRUP
 /log GARMA-GRUP | whatsapp | Mesaj WhatsApp trimis | call followup | maine
 /plan GARMA-GRUP | call Valentin | maine | dupa 10:00
+/hq done 1 | CRM curatat si next step-uri setate
+/hq move 2 | maine | prins in meeting client
+/hq done all | toate task-urile HQ finalizate
+/note grow | observatie despre piata sau client
+/note soia | idee pentru produsul SOIA
+/note founder | reflectie personala pentru Founder OS
+/priorities
 /focus
 /today
 /week
@@ -261,6 +302,9 @@ Salveaza rapid o activitate reala in `Activities`. Activitatea se salveaza cu da
 
 - `/plan Companie | next step | data | note`
 Salveaza rapid o activitate `planned`, utila pentru next step-uri si urmarire in pipeline.
+
+- `/note grow | text`, `/note soia | text`, `/note founder | text`
+Salveaza note zilnice direct in vault-ul SOIA, in fisiere Markdown de queue/standby. Nu foloseste Airtable. Daca Codex nu este conectat live, notele raman in queue pana cand Codex se reconecteaza si le proceseaza.
 
 - `/focus`
 Iti spune ce merita facut acum: focus principal, top follow-up-uri, top A-list si ritmul de astazi.

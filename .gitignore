@@ -6,9 +6,21 @@
 .env.production.local
 
 # Obsidian local state
+.obsidian/
 .obsidian/workspace*.json
 .obsidian/cache
 .obsidian/workspace-mobile.json
 
 # Local server noise
 nohup.out
+
+# Generated/local agent artifacts
+.graphify_chunks*.json
+.playwright-cli/
+.venv-ppt/
+_COMMUNITY_Community*.md
+graphify-out/
+hero-mobile-next-contact.png
+output/
+tmp/
+scraper/node_modules/

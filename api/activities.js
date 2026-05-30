@@ -1,12 +1,12 @@
-const { createActivity, getDashboardData } = require("./_lib/airtable");
-const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
+const { createActivity, getActivitiesData } = require("./_lib/airtable");
+const { hasTruthyQueryParam, readJsonBody, sendError, setNoStore } = require("./_lib/http");
 
 module.exports = async function handler(request, response) {
   setNoStore(response);
   try {
     if (request.method === "GET") {
-      const data = await getDashboardData();
-      response.status(200).json({ activities: data.activities });
+      const activities = await getActivitiesData({ fresh: hasTruthyQueryParam(request, "fresh") });
+      response.status(200).json({ activities });
       return;
     }
 

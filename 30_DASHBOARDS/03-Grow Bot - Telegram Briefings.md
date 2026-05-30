@@ -2,9 +2,10 @@
 
 ## Scop
 
-`Grow Bot` este layer-ul de automatizare care trimite 2 briefing-uri Telegram pe baza datelor reale din dashboard si Airtable:
+`Grow Bot` este layer-ul de automatizare care trimite briefing-uri Telegram pe baza datelor reale din dashboard si Airtable:
 
-- `08:00` -> ce trebuie miscat azi
+- `08:00` zile lucratoare -> cele 3 prioritati ale Directorului BD & Sales
+- `08:00` optional -> ce trebuie miscat azi, in format complet
 - `19:00` -> ce s-a facut azi si ce ramane pentru maine
 - `vineri 18:00` -> review saptamanal de tip board de experti
 
@@ -26,6 +27,54 @@ Botul foloseste aceleasi date ca dashboard-ul:
 Nu exista introducere separata de date pentru bot.
 
 ## Ce trimite dimineata
+
+Endpoint scurt pentru Director: `/api/telegram-morning?mode=priorities`
+
+Briefing-ul de 08:00 pentru zile lucratoare include 3 prioritati comerciale si 3 task-uri de implementare HQ:
+
+- `Pipeline cald / risc` — follow-up-uri intarziate sau next step-uri programate azi
+- `Pipeline nou in Productie` — primele companii din Contact Priority / A-List
+- `Disciplina de sistem` — log CRM, next step, data, AI logging si follow-up
+- `Implementare HQ` — 3 task-uri rotative pe zile: CRM/AI Memory, scoring, dashboard, Sales-CS-Ops, proof assets, scripturi sau weekly review
+
+Scopul este sa ramana actionabil pe telefon, nu sa devina raport lung.
+
+Comenzi utile pentru ajustare:
+
+- `/priorities` sau `/priority` — regenereaza cele 3 prioritati
+- `/focus` — vezi follow-up + A-list + lead measures
+- `/plan Companie | next step | azi/maine | note` — inlocuieste sau adauga un next step
+- `/log Companie | apel | rezultat | next step | maine | note` — marcheaza progresul
+- `/hq done 1 | note` — marcheaza un task HQ finalizat
+- `/hq move 2 | maine | note` — muta un task HQ pe alta zi
+- `/hq done all | note` — marcheaza toate cele 3 task-uri HQ finalizate
+- `/note grow | text` — salveaza o nota zilnica in vault, queue Grow
+- `/note soia | text` — salveaza o nota zilnica in vault, queue SOIA general
+- `/note founder | text` — salveaza o nota zilnica in vault, queue Founder OS
+
+## Daily Notes Catre Vault
+
+Comanda `/note` este pentru context, nu pentru pipeline operational.
+
+Regula:
+
+- `/log` si `/plan` scriu in Airtable, pentru activitati comerciale si follow-up.
+- `/note` scrie in vault-ul SOIA, in fisiere Markdown de tip queue/standby.
+- Daca Codex nu este conectat live la Mac, nota ramane in repo-ul vault ca standby pana cand Codex se reconecteaza si proceseaza queue-ul.
+
+Rute:
+
+| Comanda | Queue in vault | Cand se foloseste |
+|---|---|---|
+| `/note grow | ...` | `20_Projects/Grow/Inbox/Telegram-Daily-Notes-Queue.md` | observatii despre Grow, vanzari, clienti, HQ, echipa |
+| `/note soia | ...` | `00_Inbox/Telegram-Daily-Notes-Queue.md` | idei generale SOIA / KlaryoFlow / AIOS |
+| `/note founder | ...` | `09_Founder_OS/00 - INBOX/Telegram-Daily-Notes-Queue.md` | reflectii personale, energie, principii, decizii personale |
+
+Exemple:
+
+- `/note grow | Rodals intreaba mai mult despre stabilitate si inlocuiri decat despre comision`
+- `/note soia | clientii vor control de pe telefon, nu dashboard complicat`
+- `/note founder | prospectarea merge mai bine dimineata, dupa 14:00 scade energia`
 
 Endpoint: `/api/telegram-morning`
 
@@ -109,6 +158,14 @@ Comenzi disponibile:
 - `/intel+ Nume Companie`
 - `/log Companie | tip | rezultat | next step | data | note`
 - `/plan Companie | next step | data | note`
+- `/hq done 1 | note`
+- `/hq move 2 | data | note`
+- `/hq note text`
+- `/note grow | text`
+- `/note soia | text`
+- `/note founder | text`
+- `/priorities`
+- `/priority`
 - `/focus`
 - `/today`
 - `/week`
@@ -126,6 +183,13 @@ Exemplu:
 - `/intel+ GARMA-GRUP`
 - `/log GARMA-GRUP | whatsapp | Mesaj WhatsApp trimis | call followup | maine`
 - `/plan GARMA-GRUP | call Valentin | maine | dupa 10:00`
+- `/hq done 1 | CRM curatat si next step-uri setate`
+- `/hq move 2 | maine | prins in meeting client`
+- `/hq done all | toate task-urile HQ finalizate`
+- `/note grow | insight din apeluri despre costul total`
+- `/note soia | idee pentru Daily Brief`
+- `/note founder | observatie despre energia mea azi`
+- `/priorities`
 - `/focus`
 - `/today`
 - `/week`
@@ -153,11 +217,18 @@ In Vercel trebuie sa existe:
 - `CRON_SECRET`
 - `OPENAI_API_KEY`
 - `OPENAI_WEEKLY_REVIEW_MODEL`
+- `VAULT_GITHUB_OWNER`
+- `VAULT_GITHUB_REPO`
+- `VAULT_GITHUB_BRANCH`
+- `VAULT_GITHUB_TOKEN`
+- `VAULT_NOTES_TIMEZONE`
 
 Important:
 
 - in Vault pastram doar numele variabilelor
 - nu salvam aici valorile reale ale token-ului sau secretului
+- `VAULT_GITHUB_TOKEN` trebuie sa fie token GitHub fine-grained cu acces `Contents: Read and write` doar pe repo-ul `klaryoflowai/SOIA`
+- comanda `/note` scrie in vault, nu in Airtable
 
 ## Logica operationala
 
@@ -173,6 +244,7 @@ Botul functioneaza bine doar daca disciplina de date ramane simpla:
 Preview fara trimitere reala:
 
 - `/api/telegram-morning?key=CRON_SECRET&dryRun=1`
+- `/api/telegram-morning?mode=priorities&key=CRON_SECRET&dryRun=1`
 - `/api/telegram-evening?key=CRON_SECRET&dryRun=1`
 - `/api/telegram-evening?weeklyReview=1&key=CRON_SECRET&dryRun=1`
 - `/api/telegram-evening?weeklyReview=1&key=CRON_SECRET&force=1`
@@ -189,7 +261,8 @@ Scheduler recomandat: `cron-job.org`
 
 Job-uri:
 
-- `08:00 Europe/Chisinau` -> `/api/telegram-morning?key=CRON_SECRET`
+- `08:00 Europe/Chisinau`, luni-vineri -> `/api/telegram-morning?mode=priorities&key=CRON_SECRET`
+- optional `08:05 Europe/Chisinau`, luni-vineri -> `/api/telegram-morning?key=CRON_SECRET`
 - `19:00 Europe/Chisinau` -> `/api/telegram-evening?key=CRON_SECRET`
 - `18:00 vineri Europe/Chisinau` -> `/api/telegram-evening?weeklyReview=1&key=CRON_SECRET&force=1`
 

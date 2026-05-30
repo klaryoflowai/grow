@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>De ce Grow?</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --g: #1F5A40;
+    --g2: #163D2B;
+    --a: #E8A020;
+    --off: #F4F1EB;
+    --dark: #111714;
+    --mid: #4A5E54;
+  }
+
+  body {
+    background: var(--off);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 760px;
+    background: var(--dark);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.25);
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--g);
+    padding: 36px 44px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: 40%;
+    width: 260px; height: 260px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+  .eyebrow {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 10px;
+  }
+  .title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.05;
+    letter-spacing: -1px;
+  }
+  .title span { color: var(--a); }
+  .subtitle {
+    margin-top: 12px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.65);
+    font-weight: 300;
+    font-style: italic;
+  }
+
+  /* BODY */
+  .body {
+    padding: 32px 44px 40px;
+  }
+
+  /* PROOF BAR */
+  .proof {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 36px;
+  }
+  .proof-item {
+    background: rgba(255,255,255,0.04);
+    padding: 16px 14px;
+    text-align: center;
+  }
+  .proof-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--a);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .proof-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.5px;
+  }
+
+  /* LIST */
+  .list { list-style: none; }
+  .list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    opacity: 0;
+    transform: translateX(-12px);
+    animation: slideIn 0.4s forwards;
+  }
+  .list li:last-child { border-bottom: none; }
+
+  @keyframes slideIn {
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* stagger */
+  .list li:nth-child(1)  { animation-delay: 0.05s; }
+  .list li:nth-child(2)  { animation-delay: 0.10s; }
+  .list li:nth-child(3)  { animation-delay: 0.15s; }
+  .list li:nth-child(4)  { animation-delay: 0.20s; }
+  .list li:nth-child(5)  { animation-delay: 0.25s; }
+  .list li:nth-child(6)  { animation-delay: 0.30s; }
+  .list li:nth-child(7)  { animation-delay: 0.35s; }
+  .list li:nth-child(8)  { animation-delay: 0.40s; }
+  .list li:nth-child(9)  { animation-delay: 0.45s; }
+  .list li:nth-child(10) { animation-delay: 0.50s; }
+
+  .num {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    background: var(--g);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 1px;
+  }
+  .item-text { flex: 1; }
+  .item-lead {
+    font-size: 15px;
+    font-weight: 500;
+    color: #fff;
+    line-height: 1.3;
+  }
+  .item-lead em {
+    font-style: normal;
+    color: var(--a);
+  }
+  .item-sub {
+    font-size: 12.5px;
+    color: rgba(255,255,255,0.45);
+    margin-top: 2px;
+    font-weight: 300;
+  }
+
+  /* FOOTER */
+  .footer {
+    background: var(--g2);
+    padding: 20px 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .footer-tagline {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+  }
+  .footer-contact {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+  .footer-contact a {
+    color: var(--a);
+    text-decoration: none;
+  }
+
+  @media (max-width: 500px) {
+    .header, .body, .footer { padding-left: 24px; padding-right: 24px; }
+    .proof { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="header">
+    <div class="eyebrow">Grow Moldova · Workforce Solutions</div>
+    <div class="title">De ce să lucrați<br>cu <span>noi</span>?</div>
+    <div class="subtitle">10 motive. Fără vorbe goale.</div>
+  </div>
+
+  <div class="body">
+
+    <div class="proof">
+      <div class="proof-item">
+        <div class="proof-num">800+</div>
+        <div class="proof-label">Muncitori livrați</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">0</div>
+        <div class="proof-label">Incidente majore</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">5+</div>
+        <div class="proof-label">Clienți activi</div>
+      </div>
+      <div class="proof-item">
+        <div class="proof-num">≈10</div>
+        <div class="proof-label">Săptămâni livrare</div>
+      </div>
+    </div>
+
+    <ul class="list">
+      <li>
+        <div class="num">1</div>
+        <div class="item-text">
+          <div class="item-lead"><em>Zero incidente</em> în primul an — la 800+ muncitori integrați.</div>
+          <div class="item-sub">Nu promisiune. Istoric documentat, verificabil de clienții noștri actuali.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">2</div>
+        <div class="item-text">
+          <div class="item-lead">Lucrăm cu <em>SEBN (Sumitomo Electric)</em> — standardele lor de audit sunt cele mai stricte.</div>
+          <div class="item-sub">Dacă am trecut de compliance-ul unei multinaționale japoneze, trecem de orice.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">3</div>
+        <div class="item-text">
+          <div class="item-lead">Proces de selecție în <em>7 etape</em> — tehnic, psihometric, medical, background, interviu, orientare, aprobare finală.</div>
+          <div class="item-sub">Nicio altă agenție din Moldova nu aplică un proces complet documentat.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">4</div>
+        <div class="item-text">
+          <div class="item-lead">Muncitorii nepalezi vorbesc română funcțional în <em>3–4 luni.</em></div>
+          <div class="item-sub">Din experiența cu 800+ oameni. Cursuri structurate cu profesor incluse în pachet.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">5</div>
+        <div class="item-text">
+          <div class="item-lead"><em>Înlocuire gratuită</em> în primele 90 de zile dacă muncitorul nu corespunde profilului.</div>
+          <div class="item-sub">Fără taxe noi de stat. Fără comision suplimentar. Riscul e al nostru.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">6</div>
+        <div class="item-text">
+          <div class="item-lead">Raport lunar scris cu <em>8 indicatori de performanță</em> — nu dispărem după livrare.</div>
+          <div class="item-sub">Prezență, productivitate, satisfacție muncitori, incidente, plan luna viitoare. Transparent total.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">7</div>
+        <div class="item-text">
+          <div class="item-lead">Gestionăm <em>tot</em> — vize, IGM, transport, cazare, integrare culturală, suport 24 de luni.</div>
+          <div class="item-sub">Dvs. primiți muncitorul gata de lucru. Noi preluăm toată birocrația.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">8</div>
+        <div class="item-text">
+          <div class="item-lead">Contracte de <em>minim 24 de luni</em> — stabilitate reală, nu angajări temporare.</div>
+          <div class="item-sub">Fluctuația costă. Un om stabil 2 ani valorează cât 6 oameni locali rotați anual.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">9</div>
+        <div class="item-text">
+          <div class="item-lead">Portofoliu verificabil: <em>Linella, SEBN, Golban Trade, Sigma Venmer, Asconi Winery.</em></div>
+          <div class="item-sub">Retail, industrie, construcții, viticultură. Puteți suna orice client și întreba direct.</div>
+        </div>
+      </li>
+      <li>
+        <div class="num">10</div>
+        <div class="item-text">
+          <div class="item-lead">Suntem <em>singurii</em> din Moldova care tratează staffingul internațional ca un serviciu de 24 de luni — nu o tranzacție.</div>
+          <div class="item-sub">Ceilalți livrează oameni. Noi livrăm continuitate operațională.</div>
+        </div>
+      </li>
+    </ul>
+
+  </div>
+
+  <div class="footer">
+    <div class="footer-tagline">Siguranța continuității afacerii tale.</div>
+    <div class="footer-contact">
+      Iurie Timofte · <a href="tel:+37369102020">+373 69 10 20 20</a> · <a href="mailto:sales@grow.md">sales@grow.md</a>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

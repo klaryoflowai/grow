@@ -29,7 +29,7 @@ The dedicated weekly scorecard page now uses three Airtable tables:
 
 - `Scorecard Weekly` = one row per week
 - `Scorecard Trend` = one row per day
-- `Lead Measures Daily` = one row per day for Hormozi-style execution metrics
+- `Lead Measures Daily` = one row per day for manual Hormozi-style execution metrics; cold outreach is derived from pipeline movement
 
 The richer activity log stores:
 
@@ -128,15 +128,15 @@ Recommended Airtable fields:
 - `Targets -> Cold Calls Daily`
 - `Targets -> Cold Calls Weekly`
 - `Targets -> Cold Calls Monthly`
-- `Targets -> WhatsApp Messages Daily`
-- `Targets -> WhatsApp Messages Weekly`
-- `Targets -> WhatsApp Messages Monthly`
+- `Targets -> WhatsApp Messages Daily` legacy / optional
+- `Targets -> WhatsApp Messages Weekly` legacy / optional
+- `Targets -> WhatsApp Messages Monthly` legacy / optional
 - `Targets -> Field Visits Daily`
 - `Targets -> Field Visits Weekly`
 - `Targets -> Field Visits Monthly`
-- `Targets -> Warm Outreach Daily`
-- `Targets -> Warm Outreach Weekly`
-- `Targets -> Warm Outreach Monthly`
+- `Targets -> Warm Outreach Daily` legacy / optional
+- `Targets -> Warm Outreach Weekly` legacy / optional
+- `Targets -> Warm Outreach Monthly` legacy / optional
 - `Scorecard -> Week Start`
 - `Scorecard -> Week End`
 - `Scorecard -> Week Key`
@@ -144,10 +144,10 @@ Recommended Airtable fields:
 - `Scorecard -> New Contract Workers MTD`
 - `Scorecard -> Dream100 P1 Prospects`
 - `Scorecard -> Sales Velocity Days`
-- `Scorecard -> Cold Calls`
-- `Scorecard -> WhatsApp Messages`
+- `Scorecard -> Cold Calls` optional mirror; dashboard saves the derived weekly first-contact count
+- `Scorecard -> WhatsApp Messages` legacy / optional
 - `Scorecard -> Field Visits`
-- `Scorecard -> Warm Outreach`
+- `Scorecard -> Warm Outreach` legacy / optional
 - `Scorecard -> Meetings Set`
 - `Scorecard -> Offers Sent`
 - `Scorecard -> Contracts Signed`
@@ -161,10 +161,10 @@ Recommended Airtable fields:
 - `Scorecard Trend -> Contracts`
 - `Scorecard Trend -> Notes`
 - `Lead Measures Daily -> Date`
-- `Lead Measures Daily -> Cold Calls`
-- `Lead Measures Daily -> WhatsApp Messages`
+- `Lead Measures Daily -> Cold Calls` optional mirror; dashboard derives `Apel rece` from companies moved out of `Necontactat`
+- `Lead Measures Daily -> WhatsApp Messages` legacy / optional
 - `Lead Measures Daily -> Field Visits`
-- `Lead Measures Daily -> Warm Outreach`
+- `Lead Measures Daily -> Warm Outreach` legacy / optional
 - `Lead Measures Daily -> Notes`
 
 ## Telegram Briefings
@@ -301,7 +301,9 @@ If you already use a linked record field to `Companies`, set:
 
 - `AIRTABLE_ACTIVITY_COMPANY_LINKED=true`
 
-and optionally expose a lookup field like:
+The backend filters linked companies directly with `ARRAYJOIN({Company})`, so a lookup field is not required.
+
+Only set `AIRTABLE_FIELD_ACTIVITY_COMPANY_LOOKUP` if the lookup field actually exists in Airtable. Otherwise keep it empty. You may optionally expose a lookup field like:
 
 - `Company Name`
 

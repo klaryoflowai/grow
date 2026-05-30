@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "market:daily": "node market-radar.js",
+    "market:dry-run": "node market-radar.js --dry-run"
   },
   "dependencies": {
     "playwright": "^1.44.0"

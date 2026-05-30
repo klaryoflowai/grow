@@ -1,12 +1,12 @@
-const { getDashboardData, upsertCompany } = require("./_lib/airtable");
-const { readJsonBody, sendError, setNoStore } = require("./_lib/http");
+const { getCompaniesData, upsertCompany } = require("./_lib/airtable");
+const { hasTruthyQueryParam, readJsonBody, sendError, setNoStore } = require("./_lib/http");
 
 module.exports = async function handler(request, response) {
   setNoStore(response);
   try {
     if (request.method === "GET") {
-      const data = await getDashboardData();
-      response.status(200).json({ companies: data.companies });
+      const companies = await getCompaniesData({ fresh: hasTruthyQueryParam(request, "fresh") });
+      response.status(200).json({ companies });
       return;
     }
 

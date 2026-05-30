@@ -21,6 +21,7 @@ Based on the current Grow site, the real process is 8 stages:
 
 - [[Bottlenecks/00-Bottleneck Register]]
 - [[Canvas/Canvas Playbook]]
+- [[Customer_Success/00-Customer Success Hub|Customer Success Hub]]
 
 ## Operations Rule
 

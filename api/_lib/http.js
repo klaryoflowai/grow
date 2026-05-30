@@ -30,6 +30,23 @@ function setNoStore(response) {
   response.setHeader("Expires", "0");
 }
 
+function getRequestUrl(request) {
+  const base = `http://${request?.headers?.host || "localhost"}`;
+  const raw = request?.url || "/";
+  return raw.startsWith("http://") || raw.startsWith("https://")
+    ? new URL(raw)
+    : new URL(raw, base);
+}
+
+function hasTruthyQueryParam(request, name) {
+  try {
+    const value = String(getRequestUrl(request).searchParams.get(name) || "").toLowerCase();
+    return ["1", "true", "yes", "on"].includes(value);
+  } catch {
+    return false;
+  }
+}
+
 function sendError(response, error) {
   setNoStore(response);
   const status = error.status || 500;
@@ -39,6 +56,8 @@ function sendError(response, error) {
 }
 
 module.exports = {
+  getRequestUrl,
+  hasTruthyQueryParam,
   readJsonBody,
   setNoStore,
   sendError,

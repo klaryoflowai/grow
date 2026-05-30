@@ -6,17 +6,17 @@ Aceasta tabela alimenteaza:
 
 - cardul `Key Lead Measures`
 - formularul zilnic de pe pagina `Scorecard`
-- precompletarea lead measures in `Completeaza scorecard-ul de vineri`
+- totalul zilnic / saptamanal / lunar pentru vizite fizice
 
 ## Structura recomandata
 
 | Field | Type | Observatii |
 | --- | --- | --- |
 | `Date` | Date | O zi = un singur rand |
-| `Cold Calls` | Number | Apeluri reci efectuate in ziua respectiva |
-| `WhatsApp Messages` | Number | Mesaje WhatsApp personalizate trimise |
+| `Cold Calls` | Number | Optional / mirror automat. Dashboard-ul calculeaza `Apel rece` din companiile mutate din `Necontactat` in alt stadiu. |
+| `WhatsApp Messages` | Number | Legacy / optional. Nu mai apare in scoreboard-ul principal. |
 | `Field Visits` | Number | Vizite fizice / networking |
-| `Warm Outreach` | Number | Outreach cald catre clienti existenti, parteneri sau referrals |
+| `Warm Outreach` | Number | Legacy / optional. Nu mai apare in scoreboard-ul principal. |
 | `Notes` | Long text | Observatii operationale scurte |
 
 ## Regula de lucru
@@ -24,7 +24,9 @@ Aceasta tabela alimenteaza:
 - Un rand = o zi.
 - Nu duplica aceeasi data pe mai multe randuri.
 - Daca vrei sa actualizezi ziua, editezi randul existent.
-- Dashboard-ul citeste aceasta tabela pentru totalurile `azi`, `saptamana` si `luna`.
+- Dashboard-ul citeste aceasta tabela pentru vizite fizice si note.
+- `Apel rece` se calculeaza automat din pipeline: companie trecuta din `Necontactat` in orice alt stadiu.
+- `Followups` se calculeaza automat din activitati live pe companii deja contactate anterior.
 
 ## Legatura cu celelalte tabele
 

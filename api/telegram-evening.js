@@ -1,6 +1,6 @@
-const { getDashboardData } = require("./_lib/airtable");
 const { authorizeCronRequest, isDryRun } = require("./_lib/cron");
 const { sendError, setNoStore } = require("./_lib/http");
+const { loadTelegramData } = require("./_lib/telegram-data");
 const { buildEveningBrief } = require("./_lib/telegram-briefs");
 const { isTelegramConfigured, sendTelegramMessage } = require("./_lib/telegram");
 const { buildWeeklyExpertReview, isFridayAtSix } = require("./_lib/weekly-review");
@@ -41,7 +41,7 @@ module.exports = async function handler(request, response) {
         return;
       }
 
-      const data = await getDashboardData();
+      const data = await loadTelegramData("weekly_review");
       const review = await buildWeeklyExpertReview(data);
 
       if (dryRun) {
@@ -68,7 +68,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const data = await getDashboardData();
+    const data = await loadTelegramData("evening");
     const briefing = buildEveningBrief(data);
 
     if (dryRun) {

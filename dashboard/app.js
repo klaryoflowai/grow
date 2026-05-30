@@ -7,15 +7,24 @@ const defaultTargets = {
   coldCallsDaily: 10,
   coldCallsWeekly: 50,
   coldCallsMonthly: 200,
-  whatsappMessagesDaily: 20,
-  whatsappMessagesWeekly: 100,
-  whatsappMessagesMonthly: 400,
-  fieldVisitsDaily: 5,
-  fieldVisitsWeekly: 10,
-  fieldVisitsMonthly: 40,
+  whatsappMessagesDaily: 5,
+  whatsappMessagesWeekly: 25,
+  whatsappMessagesMonthly: 100,
+  fieldVisitsDaily: 3,
+  fieldVisitsWeekly: 15,
+  fieldVisitsMonthly: 60,
   warmOutreachDaily: 2,
   warmOutreachWeekly: 10,
   warmOutreachMonthly: 40,
+};
+
+const keyLeadTargets = {
+  fieldVisitsDaily: 3,
+  fieldVisitsWeekly: 15,
+  fieldVisitsMonthly: 60,
+  followupsDaily: 5,
+  followupsWeekly: 25,
+  followupsMonthly: 100,
 };
 
 const scorecardTargets = {
@@ -58,8 +67,10 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260504a";
+const appBuild = "20260530c";
+const autoRefreshIntervalMs = 60 * 1000;
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
+const firstContactTransitionPrefix = "Tranzitie prima contactare";
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -163,12 +174,30 @@ const storageKeys = {
   scorecards: "grow_dashboard_scorecards",
 };
 
-const dashboardPages = new Set(["overview", "scorecard", "checklist", "pipeline", "execution", "settings"]);
+const defaultDashboardPage = "action-focus";
+const dashboardPages = new Set(["action-focus", "overview", "scorecard", "checklist", "pipeline", "execution", "settings"]);
+const actionFocusNamedOrder = [
+  "VASTAVIT",
+  "Rutador",
+  "BPM-STROY",
+  "IMPERLUX-U.N.",
+  "Costa Smeralda",
+  "Rodals",
+  "Companie Agro Briceni",
+  "Delmar Construction",
+  "ADISCOM",
+  "VALDCONGRUP",
+];
+const actionFocusNameRank = new Map(
+  actionFocusNamedOrder.map((name, index) => [normalizeCompanyKey(name), index + 1])
+);
 let mobileLogHideTimer = null;
+let autoRefreshTimer = null;
 
 const state = {
   sourceData: {
     accounts: [],
+    contactPriority: [],
     activities: [],
     scorecards: [],
     dailyScores: [],
@@ -177,6 +206,7 @@ const state = {
   manualData: loadManualData(),
   manualScorecards: loadScorecards(),
   accounts: [],
+  contactPriority: [],
   activities: [],
   dailyScores: [],
   leadMeasuresDaily: [],
@@ -190,19 +220,31 @@ const state = {
   bootstrapReady: false,
   connection: null,
   warnings: [],
+  refreshInFlight: false,
+  lastSyncedAt: null,
+  lastSyncError: "",
   targets: loadTargets(),
 };
 
 const elements = {
   pacingCard: document.getElementById("pacing-card"),
+  heroNextContact: document.getElementById("hero-next-contact"),
   weeklyTouchChip: document.getElementById("weekly-touch-chip"),
   dueTodayChip: document.getElementById("due-today-chip"),
   overdueChip: document.getElementById("overdue-chip"),
   pipelineWorkersChip: document.getElementById("pipeline-workers-chip"),
   activeCompaniesChip: document.getElementById("active-companies-chip"),
   dataModePill: document.getElementById("data-mode-pill"),
+  dataSyncPill: document.getElementById("data-sync-pill"),
   statusMessage: document.getElementById("status-message"),
   retryConnection: document.getElementById("retry-connection"),
+  actionFocusStats: document.getElementById("action-focus-stats"),
+  actionFocusToday: document.getElementById("action-focus-today"),
+  actionFocusMustWin: document.getElementById("action-focus-must-win"),
+  actionFocusMustWinChip: document.getElementById("action-focus-must-win-chip"),
+  actionFocusProtocol: document.getElementById("action-focus-protocol"),
+  actionFocusSector: document.getElementById("action-focus-sector"),
+  actionFocusHq: document.getElementById("action-focus-hq"),
   scorecardWeekChip: document.getElementById("scorecard-week-chip"),
   scorecardSourceChip: document.getElementById("scorecard-source-chip"),
   checklistSnapshot: document.getElementById("checklist-snapshot"),
@@ -210,6 +252,7 @@ const elements = {
   checklistWeekGrid: document.getElementById("checklist-week-grid"),
   wigGrid: document.getElementById("wig-grid"),
   keyLeadMeasuresCard: document.getElementById("key-lead-measures-card"),
+  cumulativePipelineCard: document.getElementById("cumulative-pipeline-card"),
   powerThreeGrid: document.getElementById("power-three-grid"),
   velocityFocusCard: document.getElementById("velocity-focus-card"),
   funnelGrid: document.getElementById("funnel-grid"),
@@ -281,6 +324,7 @@ async function init() {
   initCompanyPickers();
   await refreshData({ silent: true });
   state.bootstrapReady = true;
+  startAutoRefresh();
   render();
 }
 
@@ -303,9 +347,19 @@ async function submitActivityFromRaw(raw, form) {
     return false;
   }
   raw.company = resolution.company;
+  const previousAccount = findAccountByCompany(raw.company);
   const record = normalizeRow("activities", raw);
+  record.company_id = previousAccount?.id || "";
   record.created_at = record.created_at || new Date();
   if (!record.company || !record.date) return false;
+  const requestedPipelineStage = normalizePipelineStage(raw.pipeline_stage);
+  if (requestedPipelineStage) {
+    record.notes = appendFirstContactTransitionNote(
+      record.notes,
+      getPreviousPipelineStage(previousAccount),
+      requestedPipelineStage
+    );
+  }
   const companyPatchPayload = buildCompanyPatchFromActivityRaw(raw, record);
   let scorecardSync = { updated: false, reason: "not_attempted" };
   let trendSync = { updated: false, reason: "not_attempted" };
@@ -320,7 +374,11 @@ async function submitActivityFromRaw(raw, form) {
       scorecardSync = result?.scorecard_sync || scorecardSync;
       trendSync = result?.trend_sync || trendSync;
       if (isDuplicate) {
-        await refreshData({ silent: true });
+        if (result?.activity) {
+          applySavedActivityToApiState({ activity: result.activity });
+          hydrateScorecardForm();
+          hydrateDailyTrendForm();
+        }
         updateStatus(`Dublura evitata: activitatea pentru ${record.company} era deja salvata recent.`);
         if (form) {
           form.reset();
@@ -365,18 +423,8 @@ async function submitActivityFromRaw(raw, form) {
         scorecard: savedScorecard,
         dailyScore: savedTrend,
       });
-
-      try {
-        await refreshData({ silent: true });
-        applySavedActivityToApiState({
-          activity: savedActivity,
-          company: syncedCompany,
-          scorecard: savedScorecard,
-          dailyScore: savedTrend,
-        });
-      } catch (error) {
-        secondaryWarning += ` Dashboard-ul nu a putut face refresh imediat: ${error.message}`;
-      }
+      hydrateScorecardForm();
+      hydrateDailyTrendForm();
 
       updateStatus(
         `Salvat in Airtable: ${record.company} → ${activityLabel(record.activity_type)}${
@@ -453,24 +501,29 @@ function bindEvents() {
   });
 
   elements.saveTargets.addEventListener("click", async () => {
+    const targetValue = (key) => {
+      const input = elements.targets[key];
+      return input ? toNumber(input.value) : toNumber(state.targets[key] ?? defaultTargets[key]);
+    };
+
     const payload = {
-      contacted: toNumber(elements.targets.contacted.value),
-      meetings: toNumber(elements.targets.meetings.value),
-      offers: toNumber(elements.targets.offers.value),
-      contracts: toNumber(elements.targets.contracts.value),
-      movedCompaniesWeekly: toNumber(elements.targets.movedCompaniesWeekly.value),
-      coldCallsDaily: toNumber(elements.targets.coldCallsDaily.value),
-      coldCallsWeekly: toNumber(elements.targets.coldCallsWeekly.value),
-      coldCallsMonthly: toNumber(elements.targets.coldCallsMonthly.value),
-      whatsappMessagesDaily: toNumber(elements.targets.whatsappMessagesDaily.value),
-      whatsappMessagesWeekly: toNumber(elements.targets.whatsappMessagesWeekly.value),
-      whatsappMessagesMonthly: toNumber(elements.targets.whatsappMessagesMonthly.value),
-      fieldVisitsDaily: toNumber(elements.targets.fieldVisitsDaily.value),
-      fieldVisitsWeekly: toNumber(elements.targets.fieldVisitsWeekly.value),
-      fieldVisitsMonthly: toNumber(elements.targets.fieldVisitsMonthly.value),
-      warmOutreachDaily: toNumber(elements.targets.warmOutreachDaily.value),
-      warmOutreachWeekly: toNumber(elements.targets.warmOutreachWeekly.value),
-      warmOutreachMonthly: toNumber(elements.targets.warmOutreachMonthly.value),
+      contacted: targetValue("contacted"),
+      meetings: targetValue("meetings"),
+      offers: targetValue("offers"),
+      contracts: targetValue("contracts"),
+      movedCompaniesWeekly: targetValue("movedCompaniesWeekly"),
+      coldCallsDaily: targetValue("coldCallsDaily"),
+      coldCallsWeekly: targetValue("coldCallsWeekly"),
+      coldCallsMonthly: targetValue("coldCallsMonthly"),
+      whatsappMessagesDaily: targetValue("whatsappMessagesDaily"),
+      whatsappMessagesWeekly: targetValue("whatsappMessagesWeekly"),
+      whatsappMessagesMonthly: targetValue("whatsappMessagesMonthly"),
+      fieldVisitsDaily: targetValue("fieldVisitsDaily"),
+      fieldVisitsWeekly: targetValue("fieldVisitsWeekly"),
+      fieldVisitsMonthly: targetValue("fieldVisitsMonthly"),
+      warmOutreachDaily: targetValue("warmOutreachDaily"),
+      warmOutreachWeekly: targetValue("warmOutreachWeekly"),
+      warmOutreachMonthly: targetValue("warmOutreachMonthly"),
     };
 
     if (state.apiEnabled) {
@@ -498,13 +551,18 @@ function bindEvents() {
   });
 
   elements.refreshData.addEventListener("click", async () => {
-    await refreshData();
+    const originalLabel = elements.refreshData.textContent;
+    elements.refreshData.disabled = true;
+    elements.refreshData.textContent = "Se sincronizeaza...";
+    await refreshData({ fresh: true, renderAfter: true });
+    elements.refreshData.disabled = false;
+    elements.refreshData.textContent = originalLabel;
   });
 
   elements.retryConnection?.addEventListener("click", async () => {
     elements.retryConnection.disabled = true;
     elements.retryConnection.textContent = "Se reconecteaza...";
-    await refreshData();
+    await refreshData({ fresh: true, renderAfter: true });
     elements.retryConnection.disabled = false;
     elements.retryConnection.textContent = "Reincearca conexiunea";
   });
@@ -580,10 +638,15 @@ function bindEvents() {
       return;
     }
     raw.company = resolution.company;
+    const previousAccount = findAccountByCompany(raw.company);
     const record = normalizeRow("accounts", raw);
+    if (!record.id && previousAccount?.id) {
+      record.id = previousAccount.id;
+    }
     if (!record.company) return;
     const companyPatch = buildCompanyUpdatePatch(record, raw);
-    if (Object.keys(companyPatch).length === 1) {
+    const hasCompanyPatchChanges = Object.keys(companyPatch).some((key) => !["id", "company"].includes(key));
+    if (!hasCompanyPatchChanges) {
       updateStatus("Alege macar un camp pe care vrei sa-l schimbi pentru compania selectata.");
       return;
     }
@@ -594,7 +657,7 @@ function bindEvents() {
           method: "PATCH",
           body: serializeCompanyPayload(companyPatch),
         });
-        const pipelineActivity = buildActivityFromCompanyUpdate(record, raw);
+        const pipelineActivity = buildActivityFromCompanyUpdate(record, raw, previousAccount);
         let activityMessage = "";
         let savedActivityState = {
           company: companyResult?.company ? normalizeRow("accounts", companyResult.company) : normalizeRow("accounts", companyPatch),
@@ -631,15 +694,21 @@ function bindEvents() {
         }
 
         applySavedActivityToApiState(savedActivityState);
-        await refreshData({ silent: true });
-        applySavedActivityToApiState(savedActivityState);
+        hydrateScorecardForm();
+        hydrateDailyTrendForm();
         updateStatus(`Compania ${record.company} a fost actualizata in Airtable.${activityMessage}`);
       } catch (error) {
         updateStatus(`Airtable nu a putut salva compania. ${error.message}`);
         return;
       }
     } else {
-      const pipelineActivity = buildActivityFromCompanyUpdate(record, raw);
+      const pipelineActivity = buildActivityFromCompanyUpdate(record, raw, previousAccount);
+      if (
+        "pipeline_stage" in companyPatch
+        && normalizePipelineStage(companyPatch.pipeline_stage) !== getPreviousPipelineStage(previousAccount)
+      ) {
+        companyPatch.stage_changed_date = parseDate(getTodayIsoDate());
+      }
       upsertManualAccount(companyPatch);
       if (pipelineActivity) {
         const scorecardSync = syncManualScorecardFromActivity(pipelineActivity, state.manualData.activities);
@@ -684,7 +753,10 @@ function bindEvents() {
           method: "PUT",
           body: serializeScorecardPayload(record),
         });
-        await refreshData({ silent: true });
+        if (result?.scorecard) {
+          upsertSourceScorecard(result.scorecard);
+          refreshCombinedData();
+        }
         const ignoredFields = Array.isArray(result?.scorecard?.ignored_fields)
           ? result.scorecard.ignored_fields.filter(Boolean)
           : [];
@@ -731,8 +803,8 @@ function bindEvents() {
         });
         if (result?.leadMeasure) {
           upsertSourceLeadMeasureDaily(result.leadMeasure);
+          refreshCombinedData();
         }
-        await refreshData({ silent: true });
         updateLeadMeasuresStatus(`Lead measures pentru ${record.date} au fost salvate in Airtable.`);
       } catch (error) {
         updateLeadMeasuresStatus(`Airtable nu a putut salva lead measures. ${error.message}`);
@@ -768,11 +840,14 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        await apiJson("/api/scorecard-trend", {
+        const result = await apiJson("/api/scorecard-trend", {
           method: "PUT",
           body: serializeDailyScorePayload(record),
         });
-        await refreshData({ silent: true });
+        if (result?.dailyScore) {
+          upsertSourceDailyScore(result.dailyScore);
+          refreshCombinedData();
+        }
         updateDailyTrendStatus(`Ziua ${record.date} a fost salvata in Airtable, in Scorecard Trend.`);
       } catch (error) {
         updateDailyTrendStatus(`Airtable nu a putut salva trendul zilnic. ${error.message}`);
@@ -835,11 +910,14 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        await apiJson("/api/companies", {
+        const result = await apiJson("/api/companies", {
           method: "PATCH",
           body: payload,
         });
-        await refreshData({ silent: true });
+        if (result?.company) {
+          upsertSourceAccount(result.company);
+          refreshCombinedData();
+        }
         updateStatus(`Tracking-ul pentru ${company} a fost resetat in Airtable.`);
       } catch (error) {
         updateStatus(`Nu am putut reseta compania in Airtable. ${error.message}`);
@@ -936,16 +1014,23 @@ function focusTargetById(id) {
 }
 
 async function refreshData(options = {}) {
-  const { silent = false } = options;
+  const { silent = false, fresh = false, renderAfter = false } = options;
+  if (state.refreshInFlight) return false;
+  state.refreshInFlight = true;
+  state.lastSyncError = "";
+  renderSyncPill();
 
   try {
-    const payload = await apiJson("/api/bootstrap");
+    const payload = await apiJson(fresh ? "/api/bootstrap?fresh=1" : "/api/bootstrap");
     state.connection = payload.connection || null;
     state.warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
     state.apiEnabled = Boolean(payload.configured);
     state.sourceMode = state.apiEnabled ? "airtable" : "fallback";
     state.sourceData.accounts = Array.isArray(payload.companies)
       ? payload.companies.map((row) => normalizeRow("accounts", row))
+      : [];
+    state.sourceData.contactPriority = Array.isArray(payload.contactPriority)
+      ? payload.contactPriority.map((row) => normalizeRow("contactPriority", row))
       : [];
     state.sourceData.activities = Array.isArray(payload.activities)
       ? payload.activities.map((row) => normalizeRow("activities", row))
@@ -973,6 +1058,7 @@ async function refreshData(options = {}) {
     hydrateLeadMeasuresDailyForm();
 
     if (elements.retryConnection) elements.retryConnection.hidden = true;
+    state.lastSyncedAt = new Date();
     if (!silent) {
       updateStatus(
         state.apiEnabled
@@ -980,43 +1066,58 @@ async function refreshData(options = {}) {
           : state.warnings[0] || "Airtable nu este configurat inca. Dashboard-ul ruleaza pe memoria locala."
       );
     }
+
+    if (renderAfter) render();
+    return true;
   } catch (error) {
     state.apiEnabled = false;
     state.sourceMode = "fallback";
     state.connection = null;
     state.warnings = [];
-    state.sourceData = { accounts: [], activities: [], scorecards: [], dailyScores: [], leadMeasuresDaily: [] };
+    state.sourceData = { accounts: [], contactPriority: [], activities: [], scorecards: [], dailyScores: [], leadMeasuresDaily: [] };
     state.targets = loadTargets();
     refreshCombinedData();
     hydrateScorecardForm();
     hydrateDailyTrendForm();
     hydrateLeadMeasuresDailyForm();
 
+    state.lastSyncError = error.message || "Eroare sincronizare";
     if (elements.retryConnection) elements.retryConnection.hidden = false;
     if (!silent) {
       updateStatus(`API-ul Vercel nu raspunde. Dashboard-ul ruleaza pe memoria locala.`);
     }
+    if (renderAfter) render();
+    return false;
+  } finally {
+    state.refreshInFlight = false;
+    renderSyncPill();
   }
 }
 
 function hydrateInputs() {
-  elements.targets.contacted.value = state.targets.contacted;
-  elements.targets.meetings.value = state.targets.meetings;
-  elements.targets.offers.value = state.targets.offers;
-  elements.targets.contracts.value = state.targets.contracts;
-  elements.targets.movedCompaniesWeekly.value = state.targets.movedCompaniesWeekly;
-  elements.targets.coldCallsDaily.value = state.targets.coldCallsDaily;
-  elements.targets.coldCallsWeekly.value = state.targets.coldCallsWeekly;
-  elements.targets.coldCallsMonthly.value = state.targets.coldCallsMonthly;
-  elements.targets.whatsappMessagesDaily.value = state.targets.whatsappMessagesDaily;
-  elements.targets.whatsappMessagesWeekly.value = state.targets.whatsappMessagesWeekly;
-  elements.targets.whatsappMessagesMonthly.value = state.targets.whatsappMessagesMonthly;
-  elements.targets.fieldVisitsDaily.value = state.targets.fieldVisitsDaily;
-  elements.targets.fieldVisitsWeekly.value = state.targets.fieldVisitsWeekly;
-  elements.targets.fieldVisitsMonthly.value = state.targets.fieldVisitsMonthly;
-  elements.targets.warmOutreachDaily.value = state.targets.warmOutreachDaily;
-  elements.targets.warmOutreachWeekly.value = state.targets.warmOutreachWeekly;
-  elements.targets.warmOutreachMonthly.value = state.targets.warmOutreachMonthly;
+  const assign = (key, value) => {
+    if (elements.targets[key]) {
+      elements.targets[key].value = value;
+    }
+  };
+
+  assign("contacted", state.targets.contacted);
+  assign("meetings", state.targets.meetings);
+  assign("offers", state.targets.offers);
+  assign("contracts", state.targets.contracts);
+  assign("movedCompaniesWeekly", state.targets.movedCompaniesWeekly);
+  assign("coldCallsDaily", state.targets.coldCallsDaily);
+  assign("coldCallsWeekly", state.targets.coldCallsWeekly);
+  assign("coldCallsMonthly", state.targets.coldCallsMonthly);
+  assign("whatsappMessagesDaily", keyLeadTargets.followupsDaily);
+  assign("whatsappMessagesWeekly", keyLeadTargets.followupsWeekly);
+  assign("whatsappMessagesMonthly", keyLeadTargets.followupsMonthly);
+  assign("fieldVisitsDaily", keyLeadTargets.fieldVisitsDaily);
+  assign("fieldVisitsWeekly", keyLeadTargets.fieldVisitsWeekly);
+  assign("fieldVisitsMonthly", keyLeadTargets.fieldVisitsMonthly);
+  assign("warmOutreachDaily", state.targets.warmOutreachDaily);
+  assign("warmOutreachWeekly", state.targets.warmOutreachWeekly);
+  assign("warmOutreachMonthly", state.targets.warmOutreachMonthly);
 }
 
 function hydrateScorecardForm() {
@@ -1042,8 +1143,7 @@ function hydrateScorecardForm() {
   const weeklyLeadMeasures = getLeadMeasuresRangeTotals(scorecard.week_start, scorecard.week_end || getWeekEnd(scorecard.week_start));
   const shouldHydrateFromDaily = !scorecard.id
     && (
-      weeklyLeadMeasures.cold_calls
-      || weeklyLeadMeasures.whatsapp_messages
+      weeklyLeadMeasures.whatsapp_messages
       || weeklyLeadMeasures.field_visits
       || weeklyLeadMeasures.warm_outreach
     );
@@ -1052,7 +1152,7 @@ function hydrateScorecardForm() {
   assign("new_contract_workers_mtd", scorecard.new_contract_workers_mtd);
   assign("dream100_p1_prospects", scorecard.dream100_p1_prospects);
   assign("sales_velocity_days", scorecard.sales_velocity_days);
-  assign("cold_calls", shouldHydrateFromDaily ? weeklyLeadMeasures.cold_calls : scorecard.cold_calls);
+  assign("cold_calls", weeklyLeadMeasures.cold_calls);
   assign("linkedin_messages", shouldHydrateFromDaily ? weeklyLeadMeasures.whatsapp_messages : scorecard.linkedin_messages);
   assign("field_visits", shouldHydrateFromDaily ? weeklyLeadMeasures.field_visits : scorecard.field_visits);
   assign("warm_outreach", shouldHydrateFromDaily ? weeklyLeadMeasures.warm_outreach : scorecard.warm_outreach);
@@ -1152,6 +1252,81 @@ function buildLeadMeasuresDailyDraft(date = "") {
   return existing || createEmptyLeadMeasureDaily(isoDate);
 }
 
+function isAccountBeyondUncontacted(account = {}) {
+  const stage = normalizePipelineStage(account.pipeline_stage);
+  return Boolean(stage && stage !== "Necontactat");
+}
+
+function earliestDate(...values) {
+  return values
+    .map((value) => parseDate(value))
+    .filter(Boolean)
+    .sort((left, right) => left.getTime() - right.getTime())[0] || null;
+}
+
+function getFirstContactTransitionRangeCount(start, end) {
+  const startDate = parseDate(start);
+  const endDate = parseDate(end);
+  if (!startDate || !endDate) return 0;
+
+  const companyKeys = new Set();
+  const firstTouchByCompany = buildFirstLiveTouchIndexFromActivities(state.activities);
+
+  state.activities.forEach((activity) => {
+    if (
+      activity.company
+      && activity.date
+      && hasFirstContactTransitionNote(activity.notes)
+      && isDateWithinInclusiveRange(activity.date, startDate, endDate)
+    ) {
+      companyKeys.add(normalizeCompanyKey(activity.company));
+    }
+  });
+
+  state.accounts.forEach((account) => {
+    const companyKey = normalizeCompanyKey(account.company);
+    if (!companyKey || companyKeys.has(companyKey)) return;
+    if (!isAccountBeyondUncontacted(account)) return;
+    const firstContactDate = earliestDate(
+      account.lead_date,
+      firstTouchByCompany.get(companyKey),
+      account.stage_changed_date
+    );
+    if (!isDateWithinInclusiveRange(firstContactDate, startDate, endDate)) return;
+    companyKeys.add(companyKey);
+  });
+
+  return companyKeys.size;
+}
+
+function getFollowupRangeCount(start, end) {
+  const startDate = parseDate(start);
+  const endDate = parseDate(end);
+  if (!startDate || !endDate) return 0;
+
+  const touchedCompanies = new Set();
+  let followups = 0;
+
+  [...state.activities]
+    .filter((activity) => activity.company && activity.date && isLiveActivityEntry(activity))
+    .sort(compareActivitiesChronologically)
+    .forEach((activity) => {
+      const companyKey = normalizeCompanyKey(activity.company);
+      if (!companyKey) return;
+
+      const isFollowup = touchedCompanies.has(companyKey);
+      if (!touchedCompanies.has(companyKey)) {
+        touchedCompanies.add(companyKey);
+      }
+
+      if (isFollowup && isDateWithinInclusiveRange(activity.date, startDate, endDate)) {
+        followups += 1;
+      }
+    });
+
+  return followups;
+}
+
 function getLeadMeasuresRangeTotals(start, end) {
   const startDate = parseDate(start);
   const endDate = parseDate(end);
@@ -1159,29 +1334,34 @@ function getLeadMeasuresRangeTotals(start, end) {
     return createEmptyLeadMeasureDaily(start);
   }
 
-  return state.leadMeasuresDaily.reduce((totals, row) => {
+  const totals = state.leadMeasuresDaily.reduce((accumulator, row) => {
     const rowDate = parseDate(row.date);
     if (!isDateWithinInclusiveRange(rowDate, startDate, endDate)) {
-      return totals;
+      return accumulator;
     }
 
-    totals.cold_calls += toNumber(row.cold_calls);
-    totals.whatsapp_messages += toNumber(row.whatsapp_messages);
-    totals.field_visits += toNumber(row.field_visits);
-    totals.warm_outreach += toNumber(row.warm_outreach);
-    return totals;
+    accumulator.whatsapp_messages += toNumber(row.whatsapp_messages);
+    accumulator.field_visits += toNumber(row.field_visits);
+    accumulator.warm_outreach += toNumber(row.warm_outreach);
+    return accumulator;
   }, createEmptyLeadMeasureDaily(start));
+
+  totals.cold_calls = getFirstContactTransitionRangeCount(start, end);
+  totals.followups = getFollowupRangeCount(start, end);
+  return totals;
+}
+
+function targetOrDefault(value, fallback) {
+  const target = toNumber(value);
+  return target > 0 ? target : fallback;
 }
 
 function isFieldVisitTargetDay(date = getTodayIsoDate()) {
-  const parsed = parseDate(date);
-  if (!parsed) return false;
-  const day = parsed.getDay();
-  return day === 3 || day === 4;
+  return Boolean(parseDate(date));
 }
 
 function getFieldVisitDailyTarget(date = getTodayIsoDate()) {
-  return isFieldVisitTargetDay(date) ? state.targets.fieldVisitsDaily : 0;
+  return isFieldVisitTargetDay(date) ? keyLeadTargets.fieldVisitsDaily : 0;
 }
 
 function getMonthEnd(date = getTodayIsoDate()) {
@@ -1322,6 +1502,7 @@ function createEmptyLeadMeasureDaily(date = getTodayIsoDate()) {
     whatsapp_messages: 0,
     field_visits: 0,
     warm_outreach: 0,
+    followups: 0,
     notes: "",
   };
 }
@@ -1387,6 +1568,9 @@ function refreshCombinedData() {
       .sort(compareActivitiesReverseChronologically);
 
     state.accounts = mergeAccounts(state.sourceData.accounts, [], state.activities);
+    state.contactPriority = [...state.sourceData.contactPriority]
+      .filter((item) => item.company)
+      .sort((left, right) => (left.rank || left.position || 0) - (right.rank || right.position || 0));
     state.scorecards = [...state.sourceData.scorecards]
       .filter((item) => item.week_start)
       .map((item) => applyComputedScorecardFields(item, state.activities))
@@ -1407,6 +1591,7 @@ function refreshCombinedData() {
     .sort(compareActivitiesReverseChronologically);
 
   state.accounts = mergeAccounts([], state.manualData.accounts, state.activities);
+  state.contactPriority = [];
   state.scorecards = [...state.manualScorecards]
     .filter((item) => item.week_start)
     .map((item) => applyComputedScorecardFields(item, state.activities))
@@ -1583,6 +1768,7 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       next_step_date: null,
       standby_reason: "",
       reactivation_date: null,
+      stage_changed_date: null,
       sector: "",
       notes: "",
     };
@@ -1640,6 +1826,7 @@ function syncManualAccountFromActivity(activity) {
         next_step_date: null,
         standby_reason: "",
         reactivation_date: null,
+        stage_changed_date: null,
         sector: "",
         notes: "",
       };
@@ -1717,6 +1904,7 @@ function clearManualAccountTracking(companyName) {
     next_step_date: null,
     standby_reason: "",
     reactivation_date: null,
+    stage_changed_date: null,
   };
 }
 
@@ -1776,6 +1964,8 @@ function syncManualScorecardFromActivity(activity, existingActivities = []) {
     meetings_set: toNumber(baseRecord.meetings_set) + (shouldIncrementMeetings ? 1 : 0),
     offers_sent: toNumber(baseRecord.offers_sent) + (shouldIncrementOffers ? 1 : 0),
     contracts_signed: toNumber(baseRecord.contracts_signed) + (shouldIncrementContracts ? 1 : 0),
+    new_contract_workers_mtd: toNumber(baseRecord.new_contract_workers_mtd) + (shouldIncrementContracts ? toNumber(activity.workers_delta) : 0),
+    workers_signed: toNumber(baseRecord.workers_signed) + (shouldIncrementContracts ? toNumber(activity.workers_delta) : 0),
   });
 
   upsertManualScorecard(nextRecord);
@@ -1787,12 +1977,15 @@ function syncManualScorecardFromActivity(activity, existingActivities = []) {
     meetings_set: nextRecord.meetings_set,
     offers_sent: nextRecord.offers_sent,
     contracts_signed: nextRecord.contracts_signed,
+    new_contract_workers_mtd: nextRecord.new_contract_workers_mtd,
+    workers_signed: nextRecord.workers_signed,
     metrics_updated: [
       shouldIncrementDream100 ? "dream100_p1_prospects" : "",
       shouldIncrementWhatsApp ? "whatsapp_messages" : "",
       shouldIncrementMeetings ? "meetings_set" : "",
       shouldIncrementOffers ? "offers_sent" : "",
       shouldIncrementContracts ? "contracts_signed" : "",
+      shouldIncrementContracts && toNumber(activity.workers_delta) ? "workers_signed" : "",
     ].filter(Boolean),
   };
 }
@@ -1858,6 +2051,24 @@ function syncManualDailyTrendFromActivity(activity, existingActivities = []) {
 }
 
 function normalizeRow(kind, row) {
+  if (kind === "contactPriority") {
+    return {
+      id: row.id || "",
+      position: toNumber(row.position || 0),
+      rank: toNumber(row.rank || 0),
+      company: row.company || "",
+      pipeline_stage: normalizePipelineStage(row.pipeline_stage || row.pipelineStage || ""),
+      sector: row.sector || "",
+      last_contact: parseDate(row.last_contact || row.lastContact),
+      decision_maker: row.decision_maker || row.decisionMaker || "",
+      mobile: row.mobile || row.phone || "",
+      tel: row.tel || "",
+      tel_contact_rang_2: row.tel_contact_rang_2 || row.telContactRang2 || row.tel_contact_rank_2 || row.telContactRank2 || "",
+      recruitment_signal: row.recruitment_signal || row.recruitmentSignal || "",
+      notes: row.notes || "",
+    };
+  }
+
   if (kind === "leadMeasuresDaily") {
     return {
       id: row.id || "",
@@ -1884,6 +2095,7 @@ function normalizeRow(kind, row) {
 
   if (kind === "accounts") {
     return {
+      id: row.id || "",
       company: row.company || row.name || "",
       pipeline_stage: normalizePipelineStage(row.pipeline_stage || row.pipelineStage || row.stage),
       account_health: normalizeAccountHealth(row.account_health || row.accountHealth || row.health),
@@ -1895,8 +2107,31 @@ function normalizeRow(kind, row) {
       next_step_date: parseDate(row.next_step_date),
       standby_reason: row.standby_reason || row.standbyReason || "",
       reactivation_date: parseDate(row.reactivation_date || row.reactivationDate),
+      stage_changed_date: parseDate(row.stage_changed_date || row.stageChangedDate),
       sector: row.sector || row.industry || "",
+      decision_maker: row.decision_maker || row.decisionMaker || row["Factor decizie"] || "",
+      contact_person: row.contact_person || row.contactPerson || "",
+      mobile: row.mobile || row.phone || "",
+      tel: row.tel || "",
+      tel_contact_rang_2: row.tel_contact_rang_2 || row.telContactRang2 || row.tel_contact_rank_2 || row.telContactRank2 || "",
       notes: row.notes || "",
+      priority_tier: row.priority_tier || row.priorityTier || row["Priority Tier"] || "",
+      icp_score: toNumber(row.icp_score ?? row.icpScore ?? row["ICP Score"] ?? 0),
+      pain_type: row.pain_type || row.painType || row["Pain Type"] || "",
+      buying_trigger: row.buying_trigger || row.buyingTrigger || row["Buying Trigger"] || "",
+      decision_maker_access: row.decision_maker_access || row.decisionMakerAccess || row["Decision Maker Access"] || "",
+      objection_category: row.objection_category || row.objectionCategory || row["Objection Category"] || "",
+      proof_asset_needed: row.proof_asset_needed || row.proofAssetNeeded || row["Proof Asset Needed"] || "",
+      next_step_quality: row.next_step_quality || row.nextStepQuality || row["Next Step Quality"] || "",
+      risk_of_cooling: row.risk_of_cooling || row.riskOfCooling || row["Risk of Cooling"] || "",
+      stall_reason: row.stall_reason || row.stallReason || row["Stall Reason"] || "",
+      client_action_required: row.client_action_required || row.clientActionRequired || row["Client Action Required"] || "",
+      nurture_type: row.nurture_type || row.nurtureType || row["Nurture Type"] || "",
+      dashboard_focus: normalizeBooleanFlag(row.dashboard_focus ?? row.dashboardFocus ?? row["Dashboard Focus"] ?? false),
+      stall_since: parseDate(row.stall_since || row.stallSince || row["Stall Since"]),
+      escalation_needed: normalizeBooleanFlag(row.escalation_needed ?? row.escalationNeeded ?? row["Escalation Needed"] ?? false),
+      follow_up_status: row.follow_up_status || row.followUpStatus || row["Follow-up Status"] || "",
+      days_since_last_contact: toNumber(row.days_since_last_contact ?? row.daysSinceLastContact ?? row["Days Since Last Contact"] ?? 0),
     };
   }
 
@@ -1926,6 +2161,8 @@ function normalizeRow(kind, row) {
   }
 
   return {
+    id: row.id || "",
+    company_id: row.company_id || row.companyId || row.company_record_id || row.companyRecordId || "",
     date: parseDate(row.date),
     created_at: parseDate(row.created_at || row.createdAt || row.created_time || row.createdTime),
     company: row.company || row.account || "",
@@ -2011,6 +2248,35 @@ function mapPipelineStageToActivityType(stage = "") {
     "Contract semnat": "contract_signed",
   };
   return mapping[normalized] || "";
+}
+
+function getPreviousPipelineStage(account = null) {
+  return normalizePipelineStage(account?.pipeline_stage) || "Necontactat";
+}
+
+function isFirstContactPipelineTransition(previousStage = "", nextStage = "") {
+  const previous = normalizePipelineStage(previousStage) || "Necontactat";
+  const next = normalizePipelineStage(nextStage);
+  return Boolean(next && previous === "Necontactat" && next !== "Necontactat");
+}
+
+function buildFirstContactTransitionNote(previousStage = "", nextStage = "") {
+  const next = normalizePipelineStage(nextStage);
+  if (!isFirstContactPipelineTransition(previousStage, next)) return "";
+  return `${firstContactTransitionPrefix}: din Necontactat la ${next}.`;
+}
+
+function appendFirstContactTransitionNote(notes = "", previousStage = "", nextStage = "") {
+  const transitionNote = buildFirstContactTransitionNote(previousStage, nextStage);
+  const currentNotes = normalizeString(notes);
+  if (!transitionNote || currentNotes.includes(firstContactTransitionPrefix)) {
+    return currentNotes;
+  }
+  return [currentNotes, transitionNote].filter(Boolean).join(" ");
+}
+
+function hasFirstContactTransitionNote(notes = "") {
+  return normalizeString(notes).toLowerCase().includes(firstContactTransitionPrefix.toLowerCase());
 }
 
 function normalizeActivity(value = "") {
@@ -2164,6 +2430,9 @@ function formatScorecardSyncBadge(scorecardSync = {}) {
     if (scorecardSync.metrics_updated.includes("contracts_signed")) {
       labels.push("Contracte");
     }
+    if (scorecardSync.metrics_updated.includes("workers_signed")) {
+      labels.push("Muncitori");
+    }
   }
 
   return labels.length
@@ -2224,6 +2493,12 @@ function isTrackedAccount(account = {}) {
     || account.next_step_date
     || normalizeString(account.standby_reason)
     || account.reactivation_date
+    || account.dashboard_focus
+    || account.escalation_needed
+    || normalizeString(account.priority_tier)
+    || normalizeString(account.risk_of_cooling)
+    || normalizeString(account.client_action_required)
+    || normalizeString(account.follow_up_status)
   );
 }
 
@@ -2237,6 +2512,15 @@ function normalizeCompanyKey(value = "") {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function findAccountByCompany(company = "") {
+  const companyKey = normalizeCompanyKey(company);
+  if (!companyKey) return null;
+  return state.accounts.find((account) => normalizeCompanyKey(account.company) === companyKey)
+    || state.sourceData.accounts.find((account) => normalizeCompanyKey(account.company) === companyKey)
+    || state.manualData.accounts.find((account) => normalizeCompanyKey(account.company) === companyKey)
+    || null;
 }
 
 function canonicalCompanyName(value = "") {
@@ -2453,6 +2737,47 @@ function updateStatus(message) {
   }
 }
 
+function getSyncStatusLabel() {
+  if (state.refreshInFlight) return "Sync: acum...";
+  if (state.lastSyncError) return "Sync: eroare API";
+  if (!state.lastSyncedAt) return "Sync: in asteptare";
+  const source = state.apiEnabled ? "Airtable" : "local";
+  return `Sync ${source}: ${formatSyncTime(state.lastSyncedAt)}`;
+}
+
+function renderSyncPill() {
+  if (elements.dataSyncPill) {
+    elements.dataSyncPill.textContent = getSyncStatusLabel();
+  }
+}
+
+function isDashboardEditing() {
+  const active = document.activeElement;
+  const formSubmitting = Object.values(elements.forms)
+    .some((form) => form?.dataset?.submitting === "1");
+
+  if (formSubmitting) return true;
+  if (!active) return false;
+
+  const isEditable = active.matches?.("input, textarea, select, [contenteditable='true']")
+    || active.isContentEditable;
+  return Boolean(isEditable && active.closest?.("form"));
+}
+
+function startAutoRefresh() {
+  if (autoRefreshTimer) return;
+
+  autoRefreshTimer = window.setInterval(async () => {
+    if (document.hidden || isDashboardEditing()) return;
+    await refreshData({ silent: true, fresh: true, renderAfter: true });
+  }, autoRefreshIntervalMs);
+
+  window.addEventListener("focus", async () => {
+    if (isDashboardEditing()) return;
+    await refreshData({ silent: true, fresh: true, renderAfter: true });
+  });
+}
+
 function updateScorecardStatus(message) {
   if (elements.scorecardFormStatus) {
     elements.scorecardFormStatus.textContent = message;
@@ -2473,12 +2798,12 @@ function updateLeadMeasuresStatus(message) {
 
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#/, "").trim();
-  return dashboardPages.has(hash) ? hash : "scorecard";
+  return dashboardPages.has(hash) ? hash : defaultDashboardPage;
 }
 
 function setPage(page, options = {}) {
   const { syncHash = true } = options;
-  state.page = dashboardPages.has(page) ? page : "scorecard";
+  state.page = dashboardPages.has(page) ? page : defaultDashboardPage;
 
   if (syncHash) {
     const nextHash = `#${state.page}`;
@@ -2512,13 +2837,16 @@ function render() {
     : hasManualData()
       ? "Fallback local"
       : "Asteapta conexiunea";
+  renderSyncPill();
   elements.weeklyTouchChip.textContent = `${weeklyMovement.weekly.totalTouches} touch-uri`;
   elements.dueTodayChip.textContent = `${openPipelineActions.dueToday} conturi`;
   elements.overdueChip.textContent = `${openPipelineActions.overdue} conturi`;
   elements.pipelineWorkersChip.textContent = `${movingPipelineWorkers}`;
   elements.activeCompaniesChip.textContent = `${activeCompaniesCount} companii`;
 
+  renderHeroNextContact();
   renderPacingCard();
+  renderActionFocus();
   renderChecklist();
   renderScorecardDashboard();
   renderTrend();
@@ -2528,6 +2856,374 @@ function render() {
   renderActivities();
   renderConnection();
   renderPage();
+}
+
+function normalizeBooleanFlag(value) {
+  if (typeof value === "boolean") return value;
+  const normalized = normalizeString(value).toLowerCase();
+  return ["1", "true", "yes", "da", "on", "checked"].includes(normalized);
+}
+
+function isActionFocusSector(account = {}) {
+  const sectorKey = normalizeCompanyKey(account.sector);
+  return sectorKey.includes("construct") || sectorKey.includes("drum");
+}
+
+function isActionFocusAccount(account = {}) {
+  const stage = normalizePipelineStage(account.pipeline_stage);
+  return Boolean(
+    account.dashboard_focus
+    || actionFocusNameRank.has(normalizeCompanyKey(account.company))
+    || ["Meeting", "Oferta", "Negociere"].includes(stage)
+  );
+}
+
+function isActionFocusOverdue(account = {}, now = new Date()) {
+  const followStatus = normalizeOutcomeKey(account.follow_up_status);
+  const nextStepQuality = normalizeOutcomeKey(account.next_step_quality);
+  return Boolean(
+    followStatus.includes("overdue")
+    || followStatus.includes("depasit")
+    || nextStepQuality.includes("depasit")
+    || (account.next_step_date && dayDiff(account.next_step_date, now) > 0)
+  );
+}
+
+function isCriticalActionRisk(account = {}) {
+  const risk = normalizeOutcomeKey(account.risk_of_cooling);
+  const priority = normalizeOutcomeKey(account.priority_tier);
+  return Boolean(
+    account.escalation_needed
+    || risk.includes("critical")
+    || priority.includes("critical")
+    || priority === "p1"
+  );
+}
+
+function isHighActionRisk(account = {}) {
+  const risk = normalizeOutcomeKey(account.risk_of_cooling);
+  return Boolean(isCriticalActionRisk(account) || risk.includes("high") || account.account_health === "Rosu");
+}
+
+function getActionFocusScore(account = {}) {
+  const stage = normalizePipelineStage(account.pipeline_stage);
+  const namedRank = actionFocusNameRank.get(normalizeCompanyKey(account.company)) || 0;
+  const stageScores = {
+    Negociere: 220,
+    Oferta: 190,
+    Meeting: 150,
+    Contactat: 60,
+  };
+
+  return [
+    account.dashboard_focus ? 900 : 0,
+    isCriticalActionRisk(account) ? 520 : 0,
+    isHighActionRisk(account) ? 260 : 0,
+    isActionFocusOverdue(account) ? 170 : 0,
+    stageScores[stage] || 0,
+    isActionFocusSector(account) ? 90 : 0,
+    Math.min(toNumber(account.workers), 120),
+    namedRank ? 80 - namedRank : 0,
+  ].reduce((sum, value) => sum + value, 0);
+}
+
+function compareActionFocusAccounts(left = {}, right = {}) {
+  const scoreDiff = getActionFocusScore(right) - getActionFocusScore(left);
+  if (scoreDiff !== 0) return scoreDiff;
+  return normalizeString(left.company).localeCompare(normalizeString(right.company), "ro");
+}
+
+function getActionFocusAccounts() {
+  return state.accounts
+    .filter((account) => isTrackedAccount(account) && isActionFocusAccount(account))
+    .sort(compareActionFocusAccounts);
+}
+
+function getActionFocusMetrics(focusAccounts = getActionFocusAccounts()) {
+  const movingAccounts = state.accounts.filter((account) => isMovingAccount(account));
+  const overdueAccounts = movingAccounts.filter((account) => isActionFocusOverdue(account));
+  const missingNextStep = movingAccounts.filter((account) => !account.next_step && !account.next_step_date);
+  const escalationAccounts = focusAccounts.filter((account) => account.escalation_needed || isCriticalActionRisk(account));
+
+  return {
+    focus: focusAccounts.length,
+    overdue: overdueAccounts.length,
+    constructionRoads: focusAccounts.filter((account) => isActionFocusSector(account)).length,
+    critical: focusAccounts.filter((account) => isCriticalActionRisk(account)).length,
+    escalations: escalationAccounts.length,
+    missingNextStep: missingNextStep.length,
+    moving: movingAccounts.length,
+    overdueAccounts,
+    escalationAccounts,
+    missingNextStepAccounts: missingNextStep,
+  };
+}
+
+function renderActionFocusStats(metrics = {}) {
+  if (!elements.actionFocusStats) return;
+
+  const cards = [
+    {
+      label: "Focus acum",
+      value: metrics.focus,
+      meta: "conturi must-win",
+      accent: "var(--forest-600)",
+    },
+    {
+      label: "Intarziate",
+      value: metrics.overdue,
+      meta: "cer follow-up azi",
+      accent: metrics.overdue ? "var(--red)" : "var(--forest-600)",
+    },
+    {
+      label: "Constructii + Drumuri",
+      value: metrics.constructionRoads,
+      meta: "sector prioritar",
+      accent: "var(--blue)",
+    },
+    {
+      label: "Escalari",
+      value: metrics.escalations,
+      meta: "HQ sau client",
+      accent: metrics.escalations ? "var(--amber)" : "var(--forest-600)",
+    },
+  ];
+
+  elements.actionFocusStats.innerHTML = cards.map((card) => `
+    <article class="pipeline-stat-card action-focus-stat">
+      <div class="pipeline-stat-label">${escapeHtml(card.label)}</div>
+      <div class="pipeline-stat-value" style="color:${card.accent};">${card.value}</div>
+      <div class="pipeline-stat-meta">${escapeHtml(card.meta)}</div>
+    </article>
+  `).join("");
+}
+
+function formatActionFocusNames(accounts = [], fallback = "Niciun cont critic") {
+  const names = accounts.slice(0, 3).map((account) => account.company).filter(Boolean);
+  if (!names.length) return fallback;
+  return names.join(", ");
+}
+
+function buildActionFocusCard({ eyebrow, title, metric, copy, pageJump = "", tone = "" }) {
+  const jumpAttribute = pageJump ? ` data-page-jump="${escapeHtml(pageJump)}"` : "";
+  return `
+    <article class="action-focus-card${tone ? ` action-focus-card--${tone}` : ""}"${jumpAttribute}>
+      <div class="action-focus-card-top">
+        <span>${escapeHtml(eyebrow)}</span>
+        ${metric ? `<strong>${escapeHtml(metric)}</strong>` : ""}
+      </div>
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(copy)}</p>
+    </article>
+  `;
+}
+
+function renderActionFocusToday(metrics = {}, focusAccounts = []) {
+  if (!elements.actionFocusToday) return;
+
+  const criticalAccounts = focusAccounts.filter((account) => isCriticalActionRisk(account));
+  const sectorAccounts = focusAccounts.filter((account) => isActionFocusSector(account));
+
+  elements.actionFocusToday.innerHTML = [
+    buildActionFocusCard({
+      eyebrow: "1. Inchidere",
+      title: "Suna conturile P1 pana ai urmatorul pas clar",
+      metric: `${criticalAccounts.length} P1`,
+      copy: formatActionFocusNames(criticalAccounts, "Momentan nu ai cont P1 critic in lista."),
+      pageJump: "pipeline",
+      tone: "urgent",
+    }),
+    buildActionFocusCard({
+      eyebrow: "2. Follow-up",
+      title: "Scoate din intarziere pipeline-ul activ",
+      metric: `${metrics.overdue} intarziate`,
+      copy: formatActionFocusNames(metrics.overdueAccounts, "Nu exista follow-up intarziat in conturile active."),
+      pageJump: "pipeline",
+    }),
+    buildActionFocusCard({
+      eyebrow: "3. Sector",
+      title: "Concentreaza apelurile pe Constructii si Drumuri",
+      metric: `${sectorAccounts.length} hot`,
+      copy: formatActionFocusNames(sectorAccounts, "Pastreaza focusul pe conturile unde durerea de personal e imediata."),
+      pageJump: "pipeline",
+    }),
+    buildActionFocusCard({
+      eyebrow: "4. Blocaj",
+      title: "Escaladeaza unde decizia tine de HQ sau client",
+      metric: `${metrics.escalations} cazuri`,
+      copy: formatActionFocusNames(metrics.escalationAccounts, "Nu exista escalare marcata in Airtable."),
+      pageJump: "execution",
+      tone: "amber",
+    }),
+    buildActionFocusCard({
+      eyebrow: "5. Igiena",
+      title: "Fiecare cont activ trebuie sa aiba next step",
+      metric: `${metrics.missingNextStep} lipsa`,
+      copy: formatActionFocusNames(metrics.missingNextStepAccounts, "Toate conturile active au next step."),
+      pageJump: "pipeline",
+    }),
+  ].join("");
+}
+
+function buildActionFocusRiskPill(account = {}) {
+  const risk = normalizeString(account.risk_of_cooling)
+    || (isActionFocusOverdue(account) ? "Overdue" : "")
+    || normalizeString(account.account_health)
+    || "Monitor";
+  const theme = isCriticalActionRisk(account)
+    ? { color: "var(--red)", bg: "var(--red-soft)" }
+    : isHighActionRisk(account)
+      ? { color: "var(--amber)", bg: "var(--amber-soft)" }
+      : { color: "var(--forest-600)", bg: "var(--green-soft)" };
+  return buildThemedPill(risk, theme);
+}
+
+function getActionFocusRequiredAction(account = {}) {
+  return normalizeString(account.client_action_required)
+    || normalizeString(account.next_step)
+    || normalizeString(account.stall_reason)
+    || normalizeString(account.proof_asset_needed)
+    || "Stabileste urmatorul pas";
+}
+
+function renderActionFocusMustWin(focusAccounts = []) {
+  if (!elements.actionFocusMustWin) return;
+  if (elements.actionFocusMustWinChip) {
+    elements.actionFocusMustWinChip.textContent = `${focusAccounts.length} conturi`;
+  }
+
+  if (!focusAccounts.length) {
+    elements.actionFocusMustWin.innerHTML = `
+      <tr>
+        <td colspan="5">
+          <div class="empty-card">Nu exista inca date de focus. Marcheaza in Airtable Dashboard Focus sau muta conturile in Meeting, Oferta ori Negociere.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  elements.actionFocusMustWin.innerHTML = focusAccounts.slice(0, 12).map((account) => {
+    const stageTheme = pipelineStageTheme[normalizePipelineStage(account.pipeline_stage)] || pipelineStageTheme.Contactat;
+    const date = account.next_step_date || account.stall_since || account.last_contact;
+    const meta = [
+      account.sector,
+      account.workers ? `${account.workers} muncitori` : "",
+      account.decision_maker_access ? `Decident: ${account.decision_maker_access}` : "",
+    ].filter(Boolean).join(" · ");
+
+    return `
+      <tr>
+        <td>
+          <div class="company-cell">
+            ${buildCompanyNameMarkup(account)}
+            ${meta ? `<div class="company-meta">${escapeHtml(meta)}</div>` : ""}
+          </div>
+        </td>
+        <td>${buildThemedPill(normalizePipelineStage(account.pipeline_stage) || "-", stageTheme)}</td>
+        <td>${buildActionFocusRiskPill(account)}</td>
+        <td>
+          <div class="planned-cell">
+            <div class="planned-cell-title">${escapeHtml(getActionFocusRequiredAction(account))}</div>
+            ${
+              account.proof_asset_needed
+                ? `<div class="company-meta">Asset: ${escapeHtml(account.proof_asset_needed)}</div>`
+                : ""
+            }
+          </div>
+        </td>
+        <td>${date ? renderNextStepDateCell({ next_step_date: date }) : `<span class="table-muted">-</span>`}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderActionFocusProtocol() {
+  if (!elements.actionFocusProtocol) return;
+
+  const steps = [
+    ["T0", "Apel dublu + WhatsApp scurt", "In aceeasi zi: doua ferestre de apel si mesaj cu intrebarea exacta pentru urmatorul pas."],
+    ["24h", "Dovada + costul amanarii", "Trimite un proof asset si formuleaza impactul: productie blocata, termene, oameni lipsa."],
+    ["48h", "Triangulare", "Suna contact rang 2, receptie, contabilitate sau alt manager operational. Cauta confirmarea problemei."],
+    ["72h", "Decizie de pipeline", "Marcheaza risc, seteaza reactivare sau escalare HQ. Nu lasa contul fara data urmatorului pas."],
+  ];
+
+  elements.actionFocusProtocol.innerHTML = steps.map(([label, title, copy]) => `
+    <article class="action-focus-protocol-step">
+      <div class="action-focus-step-label">${escapeHtml(label)}</div>
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(copy)}</p>
+    </article>
+  `).join("");
+}
+
+function renderActionFocusSector(metrics = {}) {
+  if (!elements.actionFocusSector) return;
+
+  elements.actionFocusSector.innerHTML = [
+    buildActionFocusCard({
+      eyebrow: "Prioritate 1",
+      title: "Constructii + Drumuri",
+      metric: `${metrics.constructionRoads} hot`,
+      copy: "Cele mai multe oportunitati fierbinti vin de aici. Mesajul trebuie sa fie despre continuitate, termene si lipsa oamenilor.",
+      tone: "compact",
+    }),
+    buildActionFocusCard({
+      eyebrow: "Prioritate 2",
+      title: "Industrie + Textile",
+      metric: "wave 2",
+      copy: "Abordeaza doar conturile cu semnal clar de productie blocata sau negociere deja pornita.",
+      tone: "compact",
+    }),
+    buildActionFocusCard({
+      eyebrow: "Nurture",
+      title: "Agro + Agroalimentar",
+      metric: "selectiv",
+      copy: "Pastreaza follow-up pentru conturile calde, dar nu consuma ziua pe volum rece cat timp lucrezi singur.",
+      tone: "compact",
+    }),
+  ].join("");
+}
+
+function renderActionFocusHq(metrics = {}) {
+  if (!elements.actionFocusHq) return;
+
+  elements.actionFocusHq.innerHTML = [
+    buildActionFocusCard({
+      eyebrow: "Asset",
+      title: "Mini proof pack pentru Constructii",
+      metric: "urgent",
+      copy: "Un PDF de o pagina: garantie inlocuire, tari sursa, timeline legal, exemple clienti si raspuns la frica de fuga.",
+      tone: "compact",
+    }),
+    buildActionFocusCard({
+      eyebrow: "SLA",
+      title: "Raspuns intern in 24h pentru oferte",
+      metric: "HQ",
+      copy: "Orice cont in Oferta sau Negociere trebuie sa primeasca pret, clarificare sau aprobare interna in maximum o zi.",
+      tone: "compact",
+    }),
+    buildActionFocusCard({
+      eyebrow: "Escalare",
+      title: "Lista scurta pentru Administrator",
+      metric: `${metrics.escalations} cazuri`,
+      copy: "Ridica doar conturile unde prezenta sau validarea Administratorului poate debloca decizia.",
+      tone: "compact",
+    }),
+  ].join("");
+}
+
+function renderActionFocus() {
+  if (!elements.actionFocusStats) return;
+  const focusAccounts = getActionFocusAccounts();
+  const metrics = getActionFocusMetrics(focusAccounts);
+
+  renderActionFocusStats(metrics);
+  renderActionFocusToday(metrics, focusAccounts);
+  renderActionFocusMustWin(focusAccounts);
+  renderActionFocusProtocol();
+  renderActionFocusSector(metrics);
+  renderActionFocusHq(metrics);
 }
 
 function getWorkingDaysInfo() {
@@ -2590,14 +3286,27 @@ function getCurrentWeekLiveActivities() {
 function buildCompanyMovementMetrics(activities = [], rangeStart = null, rangeEnd = null) {
   const touchedCompanies = new Map();
   const firstTouchIndex = buildFirstLiveTouchIndexFromActivities(state.activities);
+  let followUpTouches = 0;
 
-  activities.forEach((activity) => {
+  [...activities].sort(compareActivitiesChronologically).forEach((activity) => {
     if (!isLiveActivityEntry(activity)) return;
 
     const companyKey = normalizeCompanyKey(activity.company);
     if (!companyKey) return;
 
     const firstTouchDate = firstTouchIndex.get(companyKey);
+    const activityDate = activity.date;
+    const isFirstTouchInRange = Boolean(
+      rangeStart
+      && rangeEnd
+      && firstTouchDate
+      && isDateWithinInclusiveRange(firstTouchDate, rangeStart, rangeEnd)
+    );
+    const isThisFirstTouch = Boolean(
+      firstTouchDate
+      && activityDate
+      && toIsoDateValue(firstTouchDate) === toIsoDateValue(activityDate)
+    );
     const existingEntry = touchedCompanies.get(companyKey) || {
       company: activity.company,
       touches: 0,
@@ -2605,23 +3314,24 @@ function buildCompanyMovementMetrics(activities = [], rangeStart = null, rangeEn
     };
 
     existingEntry.touches += 1;
-    existingEntry.isNew = Boolean(
-      rangeStart
-      && rangeEnd
-      && firstTouchDate
-      && isDateWithinInclusiveRange(firstTouchDate, rangeStart, rangeEnd)
-    );
+    existingEntry.isNew = isFirstTouchInRange;
+
+    if (!isThisFirstTouch || existingEntry.touches > 1) {
+      followUpTouches += 1;
+    }
 
     touchedCompanies.set(companyKey, existingEntry);
   });
 
   const companies = [...touchedCompanies.values()];
   const newCompanies = companies.filter((entry) => entry.isNew).length;
+  const uniqueCompanies = companies.length;
 
   return {
-    moved: companies.length,
+    moved: newCompanies + followUpTouches,
+    uniqueCompanies,
     newCompanies,
-    followUp: Math.max(companies.length - newCompanies, 0),
+    followUp: followUpTouches,
     totalTouches: activities.length,
   };
 }
@@ -2663,6 +3373,94 @@ function getMovingPipelineWorkersTotal() {
     .reduce((sum, account) => sum + (toNumber(account.workers) || 0), 0);
 }
 
+function renderHeroNextContact() {
+  if (!elements.heroNextContact) return;
+
+  const sections = buildPipelineActionSections(state.accounts.filter((account) => isMovingAccount(account)));
+  const candidates = sections.flatMap((section) => (
+    section.items.map((account) => ({
+      section,
+      account,
+      priority: findContactPriorityForCompany(account.company),
+    }))
+  ));
+  const selected = candidates[0] || null;
+  const section = selected?.section || null;
+  const account = selected?.account || null;
+
+  if (!account) {
+    elements.heroNextContact.innerHTML = `
+      <div class="hero-next-empty">Nu exista companii active cu next step acum.</div>
+    `;
+    return;
+  }
+
+  const nextStepActivityIndex = buildNextStepActivityIndex(state.activities);
+  const nextStepActivity = findNextStepActivityForAccount(account, nextStepActivityIndex);
+  const priority = selected?.priority || findContactPriorityForCompany(account.company);
+  const nextStep = normalizeString(account.next_step)
+    || normalizeString(nextStepActivity?.next_step)
+    || "Next step necompletat";
+  const nextStepDate = getNextStepDisplayDate(account, nextStepActivity);
+  const dueMeta = nextStepDate
+    ? `${formatDateWithYear(nextStepDate)} · ${getNextStepDateMeta(nextStepDate)}`
+    : "Fara data next step";
+  const notedMeta = nextStepActivity?.date
+    ? `Notat pe ${formatDateWithYear(nextStepActivity.date)}`
+    : "Data mentiunii lipsa";
+  const pipelineStageMeta = normalizeString(account.pipeline_stage) || "Fara stadiu";
+  const nextStepMeta = `${notedMeta} · Stadiu pipeline: ${pipelineStageMeta}`;
+  const decisionMaker = normalizeString(account.decision_maker)
+    || normalizeString(priority?.decision_maker)
+    || "Decident necompletat";
+  const sector = normalizeString(account.sector) || normalizeString(priority?.sector) || "Sector necompletat";
+  const contactPerson = normalizeString(account.contact_person) || "Persoana contact lipsa";
+  const phone = getContactPhone(priority, account);
+  const phoneHref = getPhoneHref(phone);
+  const phoneMarkup = phone
+    ? `<a class="hero-next-phone" href="${escapeHtml(phoneHref)}"><span>${escapeHtml(phone)}</span></a>`
+    : `<span class="hero-next-phone is-muted"><span>Telefon lipsa</span></span>`;
+  const rankTwoPhone = normalizeString(account.tel_contact_rang_2);
+  const rankTwoPhoneHref = getPhoneHref(rankTwoPhone);
+  const rankTwoPhoneMarkup = rankTwoPhone
+    ? `<a class="hero-next-phone" href="${escapeHtml(rankTwoPhoneHref)}"><span>${escapeHtml(rankTwoPhone)}</span></a>`
+    : `<span class="hero-next-phone is-muted"><span>Telefon lipsa</span></span>`;
+
+  elements.heroNextContact.innerHTML = `
+    <div class="hero-next-topline">
+      <span class="hero-next-badge">${escapeHtml(section.eyebrow || section.title || "Pipeline")}</span>
+      <span>${escapeHtml(dueMeta)}</span>
+    </div>
+    <div class="hero-next-company-row">
+      ${buildHeroCompanyNameMarkup(account)}
+      <div class="hero-next-sector">Sector: ${escapeHtml(sector)}</div>
+    </div>
+    <div class="hero-next-contact-grid">
+      <div class="hero-next-contact-item">
+        <span>Decident</span>
+        <strong>${escapeHtml(decisionMaker)}</strong>
+      </div>
+      <div class="hero-next-contact-item">
+        <span>Telefon</span>
+        ${phoneMarkup}
+      </div>
+      <div class="hero-next-contact-item">
+        <span>Persoana contact</span>
+        <strong>${escapeHtml(contactPerson)}</strong>
+      </div>
+      <div class="hero-next-contact-item">
+        <span>Tel contact rang 2</span>
+        ${rankTwoPhoneMarkup}
+      </div>
+    </div>
+    <div class="hero-next-step">
+      <span>Next step</span>
+      <strong>${escapeHtml(nextStep)}</strong>
+      <small>${escapeHtml(nextStepMeta)}</small>
+    </div>
+  `;
+}
+
 function renderPacingCard() {
   if (!elements.pacingCard) return;
 
@@ -2696,7 +3494,7 @@ function renderPacingCard() {
       Saptamana asta: <strong>${movement.weekly.newCompanies}</strong> noi · <strong>${movement.weekly.followUp}</strong> follow-up
       <span class="hero-pacing-badge" style="color:${statusColor}; border-color:${statusColor}33; background:${pacingBg};">${statusLabel}</span>
     </div>
-    <div class="hero-pacing-meta">Azi: ${movement.today.moved} companii unice miscate · ${movement.today.totalTouches} touch-uri azi · ${movement.today.followUp} follow-up · Luna asta: ${movement.monthly.moved} companii miscate · ${movement.weekly.totalTouches} touch-uri totale saptamana asta · Asteptat pana azi: ${expectedByNow} · zi lucratoare ${elapsed} din ${total}</div>
+    <div class="hero-pacing-meta">Azi: ${movement.today.moved} miscari · ${movement.today.uniqueCompanies} companii unice · ${movement.today.totalTouches} touch-uri azi · ${movement.today.followUp} follow-up · Luna asta: ${movement.monthly.moved} miscari · ${movement.monthly.uniqueCompanies} companii unice · ${movement.weekly.totalTouches} touch-uri totale saptamana asta · Asteptat pana azi: ${expectedByNow} · zi lucratoare ${elapsed} din ${total}</div>
   `;
 }
 
@@ -2926,7 +3724,7 @@ function renderChecklist() {
       ],
       actions: [
         { label: "Deschide Setari", page: "settings", style: "secondary-button", focus: "refresh-data" },
-        { label: "Scorecard saptamanal", page: "scorecard", style: "ghost-button", focus: "scorecard-form" },
+        { label: "Vezi Scoreboard", page: "scorecard", style: "ghost-button", focus: "key-lead-measures-card" },
       ],
     }),
   ].join("");
@@ -2984,17 +3782,17 @@ function renderChecklist() {
       badge: scorecardTable,
       copy: "Aici inchizi saptamana si lasi datele gata pentru decizii, nu doar pentru raport.",
       steps: [
-        `Completeaza pagina Scorecard, care scrie in tabela ${scorecardTable}, cu cifrele saptamanii.`,
+        "Verifica Scoreboard-ul si confirma ca lead measures au fost logate din activitati reale.",
         `Verifica in ${trendTable} daca fiecare zi lucrata are randul completat corect.`,
         "Analizeaza bottleneck-ul principal din palnie: Contact -> Meeting, Meeting -> Oferta sau Oferta -> Semnat.",
         "Lasa pregatite actiunile de luni si curata conturile care nu mai au sanse reale.",
       ],
       sources: [
-        `${scorecardTable} -> review saptamanal`,
+        "Scoreboard -> lead measures si lag measures",
         `${trendTable} -> ritm zilnic`,
       ],
       actions: [
-        { label: "Completeaza Scorecard", page: "scorecard", style: "secondary-button", focus: "scorecard-form" },
+        { label: "Vezi Scoreboard", page: "scorecard", style: "secondary-button", focus: "key-lead-measures-card" },
         { label: "Revino la Pipeline", page: "pipeline", style: "ghost-button", focus: "company-search" },
       ],
     }),
@@ -3071,11 +3869,23 @@ function buildChecklistCard(card) {
 function renderScorecardDashboard() {
   if (!elements.powerThreeGrid) return;
 
-  const scorecard = state.scorecard || createEmptyScorecard();
+  const rawScorecard = state.scorecard || createEmptyScorecard();
+  const scorecardWeekStart = rawScorecard.week_start;
+  const scorecardWeekEnd = rawScorecard.week_end || getWeekEnd(rawScorecard.week_start);
+  const weeklyLeadMeasures = getLeadMeasuresRangeTotals(scorecardWeekStart, scorecardWeekEnd);
+  const signedWorkersFromData = getSignedWorkersTotalFromData();
+  const scorecard = {
+    ...rawScorecard,
+    cold_calls: weeklyLeadMeasures.cold_calls,
+    field_visits: weeklyLeadMeasures.field_visits || rawScorecard.field_visits,
+    workers_signed: Math.max(toNumber(rawScorecard.workers_signed), signedWorkersFromData),
+  };
   const metrics = getScorecardMetrics(scorecard);
+  const weeklyFollowups = weeklyLeadMeasures.followups;
   const historyCount = state.scorecards.length;
   renderWigDashboard();
   renderKeyLeadMeasuresCard();
+  renderCumulativePipelineCard();
 
   if (elements.scorecardWeekChip) {
     elements.scorecardWeekChip.textContent = scorecard.week_label || "Saptamana curenta";
@@ -3145,27 +3955,27 @@ function renderScorecardDashboard() {
   elements.leadMeasuresGrid.innerHTML = [
     buildLeadMeasureCard({
       icon: "phone",
-      label: "Outreach total saptamanal",
-      value: metrics.outreachTotal,
-      target: metrics.outreachTarget,
+      label: "Apel rece",
+      value: scorecard.cold_calls,
+      target: targetOrDefault(state.targets.coldCallsWeekly, defaultTargets.coldCallsWeekly),
       tone: "#2f6ea2",
-      detail: `${scorecard.cold_calls} cold calls · ${scorecard.linkedin_messages} WhatsApp · ${scorecard.warm_outreach} warm outreach`,
+      detail: "companii mutate din Necontactat in pipeline",
     }),
     buildLeadMeasureCard({
       icon: "field",
-      label: "Vizite in teren / networking",
+      label: "Vizite fizice",
       value: scorecard.field_visits,
-      target: state.targets.fieldVisitsWeekly,
-      tone: "#5c7796",
-      detail: "prezenta fizica in sedii, santiere sau evenimente",
+      target: keyLeadTargets.fieldVisitsWeekly,
+      tone: "#c38b2a",
+      detail: "prezenta fizica la sedii, santiere sau evenimente",
     }),
     buildLeadMeasureCard({
       icon: "meeting",
-      label: "Meetings stabilite",
-      value: scorecard.meetings_set,
-      target: scorecardTargets.leadMeasures.meetingsSet,
-      tone: "#6f8aa6",
-      detail: "intalniri de calificare confirmate",
+      label: "Followups",
+      value: weeklyFollowups,
+      target: keyLeadTargets.followupsWeekly,
+      tone: "#2d8f57",
+      detail: "touch-uri pe companii deja contactate anterior",
     }),
   ].join("");
 
@@ -3202,46 +4012,36 @@ function renderKeyLeadMeasuresCard() {
       icon: "phone",
       label: "Apel rece",
       tone: "#2f6ea2",
+      source: "auto",
       today: todayTotals.cold_calls,
-      todayTarget: state.targets.coldCallsDaily,
+      todayTarget: targetOrDefault(state.targets.coldCallsDaily, defaultTargets.coldCallsDaily),
       week: weekTotals.cold_calls,
-      weekTarget: state.targets.coldCallsWeekly,
+      weekTarget: targetOrDefault(state.targets.coldCallsWeekly, defaultTargets.coldCallsWeekly),
       month: monthTotals.cold_calls,
-      monthTarget: state.targets.coldCallsMonthly,
-    },
-    whatsappMessages: {
-      icon: "message",
-      label: "WhatsApp personalizat",
-      tone: "#5c7796",
-      today: todayTotals.whatsapp_messages,
-      todayTarget: state.targets.whatsappMessagesDaily,
-      week: weekTotals.whatsapp_messages,
-      weekTarget: state.targets.whatsappMessagesWeekly,
-      month: monthTotals.whatsapp_messages,
-      monthTarget: state.targets.whatsappMessagesMonthly,
+      monthTarget: targetOrDefault(state.targets.coldCallsMonthly, defaultTargets.coldCallsMonthly),
     },
     fieldVisits: {
       icon: "field",
-      label: "Vizita fizica",
+      label: "Vizite fizice",
       tone: "#c38b2a",
       today: todayTotals.field_visits,
-      todayTarget: getFieldVisitDailyTarget(today),
+      todayTarget: keyLeadTargets.fieldVisitsDaily,
       week: weekTotals.field_visits,
-      weekTarget: state.targets.fieldVisitsWeekly,
+      weekTarget: keyLeadTargets.fieldVisitsWeekly,
       month: monthTotals.field_visits,
-      monthTarget: state.targets.fieldVisitsMonthly,
-      offDay: !isFieldVisitTargetDay(today),
+      monthTarget: keyLeadTargets.fieldVisitsMonthly,
     },
-    warmOutreach: {
+    followups: {
       icon: "meeting",
-      label: "Warm Outreach",
+      label: "Followups",
       tone: "#2d8f57",
-      today: todayTotals.warm_outreach,
-      todayTarget: state.targets.warmOutreachDaily,
-      week: weekTotals.warm_outreach,
-      weekTarget: state.targets.warmOutreachWeekly,
-      month: monthTotals.warm_outreach,
-      monthTarget: state.targets.warmOutreachMonthly,
+      source: "auto",
+      today: todayTotals.followups,
+      todayTarget: keyLeadTargets.followupsDaily,
+      week: weekTotals.followups,
+      weekTarget: keyLeadTargets.followupsWeekly,
+      month: monthTotals.followups,
+      monthTarget: keyLeadTargets.followupsMonthly,
     },
   };
 
@@ -3250,30 +4050,156 @@ function renderKeyLeadMeasuresCard() {
       <div class="lead-focus-block">
         <div class="lead-focus-block-head">
           <div>
-            <div class="metric-kicker">Cold Outreach zilnic</div>
-            <div class="metric-note">Miscarea rece care construieste pipeline nou: apeluri, WhatsApp si prezenta fizica.</div>
+            <div class="metric-kicker">3 Key Lead Measures</div>
+            <div class="metric-note">Prime contactari, vizite fizice si follow-up-uri reale care imping pipeline-ul spre lag measures.</div>
           </div>
           <div class="mini-chip">Saptamana curenta · ${formatShortDate(weekStart)} - ${formatShortDate(weekEnd)}</div>
         </div>
         <div class="lead-focus-metric-grid">
           ${buildKeyLeadMeasureMetric(metrics.coldCalls)}
-          ${buildKeyLeadMeasureMetric(metrics.whatsappMessages)}
           ${buildKeyLeadMeasureMetric(metrics.fieldVisits)}
-        </div>
-      </div>
-      <div class="lead-focus-block lead-focus-block--warm">
-        <div class="lead-focus-block-head">
-          <div>
-            <div class="metric-kicker">Warm Outreach</div>
-            <div class="metric-note">Reteaua existenta, recomandarile si relatiile calde care comprima ciclul de vanzare.</div>
-          </div>
-          <div class="mini-chip">Target recomandat: ${state.targets.warmOutreachWeekly} / saptamana</div>
-        </div>
-        <div class="lead-focus-metric-grid lead-focus-metric-grid--single">
-          ${buildKeyLeadMeasureMetric(metrics.warmOutreach)}
+          ${buildKeyLeadMeasureMetric(metrics.followups)}
         </div>
       </div>
     </div>
+  `;
+}
+
+function renderCumulativePipelineCard() {
+  if (!elements.cumulativePipelineCard) return;
+
+  const rows = getCumulativePipelineRows();
+  const maxValue = Math.max(...rows.map((row) => row.value), 1);
+
+  elements.cumulativePipelineCard.innerHTML = `
+    <div class="cumulative-funnel-list">
+      ${rows.map((row) => buildCumulativePipelineRow(row, maxValue)).join("")}
+    </div>
+  `;
+}
+
+function getCumulativePipelineRows() {
+  const liveActivities = state.activities.filter((activity) => (
+    activity.company && isLiveActivityEntry(activity)
+  ));
+  const contactedCompanyKeys = new Set();
+  const lostCompanyKeys = new Set();
+
+  liveActivities.forEach((activity) => {
+    const companyKey = normalizeCompanyKey(activity.company);
+    if (!companyKey) return;
+    contactedCompanyKeys.add(companyKey);
+
+    const outcome = normalizeString(activity.outcome).toLowerCase();
+    if (outcome.includes("pierdut") && outcome.includes("compet")) {
+      lostCompanyKeys.add(companyKey);
+    }
+  });
+
+  state.accounts.forEach((account) => {
+    const companyKey = normalizeCompanyKey(account.company);
+    if (!companyKey) return;
+
+    const stage = normalizePipelineStage(account.pipeline_stage);
+    if (stage && stage !== "Necontactat") {
+      contactedCompanyKeys.add(companyKey);
+    }
+  });
+
+  const meetingCount = liveActivities.filter((activity) => normalizeActivity(activity.activity_type) === "meeting").length;
+  const offerCount = liveActivities.filter((activity) => normalizeActivity(activity.activity_type) === "offer").length;
+  const meetingCompanyCount = state.accounts.filter((account) => pipelineStageValueRank(account.pipeline_stage) >= pipelineStageRank.Meeting).length;
+  const offerCompanyCount = state.accounts.filter((account) => pipelineStageValueRank(account.pipeline_stage) >= pipelineStageRank.Oferta).length;
+  const contractActivityCount = liveActivities.filter((activity) => normalizeActivity(activity.activity_type) === "contract_signed").length;
+  const signedCompanyCount = state.accounts.filter((account) => normalizePipelineStage(account.pipeline_stage) === "Contract semnat").length;
+  const signedWorkersTotal = getSignedWorkersTotalFromData(liveActivities);
+
+  return [
+    {
+      label: "Companii contactate",
+      value: contactedCompanyKeys.size,
+      target: 500,
+      note: "target 500",
+      tone: "#2f6ea2",
+    },
+    {
+      label: "Meeting-uri",
+      value: Math.max(meetingCount, meetingCompanyCount),
+      note: "activitati / companii ajunse la meeting",
+      tone: "#f59e0b",
+    },
+    {
+      label: "Oferte trimise",
+      value: Math.max(offerCount, offerCompanyCount),
+      note: "activitati / companii ajunse la oferta",
+      tone: "#8b5cf6",
+    },
+    {
+      label: "Contracte semnate",
+      value: Math.max(contractActivityCount, signedCompanyCount),
+      target: 50,
+      note: "target 50",
+      tone: "#2d8f57",
+    },
+    {
+      label: "Muncitori semnati",
+      value: signedWorkersTotal,
+      target: 500,
+      note: "target 500",
+      tone: "#1d7a50",
+    },
+    {
+      label: "Pierdute la competitor",
+      value: lostCompanyKeys.size,
+      note: "rezultat Pierdut la competitor",
+      tone: "#cb5846",
+      fullBar: true,
+    },
+    {
+      label: "Companii parcate",
+      value: state.accounts.filter((account) => normalizePipelineStage(account.pipeline_stage) === "Parcat").length,
+      note: "stadiu Parcat",
+      tone: "#64748b",
+      fullBar: true,
+    },
+  ];
+}
+
+function getSignedWorkersTotalFromData(liveActivitiesInput = null) {
+  const liveActivities = liveActivitiesInput || state.activities.filter((activity) => (
+    activity.company && isLiveActivityEntry(activity)
+  ));
+  const signedWorkersFromActivities = liveActivities
+    .filter((activity) => normalizeActivity(activity.activity_type) === "contract_signed")
+    .reduce((sum, activity) => sum + toNumber(activity.workers_delta), 0);
+  const signedWorkersFromAccounts = state.accounts
+    .filter((account) => normalizePipelineStage(account.pipeline_stage) === "Contract semnat")
+    .reduce((sum, account) => sum + toNumber(account.workers), 0);
+
+  return Math.max(signedWorkersFromActivities, signedWorkersFromAccounts);
+}
+
+function buildCumulativePipelineRow(row, maxValue) {
+  const widthBase = row.target || maxValue || 1;
+  const rawProgress = widthBase ? (row.value / widthBase) * 100 : 0;
+  const progress = row.fullBar ? 100 : (row.value > 0 ? Math.max(4, Math.min(Math.round(rawProgress), 100)) : 0);
+  const meta = row.target
+    ? `${row.value} / ${row.target}`
+    : `${row.value} total`;
+
+  return `
+    <article class="cumulative-funnel-row" style="--cumulative-accent:${row.tone}; --cumulative-progress:${progress}%;">
+      <div class="cumulative-funnel-label">
+        <span>${escapeHtml(row.label)}</span>
+        <small>${escapeHtml(row.note)}</small>
+      </div>
+      <div class="cumulative-funnel-bar-wrap">
+        <div class="cumulative-funnel-bar">
+          <div class="cumulative-funnel-fill"></div>
+        </div>
+      </div>
+      <strong class="cumulative-funnel-value">${escapeHtml(meta)}</strong>
+    </article>
   `;
 }
 
@@ -3347,7 +4273,7 @@ function getScorecardMetrics(scorecard) {
         contract_signed: scorecard.contracts_signed,
       };
   const outreachTotal = scorecard.cold_calls + scorecard.linkedin_messages + scorecard.warm_outreach;
-  const outreachTarget = state.targets.coldCallsWeekly
+  const outreachTarget = targetOrDefault(state.targets.coldCallsWeekly, defaultTargets.coldCallsWeekly)
     + state.targets.whatsappMessagesWeekly
     + state.targets.warmOutreachWeekly;
   const contactToMeeting = buildRateMetric(funnelCounts.meeting, funnelCounts.contacted);
@@ -3837,6 +4763,10 @@ function buildKeyLeadMeasureMetric(metric) {
 }
 
 function buildLeadMeasureTodayCopy(metric) {
+  if (!metric.todayTarget && metric.source === "auto") {
+    return `${metric.today} contacte noi azi · fara target`;
+  }
+
   if (!metric.todayTarget && metric.offDay) {
     return `${metric.today} facute azi · fara target azi`;
   }
@@ -4407,17 +5337,329 @@ function compareActivePipelineAccounts(left = {}, right = {}, now = new Date()) 
   return left.company.localeCompare(right.company, "ro");
 }
 
+function compareAccountsByNextStepDate(left = {}, right = {}, now = new Date()) {
+  const leftDate = left.next_step_date ? left.next_step_date.getTime() : Number.POSITIVE_INFINITY;
+  const rightDate = right.next_step_date ? right.next_step_date.getTime() : Number.POSITIVE_INFINITY;
+
+  if (leftDate !== rightDate) {
+    return leftDate - rightDate;
+  }
+
+  const leftDelta = left.next_step_date ? dayDiff(left.next_step_date, now) : Number.POSITIVE_INFINITY;
+  const rightDelta = right.next_step_date ? dayDiff(right.next_step_date, now) : Number.POSITIVE_INFINITY;
+  if (leftDelta !== rightDelta) {
+    return rightDelta - leftDelta;
+  }
+
+  const leftStageRank = pipelineStageValueRank(left.pipeline_stage);
+  const rightStageRank = pipelineStageValueRank(right.pipeline_stage);
+  if (leftStageRank !== rightStageRank) {
+    return rightStageRank - leftStageRank;
+  }
+
+  const leftWorkers = toNumber(left.workers);
+  const rightWorkers = toNumber(right.workers);
+  if (leftWorkers !== rightWorkers) {
+    return rightWorkers - leftWorkers;
+  }
+
+  const leftTouch = left.last_contact ? left.last_contact.getTime() : 0;
+  const rightTouch = right.last_contact ? right.last_contact.getTime() : 0;
+  if (leftTouch !== rightTouch) {
+    return leftTouch - rightTouch;
+  }
+
+  return left.company.localeCompare(right.company, "ro");
+}
+
+function compareAccountsWithoutNextStep(left = {}, right = {}, now = new Date()) {
+  const leftSilentDays = left.last_contact ? dayDiff(left.last_contact, now) : Number.POSITIVE_INFINITY;
+  const rightSilentDays = right.last_contact ? dayDiff(right.last_contact, now) : Number.POSITIVE_INFINITY;
+
+  if (leftSilentDays !== rightSilentDays) {
+    return rightSilentDays - leftSilentDays;
+  }
+
+  const leftStageRank = pipelineStageValueRank(left.pipeline_stage);
+  const rightStageRank = pipelineStageValueRank(right.pipeline_stage);
+  if (leftStageRank !== rightStageRank) {
+    return rightStageRank - leftStageRank;
+  }
+
+  const leftWorkers = toNumber(left.workers);
+  const rightWorkers = toNumber(right.workers);
+  if (leftWorkers !== rightWorkers) {
+    return rightWorkers - leftWorkers;
+  }
+
+  return left.company.localeCompare(right.company, "ro");
+}
+
+function compareRestPipelineAccounts(left = {}, right = {}, now = new Date()) {
+  const leftHasDate = Boolean(left.next_step_date);
+  const rightHasDate = Boolean(right.next_step_date);
+
+  if (leftHasDate && rightHasDate) {
+    return compareAccountsByNextStepDate(left, right, now);
+  }
+
+  if (leftHasDate !== rightHasDate) {
+    return leftHasDate ? -1 : 1;
+  }
+
+  return compareAccountsWithoutNextStep(left, right, now);
+}
+
+function buildPipelineActionSections(activeAccounts = [], now = new Date()) {
+  const today = parseDate(getTodayIsoDate());
+  const currentWeekEnd = parseDate(getWeekEnd(getTodayIsoDate()));
+  const overdueAccounts = activeAccounts
+    .filter((account) => account.next_step_date && dayDiff(account.next_step_date, now) > 0)
+    .sort((left, right) => compareAccountsByNextStepDate(left, right, now));
+  const todayAccounts = activeAccounts
+    .filter((account) => account.next_step_date && isSameDay(account.next_step_date, today))
+    .sort((left, right) => compareAccountsByNextStepDate(left, right, now));
+  const thisWeekAccounts = activeAccounts
+    .filter((account) => (
+      account.next_step_date
+      && dayDiff(account.next_step_date, now) < 0
+      && isDateWithinInclusiveRange(account.next_step_date, today, currentWeekEnd)
+    ))
+    .sort((left, right) => compareAccountsByNextStepDate(left, right, now));
+  const restAccounts = activeAccounts
+    .filter((account) => (
+      !account.next_step_date
+      || (
+        dayDiff(account.next_step_date, now) < 0
+        && !isDateWithinInclusiveRange(account.next_step_date, today, currentWeekEnd)
+      )
+    ))
+    .sort((left, right) => compareRestPipelineAccounts(left, right, now));
+
+  return [
+    {
+      key: "today",
+      eyebrow: "Azi",
+      title: "Planificate pentru contact azi",
+      copy: "Conturile care au next step scadent astazi.",
+      accent: "#2b6d42",
+      soft: "rgba(43,109,66,0.12)",
+      items: todayAccounts,
+    },
+    {
+      key: "overdue",
+      eyebrow: "Prioritate",
+      title: "Intarziate",
+      copy: "Conturile cu next step depasit. Aici apar doar companiile care trebuiau contactate inainte de astazi.",
+      accent: "#cb5846",
+      soft: "rgba(203,88,70,0.12)",
+      items: overdueAccounts,
+    },
+    {
+      key: "this-week",
+      eyebrow: "Saptamana aceasta",
+      title: "Planificate saptamana aceasta",
+      copy: "Conturile ramase de contactat pana la finalul saptamanii curente.",
+      accent: "#2f6ea2",
+      soft: "rgba(47,110,162,0.12)",
+      items: thisWeekAccounts,
+    },
+    {
+      key: "rest",
+      eyebrow: "Restul",
+      title: "Restul pipeline-ului",
+      copy: "Conturi cu next step dupa aceasta saptamana sau fara data de next step.",
+      accent: "#8b6f47",
+      soft: "rgba(139,111,71,0.10)",
+      items: restAccounts,
+    },
+  ].filter((section) => section.items.length);
+}
+
+function buildNextStepActivityIndex(activities = []) {
+  return [...activities]
+    .filter((activity) => activity.company && (normalizeString(activity.next_step) || activity.next_step_date))
+    .sort(compareActivitiesReverseChronologically)
+    .reduce((index, activity) => {
+      const key = normalizeCompanyKey(activity.company);
+      if (!key) return index;
+      if (!index.has(key)) {
+        index.set(key, []);
+      }
+      index.get(key).push(activity);
+      return index;
+    }, new Map());
+}
+
+function findNextStepActivityForAccount(account = {}, nextStepActivityIndex = new Map()) {
+  const companyKey = normalizeCompanyKey(account.company);
+  const candidates = nextStepActivityIndex.get(companyKey) || [];
+  if (!candidates.length) return null;
+
+  const accountStep = normalizeOutcomeKey(account.next_step);
+  const accountDate = toIsoDateValue(account.next_step_date);
+
+  if (!accountStep && !accountDate) {
+    return candidates[0];
+  }
+
+  return candidates.find((activity) => {
+    const activityStep = normalizeOutcomeKey(activity.next_step);
+    const activityDate = toIsoDateValue(activity.next_step_date);
+    const stepMatches = Boolean(accountStep && activityStep && accountStep === activityStep);
+    const dateMatches = Boolean(accountDate && activityDate && accountDate === activityDate);
+
+    if (accountStep && accountDate) {
+      return (stepMatches && (!activityDate || dateMatches)) || (dateMatches && !activityStep);
+    }
+
+    return stepMatches || dateMatches;
+  }) || null;
+}
+
+function findContactPriorityForCompany(company = "") {
+  const companyKey = normalizeCompanyKey(company);
+  if (!companyKey) return null;
+  return state.contactPriority.find((record) => normalizeCompanyKey(record.company) === companyKey) || null;
+}
+
+function getContactPhone(priority = {}, account = {}) {
+  return normalizeString(account?.mobile)
+    || normalizeString(account?.tel)
+    || normalizeString(account?.tel_contact_rang_2)
+    || normalizeString(priority?.mobile)
+    || normalizeString(priority?.tel)
+    || normalizeString(priority?.tel_contact_rang_2)
+    || "";
+}
+
+function getPhoneHref(phone = "") {
+  const normalized = normalizeString(phone).replace(/[^\d+]/g, "");
+  if (!normalized) return "";
+  if (normalized.startsWith("+")) return `tel:${normalized}`;
+  if (/^0\d{7,8}$/.test(normalized)) {
+    return `tel:+373${normalized.slice(1)}`;
+  }
+  return `tel:${normalized}`;
+}
+
+function buildHeroCompanyNameMarkup(account = {}) {
+  const companyName = escapeHtml(account.company || "-");
+  const recordUrl = getAirtableCompanyRecordUrl(account);
+
+  if (!recordUrl) {
+    return `<span class="hero-next-company">${companyName}</span>`;
+  }
+
+  return `
+    <a class="hero-next-company hero-next-company-link" href="${escapeHtml(recordUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Deschide ${companyName} in Airtable" title="Deschide cardul in Airtable">
+      ${companyName}
+    </a>
+  `;
+}
+
+function getAirtableCompanyRecordUrl(account = {}) {
+  const baseId = normalizeString(state.connection?.baseId);
+  const recordId = normalizeString(account.id);
+  const configuredTable = normalizeString(state.connection?.tables?.companies);
+  const configuredView = normalizeString(state.connection?.views?.companies);
+  const tableId = normalizeString(state.connection?.tableIds?.companies)
+    || (configuredTable.startsWith("tbl") ? configuredTable : "");
+  const viewId = normalizeString(state.connection?.viewIds?.companies)
+    || (configuredView.startsWith("viw") ? configuredView : "");
+
+  if (!baseId || !tableId || !recordId.startsWith("rec")) {
+    return "";
+  }
+
+  const path = [baseId, tableId, viewId, recordId]
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return `https://airtable.com/${path}`;
+}
+
+function buildCompanyNameMarkup(account = {}) {
+  const companyName = escapeHtml(account.company || "-");
+  const recordUrl = getAirtableCompanyRecordUrl(account);
+
+  if (!recordUrl) {
+    return `<div class="company-name">${companyName}</div>`;
+  }
+
+  return `
+    <a class="company-name company-record-link" href="${escapeHtml(recordUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Deschide ${companyName} in Airtable" title="Deschide cardul in Airtable">
+      ${companyName}
+    </a>
+  `;
+}
+
+function buildPipelineAccountRow(account, plannedActivity, section = {}) {
+  const pipelineStage = pipelineStageTheme[account.pipeline_stage] || {
+    color: "#94a3b8",
+    bg: "rgba(148,163,184,0.14)",
+  };
+  const sectionKey = normalizeString(section.key).replace(/[^a-z0-9-]/gi, "");
+
+  return `
+    <tr class="pipeline-account-row${sectionKey ? ` pipeline-account-row--${sectionKey}` : ""}">
+      <td>
+        <div class="company-cell">
+          ${buildCompanyNameMarkup(account)}
+          ${
+            account.lead_date
+              ? `<div class="company-meta">Lead din ${escapeHtml(formatDateWithYear(account.lead_date))}</div>`
+              : ""
+          }
+        </div>
+      </td>
+      <td>
+        <span class="status-pill" style="color:${pipelineStage.color}; background:${pipelineStage.bg}; border-color:${pipelineStage.color}33;">
+          ${escapeHtml(account.pipeline_stage || "-")}
+        </span>
+      </td>
+      <td>${escapeHtml(account.last_outcome || "-")}</td>
+      <td>${renderNextStepDateCell(account, plannedActivity)}</td>
+      <td>${renderNextStepCell(account, plannedActivity)}</td>
+    </tr>
+  `;
+}
+
+function buildPipelineSectionRow(section = {}) {
+  const accent = section.accent || "#2f6ea2";
+  const soft = section.soft || "rgba(47,110,162,0.08)";
+  const sectionKey = normalizeString(section.key).replace(/[^a-z0-9-]/gi, "");
+  return `
+    <tr class="pipeline-section-row${sectionKey ? ` pipeline-section-row--${sectionKey}` : ""}">
+      <td colspan="5">
+        <div class="pipeline-section-banner" style="--pipeline-section-accent:${accent}; --pipeline-section-soft:${soft};">
+          <div class="pipeline-section-copy">
+            <div class="pipeline-section-kicker">${escapeHtml(section.eyebrow || "Monitorizare")}</div>
+            <div class="pipeline-section-title">${escapeHtml(section.title || "")}</div>
+            ${
+              section.copy
+                ? `<div class="pipeline-section-meta">${escapeHtml(section.copy)}</div>`
+                : ""
+            }
+          </div>
+          <span class="pipeline-section-count">${section.items.length}</span>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
 function renderPipeline() {
   const trackedAccounts = state.accounts.filter((account) => isTrackedAccount(account));
-  const latestPlannedByCompany = buildLatestPlannedActivityIndex(state.activities);
+  const nextStepActivityIndex = buildNextStepActivityIndex(state.activities);
   const filteredAccounts = trackedAccounts
     .filter((account) => !state.search || account.company.toLowerCase().includes(state.search));
   const activeAccounts = filteredAccounts
-    .filter((account) => isMovingAccount(account))
-    .sort((left, right) => compareActivePipelineAccounts(left, right));
+    .filter((account) => isMovingAccount(account));
   const standbyAccounts = filteredAccounts
     .filter((account) => isStandbyAccount(account))
     .sort(compareStandbyAccounts);
+  const groupedSections = buildPipelineActionSections(activeAccounts);
 
   const activeAccs = trackedAccounts.filter((account) => isMovingAccount(account));
   const counts = {
@@ -4459,7 +5701,7 @@ function renderPipeline() {
   if (!activeAccounts.length) {
     elements.accountsTableBody.innerHTML = `
       <tr>
-        <td colspan="6">
+        <td colspan="5">
           <div class="empty-card">Nu exista companii in miscare acum. Conturile ramase pe "Necontactat" nu apar in acest snapshot.</div>
         </td>
       </tr>
@@ -4468,44 +5710,16 @@ function renderPipeline() {
     return;
   }
 
-  elements.accountsTableBody.innerHTML = activeAccounts
-    .map((account) => {
-      const pipelineStage = pipelineStageTheme[account.pipeline_stage] || {
-        color: "#94a3b8",
-        bg: "rgba(148,163,184,0.14)",
-      };
-      const health = accountHealthTheme[account.account_health] || null;
-      const plannedActivity = latestPlannedByCompany.get(normalizeCompanyKey(account.company));
-      return `
-        <tr>
-          <td>
-            <div class="company-cell">
-              <div class="company-name">${escapeHtml(account.company)}</div>
-              ${
-                account.lead_date
-                  ? `<div class="company-meta">Lead din ${escapeHtml(formatDateWithYear(account.lead_date))}</div>`
-                  : ""
-              }
-            </div>
-          </td>
-          <td>
-            <span class="status-pill" style="color:${pipelineStage.color}; background:${pipelineStage.bg}; border-color:${pipelineStage.color}33;">
-              ${escapeHtml(account.pipeline_stage || "-")}
-            </span>
-          </td>
-          <td>
-            ${
-              health
-                ? `<span class="status-pill" style="color:${health.color}; background:${health.bg}; border-color:${health.color}33;">${escapeHtml(account.account_health)}</span>`
-                : "-"
-            }
-          </td>
-          <td>${escapeHtml(account.last_outcome || "-")}</td>
-          <td>${formatDate(account.last_contact)}</td>
-          <td>${renderNextStepCell(account, plannedActivity)}</td>
-        </tr>
-      `;
-    })
+  elements.accountsTableBody.innerHTML = groupedSections
+    .map((section) => [
+      buildPipelineSectionRow(section),
+      section.items
+        .map((account) => {
+          const nextStepActivity = findNextStepActivityForAccount(account, nextStepActivityIndex);
+          return buildPipelineAccountRow(account, nextStepActivity, section);
+        })
+        .join(""),
+    ].join(""))
     .join("");
 
   renderStandbyTable(standbyAccounts);
@@ -4563,7 +5777,7 @@ function renderStandbyTable(standbyAccounts = []) {
       <tr>
         <td>
           <div class="company-cell">
-            <div class="company-name">${escapeHtml(account.company)}</div>
+            ${buildCompanyNameMarkup(account)}
             ${
               account.last_contact
                 ? `<div class="company-meta">Ultimul touch ${escapeHtml(formatDateWithYear(account.last_contact))}</div>`
@@ -5022,18 +6236,30 @@ function formatNextStep(account) {
   return parts.filter(Boolean).join(" · ") || "-";
 }
 
-function buildLatestPlannedActivityIndex(activities = []) {
-  const index = new Map();
+function getNextStepDisplayDate(account = {}, activity = null) {
+  return account.next_step_date || activity?.next_step_date || null;
+}
 
-  activities.forEach((activity) => {
-    if (!activity.company || !isPlannedActivity(activity)) return;
-    const key = normalizeCompanyKey(activity.company);
-    if (!index.has(key)) {
-      index.set(key, activity);
-    }
-  });
+function getNextStepDateMeta(date, now = new Date()) {
+  if (!date) return "";
+  const delta = dayDiff(date, now);
+  if (delta > 0) return delta === 1 ? "intarziat ieri" : `intarziat ${delta} zile`;
+  if (delta === 0) return "azi";
+  return `peste ${Math.abs(delta)} zile`;
+}
 
-  return index;
+function renderNextStepDateCell(account = {}, activity = null) {
+  const nextStepDate = getNextStepDisplayDate(account, activity);
+  if (!nextStepDate) {
+    return `<span class="table-muted">-</span>`;
+  }
+
+  return `
+    <div class="planned-cell planned-cell--date">
+      <div class="planned-cell-title">${escapeHtml(formatDateWithYear(nextStepDate))}</div>
+      <div class="company-meta">${escapeHtml(getNextStepDateMeta(nextStepDate))}</div>
+    </div>
+  `;
 }
 
 function renderNextStepCell(account = {}, activity) {
@@ -5041,8 +6267,8 @@ function renderNextStepCell(account = {}, activity) {
 
   if (nextStep || account.next_step_date) {
     const meta = [];
-    if (account.next_step_date) {
-      meta.push(formatDate(account.next_step_date));
+    if (activity?.date) {
+      meta.push(`Notat pe ${formatDateWithYear(activity.date)}`);
     }
 
     return `
@@ -5068,8 +6294,8 @@ function renderNextStepCell(account = {}, activity) {
     || "Pas urmator notat";
 
   const meta = [];
-  if (activity.next_step_date) {
-    meta.push(formatDate(activity.next_step_date));
+  if (activity.date) {
+    meta.push(`Notat pe ${formatDateWithYear(activity.date)}`);
   }
 
   return `
@@ -5125,6 +6351,15 @@ function formatDateWithYear(date) {
   }).format(date);
 }
 
+function formatSyncTime(date) {
+  if (!date) return "--:--";
+  return new Intl.DateTimeFormat("ro-RO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
 function isSameDay(left, right) {
   if (!left || !right) return false;
   return toIsoDateValue(left) === toIsoDateValue(right);
@@ -5161,7 +6396,10 @@ async function apiJson(url, options = {}) {
 }
 
 function buildCompanyPatchFromActivityRaw(raw, record) {
-  const payload = { company: record.company };
+  const payload = {
+    id: record.company_id || "",
+    company: record.company,
+  };
   let shouldSync = false;
   const requestedPipelineStage = normalizeString(raw.pipeline_stage);
 
@@ -5182,6 +6420,7 @@ function buildCompanyPatchFromActivityRaw(raw, record) {
 
 function buildCompanyUpdatePatch(record, raw = {}) {
   const payload = {
+    id: record.id || "",
     company: record.company,
   };
 
@@ -5229,28 +6468,57 @@ function buildCompanyUpdatePatch(record, raw = {}) {
     payload.notes = record.notes;
   }
 
+  if (raw.priority_tier !== undefined && raw.priority_tier !== "") {
+    payload.priority_tier = record.priority_tier;
+  }
+
+  if (raw.risk_of_cooling !== undefined && raw.risk_of_cooling !== "") {
+    payload.risk_of_cooling = record.risk_of_cooling;
+  }
+
+  if (raw.dashboard_focus !== undefined && raw.dashboard_focus !== "") {
+    payload.dashboard_focus = record.dashboard_focus;
+  }
+
+  if (raw.escalation_needed !== undefined && raw.escalation_needed !== "") {
+    payload.escalation_needed = record.escalation_needed;
+  }
+
+  if (raw.client_action_required !== undefined && raw.client_action_required !== "") {
+    payload.client_action_required = record.client_action_required;
+  }
+
   return payload;
 }
 
-function buildActivityFromCompanyUpdate(record, raw = {}) {
+function buildActivityFromCompanyUpdate(record, raw = {}, previousAccount = null) {
   const requestedPipelineStage = normalizeString(raw.pipeline_stage);
-  const activityType = mapPipelineStageToActivityType(requestedPipelineStage);
-
-  if (!activityType) return null;
-
   const stage = normalizePipelineStage(requestedPipelineStage);
+  const previousStage = getPreviousPipelineStage(previousAccount);
+  const activityType = mapPipelineStageToActivityType(stage);
+
+  if (!activityType || !stage || stage === previousStage) return null;
+
   return normalizeRow("activities", {
     date: getTodayIsoDate(),
     company: record.company,
+    company_id: previousAccount?.id || record.id || "",
     activity_type: activityType,
+    workers_delta: stage === "Contract semnat" ? toNumber(record.workers) : 0,
     next_step: raw.next_step || "",
     next_step_date: raw.next_step_date || "",
-    notes: `Stadiu pipeline actualizat la ${stage} din Update rapid companie.`,
+    notes: appendFirstContactTransitionNote(
+      `Stadiu pipeline actualizat din ${previousStage} la ${stage} din Update rapid companie.`,
+      previousStage,
+      stage
+    ),
   });
 }
 
 function serializeActivityPayload(record) {
   return {
+    id: record.id || "",
+    company_id: record.company_id || "",
     date: record.date ? record.date.toISOString().slice(0, 10) : "",
     company: record.company,
     activity_type: record.activity_type,
@@ -5264,6 +6532,7 @@ function serializeActivityPayload(record) {
 
 function serializeCompanyPayload(record) {
   const payload = {
+    id: record.id || "",
     company: record.company,
   };
 
@@ -5311,6 +6580,26 @@ function serializeCompanyPayload(record) {
     payload.notes = record.notes;
   }
 
+  if ("priority_tier" in record) {
+    payload.priority_tier = record.priority_tier;
+  }
+
+  if ("risk_of_cooling" in record) {
+    payload.risk_of_cooling = record.risk_of_cooling;
+  }
+
+  if ("dashboard_focus" in record) {
+    payload.dashboard_focus = record.dashboard_focus;
+  }
+
+  if ("escalation_needed" in record) {
+    payload.escalation_needed = record.escalation_needed;
+  }
+
+  if ("client_action_required" in record) {
+    payload.client_action_required = record.client_action_required;
+  }
+
   return payload;
 }
 
@@ -5321,7 +6610,7 @@ function serializeScorecardPayload(record) {
     new_contract_workers_mtd: record.new_contract_workers_mtd,
     dream100_p1_prospects: record.dream100_p1_prospects,
     sales_velocity_days: record.sales_velocity_days,
-    cold_calls: record.cold_calls,
+    cold_calls: getFirstContactTransitionRangeCount(record.week_start, record.week_end || getWeekEnd(record.week_start)),
     linkedin_messages: record.linkedin_messages,
     field_visits: record.field_visits,
     warm_outreach: record.warm_outreach,
@@ -5337,7 +6626,7 @@ function serializeScorecardPayload(record) {
 function serializeLeadMeasuresPayload(record) {
   return {
     date: record.date,
-    cold_calls: record.cold_calls,
+    cold_calls: getFirstContactTransitionRangeCount(record.date, record.date),
     whatsapp_messages: record.whatsapp_messages,
     field_visits: record.field_visits,
     warm_outreach: record.warm_outreach,

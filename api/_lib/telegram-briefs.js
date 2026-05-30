@@ -275,6 +275,11 @@ function buildTodayAndWeeklyMetrics(data = {}, timezone = "Europe/Chisinau") {
   const monthActivities = liveActivities.filter((activity) => isWithinRange(toIsoDate(activity.date), monthStart, monthEnd));
 
   const firstTouchByCompany = new Map();
+  (data.companies || [])
+    .filter((company) => company.company && toIsoDate(company.lead_date))
+    .forEach((company) => {
+      firstTouchByCompany.set(normalizeCompanyKey(company.company), toIsoDate(company.lead_date));
+    });
   liveActivities
     .slice()
     .sort((left, right) => toIsoDate(left.date).localeCompare(toIsoDate(right.date)))
@@ -322,6 +327,32 @@ function buildTodayAndWeeklyMetrics(data = {}, timezone = "Europe/Chisinau") {
     followUps: Math.max(movedCompanyKeys.size - newCompanyKeys.size, 0),
     weeklyTouches: weekActivities.length,
     todayMovedCompanies: new Set(todayActivities.map((activity) => normalizeCompanyKey(activity.company))).size,
+  };
+}
+
+function buildTargetsMetrics(data = {}, timezone = "Europe/Chisinau") {
+  const todayIso = getTodayIsoDate(timezone);
+  const weekStart = getCurrentWeekStart(timezone);
+  const weekEnd = getWeekEnd(todayIso);
+  const monthStart = getMonthStart(todayIso);
+  const monthEnd = getMonthEnd(todayIso);
+
+  const liveActivities = (data.activities || [])
+    .filter((activity) => activity.date)
+    .filter((activity) => isLiveActivity(activity));
+  const monthActivities = liveActivities.filter((activity) => isWithinRange(toIsoDate(activity.date), monthStart, monthEnd));
+
+  const leadMeasuresDaily = data.leadMeasuresDaily || [];
+  return {
+    todayIso,
+    weekStart,
+    weekEnd,
+    monthStart,
+    monthEnd,
+    monthCounts: countActivities(monthActivities),
+    todayLeadMeasures: sumLeadMeasures(leadMeasuresDaily, todayIso, todayIso),
+    weekLeadMeasures: sumLeadMeasures(leadMeasuresDaily, weekStart, weekEnd),
+    monthLeadMeasures: sumLeadMeasures(leadMeasuresDaily, monthStart, monthEnd),
   };
 }
 
@@ -424,55 +455,110 @@ function buildUncontactedContactPriorityQueue(data = {}, limit = 10) {
     .slice(0, limit);
 }
 
-function buildContactPriorityIndex(data = {}) {
-  const contactPriority = Array.isArray(data.contactPriority) ? data.contactPriority : [];
-  const index = contactPriority.reduce((map, item) => {
-    const key = normalizeCompanyKey(item.company);
-    if (key && !map.has(key)) {
-      map.set(key, item);
-    }
-    return map;
-  }, new Map());
-  index.items = contactPriority;
-  return index;
+function formatPriorityCompanyName(item = {}, data = {}) {
+  const company = escapeHtml(item.company || "Companie fara nume");
+  const companyRecord = findCompanyByContactPriorityItem(data, item);
+  const recordUrl = companyRecord ? getAirtableRecordUrl(data, companyRecord, "companies") : "";
+
+  if (!recordUrl) {
+    return `<b>${company}</b>`;
+  }
+
+  return `<a href="${escapeHtml(recordUrl)}">${company}</a>`;
 }
 
-function findContactPriorityForCompany(index, companyName = "") {
-  const wanted = normalizeCompanyKey(companyName);
-  if (!wanted) return {};
-
-  const exact = index.get(wanted);
-  if (exact) return exact;
-
-  return (index.items || []).find((item) => {
-    const key = normalizeCompanyKey(item.company);
-    return key && (key.includes(wanted) || wanted.includes(key));
-  }) || {};
-}
-
-function describePriorityContact(item = {}) {
-  const parts = [`• <b>${escapeHtml(item.company || "Companie fara nume")}</b>`];
+function describePriorityContact(item = {}, data = {}) {
+  const parts = [`• ${formatPriorityCompanyName(item, data)}`];
   if (item.sector) parts.push(`· ${escapeHtml(item.sector)}`);
   if (item.decision_maker) parts.push(`· decident: ${escapeHtml(item.decision_maker)}`);
   if (item.mobile) parts.push(`· ${escapeHtml(item.mobile)}`);
   return parts.join(" ");
 }
 
-function buildContactParts(contact = {}) {
-  const parts = [];
-  if (contact.decision_maker) parts.push(`decident: ${escapeHtml(contact.decision_maker)}`);
-  if (contact.mobile) parts.push(`mobil: ${escapeHtml(contact.mobile)}`);
-  if (contact.contact_person) parts.push(`contact: ${escapeHtml(contact.contact_person)}`);
-  if (contact.secondary_phone) parts.push(`tel 2: ${escapeHtml(contact.secondary_phone)}`);
-  return parts;
+function findContactPriorityByCompany(data = {}, companyName = "") {
+  const contactPriority = Array.isArray(data.contactPriority) ? data.contactPriority : [];
+  const wanted = normalizeCompanyKey(companyName);
+  if (!wanted) return null;
+  return contactPriority.find((item) => normalizeCompanyKey(item.company) === wanted) || null;
 }
 
-function describeTask(account = {}, todayIso = "", contact = {}) {
+function getAccountPhone(account = {}, priority = {}) {
+  return normalizeString(account.mobile)
+    || normalizeString(account.tel)
+    || normalizeString(account.tel_contact_rang_2)
+    || normalizeString(account.secondary_phone)
+    || normalizeString(priority.mobile)
+    || normalizeString(priority.tel)
+    || normalizeString(priority.tel_contact_rang_2)
+    || normalizeString(priority.secondary_phone)
+    || "";
+}
+
+function getFollowUpContactSuffix(account = {}, data = {}) {
+  const priority = findContactPriorityByCompany(data, account.company) || {};
+  const decisionMaker = normalizeString(account.decision_maker)
+    || normalizeString(priority.decision_maker)
+    || normalizeString(account.contact_person)
+    || normalizeString(priority.contact_person)
+    || "necompletat";
+  const phone = getAccountPhone(account, priority) || "lipsa";
+
+  return ` · decident: ${escapeHtml(decisionMaker)} · tel: ${escapeHtml(phone)}`;
+}
+
+function getAirtableRecordUrl(data = {}, record = {}, tableKey = "") {
+  const connection = data.connection || {};
+  const baseId = normalizeString(connection.baseId);
+  const recordId = normalizeString(record.id);
+  const configuredTable = normalizeString(connection.tables?.[tableKey]);
+  const configuredView = normalizeString(connection.views?.[tableKey]);
+  const tableId = normalizeString(connection.tableIds?.[tableKey])
+    || (configuredTable.startsWith("tbl") ? configuredTable : "");
+  const viewId = normalizeString(connection.viewIds?.[tableKey])
+    || (configuredView.startsWith("viw") ? configuredView : "");
+
+  if (!baseId || !tableId || !recordId.startsWith("rec")) {
+    return "";
+  }
+
+  const path = [baseId, tableId, viewId, recordId]
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return `https://airtable.com/${path}`;
+}
+
+function findLatestActionForCompany(data = {}, account = {}) {
+  const activities = Array.isArray(data.activities) ? data.activities : [];
+  const wanted = normalizeCompanyKey(account.company);
+  if (!wanted) return null;
+
+  return activities
+    .filter((activity) => normalizeCompanyKey(activity.company) === wanted)
+    .sort((left, right) => {
+      const leftValue = `${toIsoDate(left.date)}|${normalizeString(left.created_at)}`;
+      const rightValue = `${toIsoDate(right.date)}|${normalizeString(right.created_at)}`;
+      return rightValue.localeCompare(leftValue);
+    })[0] || null;
+}
+
+function formatFollowUpCompanyName(account = {}, data = {}) {
   const company = escapeHtml(account.company || "Companie fara nume");
+  const latestAction = findLatestActionForCompany(data, account);
+  const recordUrl = latestAction ? getAirtableRecordUrl(data, latestAction, "activities") : "";
+
+  if (!recordUrl) {
+    return `<b>${company}</b>`;
+  }
+
+  return `<a href="${escapeHtml(recordUrl)}">${company}</a>`;
+}
+
+function describeTask(account = {}, todayIso = "", data = {}) {
+  const company = formatFollowUpCompanyName(account, data);
   const stage = normalizeString(account.pipeline_stage) || "Fara stadiu";
   const stagePart = stage ? ` · ${escapeHtml(stage)}` : "";
-  const contactParts = buildContactParts(contact);
-  const contactPart = contactParts.length ? ` · ${contactParts.join(" · ")}` : "";
+  const contactPart = getFollowUpContactSuffix(account, data);
 
   if (isStandbyAccount(account) && account.reactivation_date) {
     const delta = dayDiff(account.reactivation_date, todayIso);
@@ -482,7 +568,7 @@ function describeTask(account = {}, todayIso = "", contact = {}) {
         ? "reactivare azi"
         : `reactivare in ${formatCount(Math.abs(delta), "zi", "zile")}`;
     const action = normalizeString(account.next_step) || normalizeString(account.standby_reason) || "revino pe cont";
-    return `• <b>${company}</b> — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}${contactPart}`;
+    return `• ${company} — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}${contactPart}`;
   }
 
   if (account.next_step_date) {
@@ -493,16 +579,16 @@ function describeTask(account = {}, todayIso = "", contact = {}) {
         ? "azi"
         : `in ${formatCount(Math.abs(delta), "zi", "zile")}`;
     const action = normalizeString(account.next_step) || "next step";
-    return `• <b>${company}</b> — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}${contactPart}`;
+    return `• ${company} — ${escapeHtml(action)} · ${escapeHtml(timing)}${stagePart}${contactPart}`;
   }
 
   if (!account.last_contact) {
-    return `• <b>${company}</b> — initiaza primul touch${stagePart}${contactPart}`;
+    return `• ${company} — initiaza primul touch${stagePart}${contactPart}`;
   }
 
   const silentDays = dayDiff(account.last_contact, todayIso);
   const action = normalizeString(account.next_step) || "revino pe cont";
-  return `• <b>${company}</b> — ${escapeHtml(action)} · ${formatCount(silentDays, "zi", "zile")} fara touch${stagePart}${contactPart}`;
+  return `• ${company} — ${escapeHtml(action)} · ${formatCount(silentDays, "zi", "zile")} fara touch${stagePart}${contactPart}`;
 }
 
 function summarizeActivity(activity = {}) {
@@ -561,17 +647,17 @@ function sortTasksByPriority(tasks = [], todayIso = "") {
     .sort((left, right) => getAlertPriority(right, todayIso) - getAlertPriority(left, todayIso));
 }
 
-function buildFollowUpSection(title = "", tasks = [], todayIso = "", limit = 5) {
+function buildFollowUpSection(title = "", tasks = [], todayIso = "", data = {}, limit = 5) {
   if (!tasks.length) return "";
   return [
     `<b>${escapeHtml(title)}</b>`,
     ...sortTasksByPriority(tasks, todayIso)
       .slice(0, limit)
-      .map((account) => describeTask(account, todayIso, account)),
+      .map((account) => describeTask(account, todayIso, data)),
   ].join("\n");
 }
 
-function buildTopFollowUpBlock(queues = {}, todayIso = "", limit = 10) {
+function buildTopFollowUpBlock(queues = {}, todayIso = "", data = {}, limit = 10) {
   const todayTasks = sortTasksByPriority(queues.today || [], todayIso).slice(0, limit);
   const overdueTasks = sortTasksByPriority(queues.overdue || [], todayIso).slice(
     0,
@@ -579,8 +665,8 @@ function buildTopFollowUpBlock(queues = {}, todayIso = "", limit = 10) {
   );
 
   const sections = [
-    buildFollowUpSection("Due azi", todayTasks, todayIso, limit),
-    buildFollowUpSection("Intarziate", overdueTasks, todayIso, limit),
+    buildFollowUpSection("Due azi", todayTasks, todayIso, data, limit),
+    buildFollowUpSection("Intarziate", overdueTasks, todayIso, data, limit),
   ].filter(Boolean);
 
   return sections.length
@@ -592,7 +678,8 @@ function buildMorningBrief(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
   const metrics = buildTodayAndWeeklyMetrics(data, timezone);
   const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
-  const uncontactedPriorityQueue = buildUncontactedContactPriorityQueue(data, 10);
+  const aListQueue = buildUncontactedContactPriorityQueue(data, 10);
+  const topFollowUpQueue = queues.all.slice(0, 5);
   const totalContactPriority = Array.isArray(data.contactPriority) ? data.contactPriority.length : 0;
   const availableContactPriority = (Array.isArray(data.contactPriority) ? data.contactPriority : [])
     .filter((item) => item.company && !item.last_contact).length;
@@ -612,12 +699,14 @@ function buildMorningBrief(data = {}) {
     `• ${formatCount(queues.stale.length, "cont rece peste 7 zile", "conturi reci peste 7 zile")}`,
     "",
     "<b>A-List azi</b>",
-    uncontactedPriorityQueue.length
-      ? uncontactedPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
+    aListQueue.length
+      ? aListQueue.map((item) => describePriorityContact(item, data)).join("\n")
       : "• Nu exista companii cu Stadiu Pipeline = Necontactat in Contact Priority.",
     "",
     "<b>Top follow-up azi</b>",
-    buildTopFollowUpBlock(queues, metrics.todayIso),
+    topFollowUpQueue.length
+      ? topFollowUpQueue.map((account) => describeTask(account, metrics.todayIso, data)).join("\n")
+      : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",
     "",
     "<b>Key Lead Measures</b>",
     leadLines.map(buildLeadMeasureLine).join("\n"),
@@ -636,19 +725,178 @@ function buildMorningBrief(data = {}) {
       aList: {
         total: totalContactPriority,
         available: availableContactPriority,
-        shown: uncontactedPriorityQueue.length,
-        uncontactedShown: uncontactedPriorityQueue.length,
+        shown: aListQueue.length,
+        uncontactedShown: aListQueue.length,
       },
       queues: {
         overdue: queues.overdue.length,
         today: queues.today.length,
         stale: queues.stale.length,
+        topFollowUpShown: topFollowUpQueue.length,
       },
       movement: {
         moved: metrics.movedCompanies,
         newCompanies: metrics.newCompanies,
         followUps: metrics.followUps,
         touches: metrics.weeklyTouches,
+      },
+    },
+  };
+}
+
+function getHqImplementationPlan(isoDate = "") {
+  const date = parseIsoDate(isoDate) || new Date();
+  const day = date.getUTCDay();
+  const plans = {
+    1: {
+      label: "Luni · setup saptamana",
+      tasks: [
+        "• Blocheaza 2 ferestre de implementare HQ in calendar, total max 6-8h/saptamana.",
+        "• Curata CRM: fiecare oportunitate activa trebuie sa aiba next step + data.",
+        "• Alege 1 proof asset de produs saptamana asta: testimonial, cost real sau caz client.",
+      ],
+    },
+    2: {
+      label: "Marti · AI Memory + scoring",
+      tasks: [
+        "• Logheaza/sumarizeaza in AI toate discutiile importante din ultimele 24h.",
+        "• Scor P1/P2/P3 pentru 20 companii Productie si noteaza motivul scorului.",
+        "• Actualizeaza 1 script/obiectie pe baza raspunsurilor reale din piata.",
+      ],
+    },
+    3: {
+      label: "Miercuri · Sales-CS-Ops",
+      tasks: [
+        "• Verifica promisiunile comerciale deschise: cost, termen, volum, cazare/mancare.",
+        "• Pregateste handoff Sales-CS-Ops pentru orice oportunitate calda sau client activ.",
+        "• Actualizeaza Control Room: pipeline, follow-up-uri, riscuri Ops, AI logging.",
+      ],
+    },
+    4: {
+      label: "Joi · proof + conversie",
+      tasks: [
+        "• Construieste sau imbunatateste 1 proof asset: cost real, garantie, studiu de caz sau vizita client.",
+        "• Revizuieste ofertele/follow-up-urile active si identifica urmatorul pas concret.",
+        "• Noteaza top 3 frici recurente ale clientilor si raspunsul comercial testat.",
+      ],
+    },
+    5: {
+      label: "Vineri · review + plan luni",
+      tasks: [
+        "• Review saptamanal: conversatii reale, meeting-uri, oferte, contracte, motive pierdere/castig.",
+        "• Evalueaza gate-urile HQ: ce ramane manual, ce merita sistematizat, ce se amana.",
+        "• Pregateste A-List de luni: 10-15 companii Productie + decidenti + ipoteza de durere.",
+      ],
+    },
+  };
+
+  return plans[day] || {
+    label: "Setup rapid",
+    tasks: [
+      "• Pastreaza implementarea la minim: CRM, AI Memory, follow-up si risc Ops.",
+      "• Logheaza discutiile importante si seteaza next step pentru oportunitatile calde.",
+      "• Pregateste urmatorul proof asset care ajuta direct vanzarea.",
+    ],
+  };
+}
+
+function buildDailyPrioritiesBrief(data = {}) {
+  const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
+  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const queues = buildExecutionQueues(data.companies || [], metrics.todayIso);
+  const aListQueue = buildUncontactedContactPriorityQueue(data, 3);
+  const topFollowUpQueue = queues.all.slice(0, 2);
+  const targets = data.targets || {};
+  const leadLines = getDailyLeadTargetLines(metrics, targets);
+  const coldCallsLine = leadLines.find((line) => line.label === "Apel rece") || {};
+  const whatsappLine = leadLines.find((line) => line.label === "WhatsApp personalizat") || {};
+  const isFallbackMode = topFollowUpQueue.length === 0 && aListQueue.length === 0;
+
+  const pipelinePriority = topFollowUpQueue.length
+    ? topFollowUpQueue.map((account) => describeTask(account, metrics.todayIso, data)).join("\n")
+    : [
+      "• Nu am follow-up critic salvat in CRM pentru azi.",
+      "• Verifica manual ultimele discutii/meeting-uri si seteaza next step pentru orice oportunitate calda.",
+      "• Daca nu exista nimic cald, treci direct la blocul de prospectare noua.",
+    ].join("\n");
+
+  const newPipelinePriority = aListQueue.length
+    ? aListQueue.map((item) => describePriorityContact(item, data)).join("\n")
+    : [
+      "• Creeaza mini-lista zilei: 10 companii de Productie din Moldova.",
+      "• Mix recomandat: 5 procesare alimentara / bauturi, 3 ambalare-textile, 2 depozite-logistica.",
+      "• Pentru fiecare: nume companie, decident, telefon, prima ipoteza de durere.",
+    ].join("\n");
+
+  const dailyColdCallsTarget = toNumber(coldCallsLine.todayTarget);
+  const dailyWhatsappTarget = toNumber(whatsappLine.todayTarget);
+  const hqPlan = getHqImplementationPlan(metrics.todayIso);
+  const fallbackExplanation = isFallbackMode
+    ? [
+      "",
+      "<b>De ce mesajul e inca semi-general?</b>",
+      "• Nu am gasit in Airtable nici follow-up-uri active, nici A-List disponibila pentru azi.",
+      "• Dupa ce salvezi 10 companii in Contact Priority sau 3 next step-uri cu /plan, prioritatile devin mult mai concrete.",
+    ]
+    : [];
+
+  const message = [
+    "<b>Grow · 3 Prioritati Director BD</b>",
+    `<i>${escapeHtml(formatFullDate(metrics.todayIso, timezone))} · 08:00 · Europe/Chisinau</i>`,
+    "",
+    "<b>1) Pipeline cald / risc</b>",
+    pipelinePriority,
+    "",
+    "<b>2) Pipeline nou in Productie</b>",
+    newPipelinePriority,
+    dailyColdCallsTarget || dailyWhatsappTarget
+      ? `• Target minim azi: ${toNumber(coldCallsLine.today)}/${dailyColdCallsTarget} apeluri reci · ${toNumber(whatsappLine.today)}/${dailyWhatsappTarget} WhatsApp-uri personalizate.`
+      : "• Target minim azi: 20 companii contactate sau 8 conversatii reale, oricare vine prima.",
+    "",
+    "<b>3) Disciplina de sistem</b>",
+    "• Logheaza 100% din conversatiile reale cu /log.",
+    "• Orice companie interesata trebuie sa aiba next step + data cu /plan.",
+    "• Limita implementare azi: doar CRM, AI logging si follow-up. Restul se amana.",
+    "",
+    `<b>Implementare HQ — 3 task-uri (${escapeHtml(hqPlan.label)})</b>`,
+    hqPlan.tasks.join("\n"),
+    "<i>Daca apare meeting/negociere importanta: fa doar primul task HQ si muta restul.</i>",
+    ...fallbackExplanation,
+    "",
+    "<b>Ajustare rapida din Telegram</b>",
+    "• <code>/priorities</code> — regenereaza cele 3 prioritati",
+    "• <code>/focus</code> — vezi follow-up + A-list + lead measures",
+    "• <code>/plan Companie | next step | azi/maine | note</code> — inlocuieste/adauga un next step",
+    "• <code>/log Companie | apel | rezultat | next step | maine | note</code> — marcheaza progresul",
+    "• <code>/hq done 1 | note</code> sau <code>/hq move 2 | maine | note</code> — actualizeaza task-urile HQ",
+  ].join("\n");
+
+  return {
+    message,
+    summary: {
+      today: metrics.todayIso,
+      priorities: {
+        followUpsShown: topFollowUpQueue.length,
+        aListShown: aListQueue.length,
+      },
+      queues: {
+        overdue: queues.overdue.length,
+        today: queues.today.length,
+        stale: queues.stale.length,
+      },
+      leadMeasures: {
+        coldCalls: {
+          today: toNumber(coldCallsLine.today),
+          target: dailyColdCallsTarget,
+        },
+        whatsapp: {
+          today: toNumber(whatsappLine.today),
+          target: dailyWhatsappTarget,
+        },
+      },
+      hqImplementation: {
+        label: hqPlan.label,
+        tasks: hqPlan.tasks.length,
       },
     },
   };
@@ -666,7 +914,7 @@ function buildNextCommandMessage(data = {}) {
     "",
     "<b>Top follow-up azi</b>",
     topTasks.length
-      ? topTasks.map((account) => describeTask(account, metrics.todayIso)).join("\n")
+      ? topTasks.map((account) => describeTask(account, metrics.todayIso, data)).join("\n")
       : "• Nu exista follow-up-uri urgente acum. Poti merge agresiv pe prospectare noua.",
     "",
     "<b>Snapshot</b>",
@@ -705,7 +953,7 @@ function buildAListCommandMessage(data = {}) {
     "",
     "<b>Top 5 companii noi de contactat</b>",
     contactPriorityQueue.length
-      ? contactPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
+      ? contactPriorityQueue.map((item) => describePriorityContact(item, data)).join("\n")
       : "• Nu exista companii noi ramase in Contact Priority fara touch live.",
     "",
     "<b>Snapshot</b>",
@@ -869,7 +1117,7 @@ function buildScorecardCommandMessage(data = {}) {
 
 function buildTargetsCommandMessage(data = {}) {
   const timezone = data.connection?.timezone || process.env.AIRTABLE_TIMEZONE || "Europe/Chisinau";
-  const metrics = buildTodayAndWeeklyMetrics(data, timezone);
+  const metrics = buildTargetsMetrics(data, timezone);
   const targets = data.targets || {};
   const leadLines = getDailyLeadTargetLines(metrics, targets);
 
@@ -929,12 +1177,12 @@ function buildFocusCommandMessage(data = {}) {
     "",
     "<b>Top 3 follow-up acum</b>",
     topTasks.length
-      ? topTasks.map((account) => describeTask(account, metrics.todayIso)).join("\n")
+      ? topTasks.map((account) => describeTask(account, metrics.todayIso, data)).join("\n")
       : "• Nu exista follow-up-uri urgente acum.",
     "",
     "<b>Top 3 prospectare noua</b>",
     contactPriorityQueue.length
-      ? contactPriorityQueue.map((item) => describePriorityContact(item)).join("\n")
+      ? contactPriorityQueue.map((item) => describePriorityContact(item, data)).join("\n")
       : "• Nu exista companii noi eligibile acum in Contact Priority.",
     "",
     "<b>Lead measures azi</b>",
@@ -1080,6 +1328,7 @@ function buildEveningBrief(data = {}) {
 
 module.exports = {
   buildAListCommandMessage,
+  buildDailyPrioritiesBrief,
   buildEveningBrief,
   buildFocusCommandMessage,
   buildMorningBrief,

@@ -1,0 +1,10 @@
+.DS_Store
+.env
+.env.*
+.obsidian/
+.playwright-cli/
+.venv-ppt/
+graphify-out/
+output/
+tmp/
+scraper/node_modules/
