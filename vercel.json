@@ -1,4 +1,14 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/telegram-webhook-setup",
+      "destination": "/api/telegram-admin?action=setup"
+    },
+    {
+      "source": "/api/telegram-webhook-info",
+      "destination": "/api/telegram-admin?action=info"
+    }
+  ],
   "crons": [
     {
       "path": "/api/telegram-evening?weeklyReview=1",
