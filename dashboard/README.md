@@ -51,6 +51,7 @@ Hybrid pipeline rule:
 
 - new activities can auto-advance an open account to a later pipeline stage
 - manually closed stages such as `Parcat`, `Pierdut`, or `Contract semnat` stay locked until you change them explicitly from the company form
+- `Contract semnat` accounts are excluded from `Conturi care cer presiune directa` and shown in `CS / Ops handoff` for post-contract delivery ownership.
 
 ## Architecture
 

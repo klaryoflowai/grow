@@ -67,7 +67,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260530e";
+const appBuild = "20260530f";
 const autoRefreshIntervalMs = 60 * 1000;
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 const firstContactTransitionPrefix = "Tranzitie prima contactare";
@@ -244,6 +244,8 @@ const elements = {
   actionFocusToday: document.getElementById("action-focus-today"),
   actionFocusMustWin: document.getElementById("action-focus-must-win"),
   actionFocusMustWinChip: document.getElementById("action-focus-must-win-chip"),
+  actionFocusCsHandoff: document.getElementById("action-focus-cs-handoff"),
+  actionFocusCsHandoffChip: document.getElementById("action-focus-cs-handoff-chip"),
   actionFocusProtocol: document.getElementById("action-focus-protocol"),
   actionFocusSector: document.getElementById("action-focus-sector"),
   actionFocusHq: document.getElementById("action-focus-hq"),
@@ -2873,11 +2875,39 @@ function isActionFocusSector(account = {}) {
 
 function isActionFocusAccount(account = {}) {
   const stage = normalizePipelineStage(account.pipeline_stage);
+  if (!isPipelineOpen(stage)) return false;
+
   return Boolean(
     account.dashboard_focus
     || actionFocusNameRank.has(normalizeCompanyKey(account.company))
     || ["Meeting", "Oferta", "Negociere"].includes(stage)
   );
+}
+
+function isCustomerSuccessHandoffAccount(account = {}) {
+  return normalizePipelineStage(account.pipeline_stage) === "Contract semnat";
+}
+
+function getCustomerSuccessHandoffAccounts() {
+  return state.accounts
+    .filter((account) => isTrackedAccount(account) && isCustomerSuccessHandoffAccount(account))
+    .sort(compareCustomerSuccessHandoffAccounts);
+}
+
+function compareCustomerSuccessHandoffAccounts(left = {}, right = {}) {
+  const leftOverdue = isActionFocusOverdue(left) ? 1 : 0;
+  const rightOverdue = isActionFocusOverdue(right) ? 1 : 0;
+  if (leftOverdue !== rightOverdue) return rightOverdue - leftOverdue;
+
+  const leftDate = left.next_step_date || left.stage_changed_date || left.last_contact || "";
+  const rightDate = right.next_step_date || right.stage_changed_date || right.last_contact || "";
+  if (leftDate && rightDate && leftDate !== rightDate) return leftDate.localeCompare(rightDate);
+  if (leftDate !== rightDate) return leftDate ? -1 : 1;
+
+  const workersDiff = toNumber(right.workers) - toNumber(left.workers);
+  if (workersDiff !== 0) return workersDiff;
+
+  return normalizeString(left.company).localeCompare(normalizeString(right.company), "ro");
 }
 
 function isActionFocusOverdue(account = {}, now = new Date()) {
@@ -3246,6 +3276,72 @@ function renderActionFocusMustWin(focusAccounts = []) {
   hydrateActionFocusMentors(visibleAccounts);
 }
 
+function getCustomerSuccessHandoffAction(account = {}) {
+  return normalizeString(account.next_step)
+    || normalizeString(account.client_action_required)
+    || normalizeString(account.proof_asset_needed)
+    || "Handoff CSM/Ops: confirma status candidati, start date, responsabil si urmatoarea actualizare catre client.";
+}
+
+function getCustomerSuccessHandoffStatus(account = {}) {
+  if (isActionFocusOverdue(account)) return "Intarziat CS/Ops";
+  if (account.next_step_date) return "In lucru";
+  return "Fara responsabil";
+}
+
+function renderActionFocusCsHandoff(handoffAccounts = []) {
+  if (!elements.actionFocusCsHandoff) return;
+  if (elements.actionFocusCsHandoffChip) {
+    elements.actionFocusCsHandoffChip.textContent = `${handoffAccounts.length} contracte`;
+  }
+
+  if (!handoffAccounts.length) {
+    elements.actionFocusCsHandoff.innerHTML = `
+      <tr>
+        <td colspan="5">
+          <div class="empty-card">Nu exista inca contracte semnate pentru handoff CS/Ops.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  elements.actionFocusCsHandoff.innerHTML = handoffAccounts.slice(0, 8).map((account) => {
+    const date = account.next_step_date || account.stage_changed_date || account.last_contact;
+    const status = getCustomerSuccessHandoffStatus(account);
+    const statusTheme = status.includes("Intarziat")
+      ? { color: "var(--red)", bg: "var(--red-soft)" }
+      : status.includes("Fara")
+        ? { color: "var(--amber)", bg: "var(--amber-soft)" }
+        : { color: "var(--forest-600)", bg: "var(--green-soft)" };
+    const meta = [
+      account.sector,
+      account.workers ? `${account.workers} muncitori` : "",
+      "zona CSM dupa semnare",
+    ].filter(Boolean).join(" · ");
+
+    return `
+      <tr>
+        <td>
+          <div class="company-cell">
+            ${buildCompanyNameMarkup(account)}
+            ${meta ? `<div class="company-meta">${escapeHtml(meta)}</div>` : ""}
+          </div>
+        </td>
+        <td>${buildThemedPill("Contract semnat", pipelineStageTheme["Contract semnat"])}</td>
+        <td>${buildThemedPill(status, statusTheme)}</td>
+        <td>
+          <div class="planned-cell">
+            <div class="planned-cell-title">${escapeHtml(getCustomerSuccessHandoffAction(account))}</div>
+            <div class="company-meta">Nu intra in presiune comerciala; urmarire de livrare, continuitate si relatie client.</div>
+          </div>
+        </td>
+        <td>${date ? renderNextStepDateCell({ next_step_date: date }) : `<span class="table-muted">-</span>`}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
 function renderActionFocusProtocol() {
   if (!elements.actionFocusProtocol) return;
 
@@ -3324,11 +3420,13 @@ function renderActionFocusHq(metrics = {}) {
 function renderActionFocus() {
   if (!elements.actionFocusStats) return;
   const focusAccounts = getActionFocusAccounts();
+  const csHandoffAccounts = getCustomerSuccessHandoffAccounts();
   const metrics = getActionFocusMetrics(focusAccounts);
 
   renderActionFocusStats(metrics);
   renderActionFocusToday(metrics, focusAccounts);
   renderActionFocusMustWin(focusAccounts);
+  renderActionFocusCsHandoff(csHandoffAccounts);
   renderActionFocusProtocol();
   renderActionFocusSector(metrics);
   renderActionFocusHq(metrics);
