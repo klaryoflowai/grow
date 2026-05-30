@@ -67,7 +67,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260530f";
+const appBuild = "20260530g";
 const autoRefreshIntervalMs = 60 * 1000;
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 const firstContactTransitionPrefix = "Tranzitie prima contactare";
@@ -3700,7 +3700,18 @@ function renderPacingCard() {
       Saptamana asta: <strong>${movement.weekly.newCompanies}</strong> noi · <strong>${movement.weekly.followUp}</strong> follow-up
       <span class="hero-pacing-badge" style="color:${statusColor}; border-color:${statusColor}33; background:${pacingBg};">${statusLabel}</span>
     </div>
-    <div class="hero-pacing-meta">Azi: ${movement.today.moved} miscari · ${movement.today.uniqueCompanies} companii unice · ${movement.today.totalTouches} touch-uri azi · ${movement.today.followUp} follow-up · Luna asta: ${movement.monthly.moved} miscari · ${movement.monthly.uniqueCompanies} companii unice · ${movement.weekly.totalTouches} touch-uri totale saptamana asta · Asteptat pana azi: ${expectedByNow} · zi lucratoare ${elapsed} din ${total}</div>
+    <div class="hero-pacing-meta">
+      <div class="hero-pacing-meta-row">
+        <span>Azi: ${movement.today.moved} miscari</span>
+        <span>${movement.today.uniqueCompanies} companii</span>
+        <span>${movement.today.totalTouches} touch-uri</span>
+      </div>
+      <div class="hero-pacing-meta-row">
+        <span>Luna: ${movement.monthly.moved} miscari</span>
+        <span>Asteptat: ${expectedByNow}</span>
+        <span>Zi ${elapsed}/${total}</span>
+      </div>
+    </div>
   `;
 }
 
