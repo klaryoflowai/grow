@@ -67,7 +67,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260530c";
+const appBuild = "20260530d";
 const autoRefreshIntervalMs = 60 * 1000;
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 const firstContactTransitionPrefix = "Tranzitie prima contactare";
@@ -3079,8 +3079,8 @@ function buildActionFocusRiskPill(account = {}) {
 }
 
 function getActionFocusRequiredAction(account = {}) {
-  return normalizeString(account.client_action_required)
-    || normalizeString(account.next_step)
+  return normalizeString(account.next_step)
+    || normalizeString(account.client_action_required)
     || normalizeString(account.stall_reason)
     || normalizeString(account.proof_asset_needed)
     || "Stabileste urmatorul pas";
