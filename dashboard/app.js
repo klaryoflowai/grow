@@ -67,7 +67,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260530d";
+const appBuild = "20260530e";
 const autoRefreshIntervalMs = 60 * 1000;
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 const firstContactTransitionPrefix = "Tranzitie prima contactare";
@@ -223,6 +223,8 @@ const state = {
   refreshInFlight: false,
   lastSyncedAt: null,
   lastSyncError: "",
+  mentorRecommendations: new Map(),
+  mentorRequests: new Set(),
   targets: loadTargets(),
 };
 
@@ -3086,6 +3088,107 @@ function getActionFocusRequiredAction(account = {}) {
     || "Stabileste urmatorul pas";
 }
 
+function getActionFocusMentorRecommendation(account = {}) {
+  const stage = normalizePipelineStage(account.pipeline_stage);
+  const sector = normalizeOutcomeKey(account.sector);
+  const risk = normalizeOutcomeKey(account.risk_of_cooling);
+  const workers = toNumber(account.workers);
+  const hasNextStep = Boolean(normalizeString(account.next_step) || account.next_step_date);
+
+  if (!hasNextStep) {
+    return "Prima prioritate: nu lasa contul in aer. Seteaza next step clar, data si responsabil, apoi revino la vanzare.";
+  }
+
+  if (stage === "Oferta" && (sector.includes("drum") || sector.includes("construct"))) {
+    return "Nu discuta oferta generic. Confirma rolurile, 210h/luna si bugetul complet; apoi trimite proof pack santiere/drumuri si fixeaza data deciziei.";
+  }
+
+  if (stage === "Oferta") {
+    return "Transforma oferta in decizie: cere feedback pe cost total, garantie si start date; propune urmatorul call scurt cu decidentul.";
+  }
+
+  if (stage === "Negociere") {
+    return "Cere un micro-angajament: ce conditie blocheaza semnarea si cine decide final. Nu negocia pretul inainte de clarificarea riscului real.";
+  }
+
+  if (stage === "Meeting") {
+    return "In meeting scoate cele 3 date critice: categorii muncitori, capacitate 210h/luna si buget per categorie. Fara ele, oferta va fi slaba.";
+  }
+
+  if (workers >= 50) {
+    return "Trateaza contul ca strategic: valideaza decidentul economic, durerea operationala si posibilitatea de pilot inainte de oferta mare.";
+  }
+
+  if (risk.includes("high") || risk.includes("critical") || risk.includes("rosu")) {
+    return "Risc de racire: suna inainte de mesaj scris. Cauta blocajul real si propune un pas mic, nu o decizie mare.";
+  }
+
+  if (sector.includes("product")) {
+    return "Leaga discutia de continuitate: 24 luni stabilitate, mai putine inlocuiri si selectie verificata inainte de dosar.";
+  }
+
+  return "Mentine ritmul: confirma problema concreta, costul acceptabil si urmatorul pas calendarizat. Fara data, contul se raceste.";
+}
+
+function getMentorCacheKey(account = {}) {
+  return normalizeCompanyKey(account.company);
+}
+
+function getMentorCellMarkup(account = {}) {
+  const key = getMentorCacheKey(account);
+  const cached = state.mentorRecommendations.get(key);
+  const recommendation = normalizeString(cached?.recommendation) || getActionFocusMentorRecommendation(account);
+  const source = cached?.source === "llm" ? "Mentorship live" : "Fallback inteligent";
+
+  return `
+    <div class="mentor-cell" data-mentor-key="${escapeHtml(key)}" data-mentor-company="${escapeHtml(account.company || "")}">
+      <div class="mentor-cell-title">${escapeHtml(source)}</div>
+      <div class="company-meta">${escapeHtml(recommendation)}</div>
+    </div>
+  `;
+}
+
+async function hydrateActionFocusMentors(focusAccounts = []) {
+  if (!state.apiEnabled) return;
+
+  focusAccounts.slice(0, 12).forEach((account) => {
+    const key = getMentorCacheKey(account);
+    if (!key || state.mentorRecommendations.has(key) || state.mentorRequests.has(key)) return;
+
+    state.mentorRequests.add(key);
+    apiJson(`/api/account-mentor?company=${encodeURIComponent(account.company || "")}`)
+      .then((payload) => {
+        if (payload?.recommendation) {
+          state.mentorRecommendations.set(key, {
+            recommendation: payload.recommendation,
+            source: payload.source || "fallback",
+          });
+          updateMentorCell(key);
+        }
+      })
+      .catch(() => {
+        // Keep deterministic fallback visible; mentorship should never block dashboard execution.
+      })
+      .finally(() => {
+        state.mentorRequests.delete(key);
+      });
+  });
+}
+
+function updateMentorCell(key = "") {
+  const payload = state.mentorRecommendations.get(key);
+  if (!payload || !elements.actionFocusMustWin) return;
+
+  elements.actionFocusMustWin
+    .querySelectorAll(`[data-mentor-key="${key}"]`)
+    .forEach((node) => {
+      const title = node.querySelector(".mentor-cell-title");
+      const copy = node.querySelector(".company-meta");
+      if (title) title.textContent = payload.source === "llm" ? "Mentorship live" : "Fallback inteligent";
+      if (copy) copy.textContent = payload.recommendation;
+    });
+}
+
 function renderActionFocusMustWin(focusAccounts = []) {
   if (!elements.actionFocusMustWin) return;
   if (elements.actionFocusMustWinChip) {
@@ -3095,7 +3198,7 @@ function renderActionFocusMustWin(focusAccounts = []) {
   if (!focusAccounts.length) {
     elements.actionFocusMustWin.innerHTML = `
       <tr>
-        <td colspan="5">
+        <td colspan="6">
           <div class="empty-card">Nu exista inca date de focus. Marcheaza in Airtable Dashboard Focus sau muta conturile in Meeting, Oferta ori Negociere.</div>
         </td>
       </tr>
@@ -3103,7 +3206,8 @@ function renderActionFocusMustWin(focusAccounts = []) {
     return;
   }
 
-  elements.actionFocusMustWin.innerHTML = focusAccounts.slice(0, 12).map((account) => {
+  const visibleAccounts = focusAccounts.slice(0, 12);
+  elements.actionFocusMustWin.innerHTML = visibleAccounts.map((account) => {
     const stageTheme = pipelineStageTheme[normalizePipelineStage(account.pipeline_stage)] || pipelineStageTheme.Contactat;
     const date = account.next_step_date || account.stall_since || account.last_contact;
     const meta = [
@@ -3132,10 +3236,14 @@ function renderActionFocusMustWin(focusAccounts = []) {
             }
           </div>
         </td>
+        <td>
+          ${getMentorCellMarkup(account)}
+        </td>
         <td>${date ? renderNextStepDateCell({ next_step_date: date }) : `<span class="table-muted">-</span>`}</td>
       </tr>
     `;
   }).join("");
+  hydrateActionFocusMentors(visibleAccounts);
 }
 
 function renderActionFocusProtocol() {

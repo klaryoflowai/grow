@@ -2263,6 +2263,27 @@ td {
   line-height: 1.35;
 }
 
+.mentor-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 250px;
+  max-width: 360px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 110, 162, 0.12);
+  background: rgba(228, 238, 247, 0.44);
+}
+
+.mentor-cell-title {
+  color: var(--blue);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .table-muted {
   color: var(--muted);
 }

@@ -612,6 +612,161 @@ function buildApproachSuggestions(context, webSignals, companyNews, sectorNews, 
   return suggestions.slice(0, 3);
 }
 
+function buildFallbackMentorRecommendation(context = {}) {
+  const stage = normalizeString(context.pipelineStage);
+  const sector = normalizeString(context.sector).toLowerCase();
+  const workers = toNumber(context.potentialWorkers);
+
+  if (!context.nextStep && !context.nextStepDate) {
+    return "Prima prioritate: seteaza un next step clar, cu data si responsabil. Fara data, contul se raceste si nu mai poate fi condus comercial.";
+  }
+
+  if (stage === "Oferta" && (sector.includes("drum") || sector.includes("construct"))) {
+    return "Nu discuta oferta generic. Confirma rolurile, 210h/luna si bugetul complet; apoi trimite proof pack santiere/drumuri si fixeaza data deciziei.";
+  }
+
+  if (stage === "Oferta") {
+    return "Transforma oferta in decizie: cere feedback pe cost total, garantie si start date; propune urmatorul call scurt cu decidentul.";
+  }
+
+  if (stage === "Negociere") {
+    return "Cere un micro-angajament: ce conditie blocheaza semnarea si cine decide final. Nu negocia pretul inainte de clarificarea riscului real.";
+  }
+
+  if (stage === "Meeting") {
+    return "In meeting scoate cele 3 date critice: categorii muncitori, capacitate 210h/luna si buget per categorie. Fara ele, oferta va fi slaba.";
+  }
+
+  if (workers >= 50) {
+    return "Trateaza contul ca strategic: valideaza decidentul economic, durerea operationala si posibilitatea de pilot inainte de oferta mare.";
+  }
+
+  return "Mentine ritmul: confirma problema concreta, costul acceptabil si urmatorul pas calendarizat. Fara data, contul se raceste.";
+}
+
+function compactSignals(items = [], limit = 3) {
+  return items.slice(0, limit).map((item) => ({
+    title: item.title || "",
+    source: item.source || "",
+    snippet: truncate(item.snippet || "", 180),
+    link: item.link || "",
+    pubDate: item.pubDate || "",
+  }));
+}
+
+function cleanMentorRecommendation(value = "") {
+  return normalizeString(value)
+    .replace(/^["'„”]+|["'„”]+$/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 420)
+    .trim();
+}
+
+async function callOpenAiMentorRecommendation(input = {}) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return "";
+
+  const model = process.env.OPENAI_MENTOR_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  const system = [
+    "Esti mentorul live al Directorului BD & Sales Grow Moldova.",
+    "Scrii in romana, direct, pragmatic, fara jargon.",
+    "Folosesti contextul Grow: recrutare forta de munca internationala pentru Moldova, focus pe stabilitate 24 luni, garantie/inlocuire, reducerea batailor de cap, calificare prin roluri, 210 ore/luna si buget per categorie.",
+    "Folosesti principii din New Sales Simplified, Challenger Sale, Scaling Up si 4DX: actiune concreta, next step clar, decident, proof asset, validarea durerii reale.",
+    "Nu inventa date. Daca nu exista semnal public, recomanda o ipoteza de validat.",
+    "Returneaza doar o singura recomandare, maxim 2 propozitii, fara markdown.",
+  ].join(" ");
+
+  const user = [
+    "Genereaza recomandarea de mentorship pentru acest cont potential.",
+    "Trebuie sa raspunda la: ce ar trebui sa faca Yuri in urmatorul pas si cum sa abordeze psihologic/comercial clientul.",
+    "Daca exista semnale publice/web, foloseste-le ca ipoteze, nu ca certitudini.",
+    JSON.stringify(input, null, 2).slice(0, 18000),
+  ].join("\n");
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.25,
+        max_tokens: 150,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+
+    if (!response.ok) return "";
+    const payload = await response.json();
+    return cleanMentorRecommendation(payload.choices?.[0]?.message?.content || "");
+  } catch {
+    return "";
+  }
+}
+
+async function buildMentorRecommendation(data = {}, companyName = "") {
+  const context = buildContext(data, companyName);
+  if (!normalizeString(context.company)) {
+    return {
+      found: false,
+      recommendation: "Nu am gasit compania in Airtable. Verifica numele exact sau creeaza recordul in Companies.",
+      source: "fallback",
+    };
+  }
+
+  const [companyNews, sectorNews, webSignals] = await Promise.all([
+    fetchCompanyNews(context.company),
+    fetchSectorNews(context.sector),
+    fetchWebSignals(context.company, context.sector),
+  ]);
+  const companyProfile = buildCompanyProfile(context.company);
+  const officialSiteCandidate = findLikelyOfficialSite(webSignals, companyProfile);
+  let siteProfile = await fetchSiteProfile(officialSiteCandidate);
+  if (!siteProfile) {
+    siteProfile = await probeOfficialSite(context.company);
+  }
+
+  const approachSuggestions = buildApproachSuggestions(context, webSignals, companyNews, sectorNews, siteProfile);
+  const operationalHypotheses = buildOperationalHypotheses(context, siteProfile);
+  const discoveryQuestions = buildDiscoveryQuestions(context, siteProfile);
+  const fallback = buildFallbackMentorRecommendation(context);
+
+  const recommendation = await callOpenAiMentorRecommendation({
+    context,
+    approachSuggestions,
+    operationalHypotheses,
+    discoveryQuestions,
+    publicProfile: siteProfile ? {
+      title: siteProfile.title,
+      description: truncate(siteProfile.description, 220),
+      heading: siteProfile.heading,
+      domain: siteProfile.domain,
+    } : null,
+    companyNews: compactSignals(companyNews),
+    sectorNews: compactSignals(sectorNews, 2),
+    webSignals: compactSignals(webSignals, 3),
+    fallback,
+  });
+
+  return {
+    found: true,
+    recommendation: recommendation || fallback,
+    source: recommendation ? "llm" : "fallback",
+    context: {
+      company: context.company,
+      sector: context.sector,
+      pipelineStage: context.pipelineStage,
+      nextStep: context.nextStep,
+      nextStepDate: context.nextStepDate,
+    },
+  };
+}
+
 function summarizeActivity(activity = {}) {
   const typeLabels = {
     contacted: "Contactat",
@@ -789,4 +944,5 @@ async function buildIntelligenceReport(data = {}, companyName = "", options = {}
 
 module.exports = {
   buildIntelligenceReport,
+  buildMentorRecommendation,
 };
