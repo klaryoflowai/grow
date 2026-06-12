@@ -142,6 +142,42 @@ function matchSignalsToContacts(signals = [], contacts = []) {
   return { matched, unmatched };
 }
 
+const PRIORITY_RANK = { P1: 4, P2: 3, P3: 2, Watch: 1 };
+const SEEN_SIGNALS_WINDOW_DAYS = 7;
+
+function buildSeenKey(company, signalKind) {
+  return `${normalizeCompanyKey(company)}::${signalKind}`;
+}
+
+function loadSeenSignals(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function daysBetween(fromIso, toIso) {
+  const [fy, fm, fd] = fromIso.split("-").map(Number);
+  const [ty, tm, td] = toIso.split("-").map(Number);
+  const fromMs = Date.UTC(fy, fm - 1, fd);
+  const toMs = Date.UTC(ty, tm - 1, td);
+  return Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24));
+}
+
+function classifySignal(signal, seenEntry, todayIso) {
+  if (!seenEntry) return "new";
+
+  const signalRank = PRIORITY_RANK[signal.priority] || 0;
+  const seenRank = PRIORITY_RANK[seenEntry.lastSeenPriority] || 0;
+  if (signalRank > seenRank || signal.score > seenEntry.lastSeenScore) {
+    return "escalated";
+  }
+
+  if (daysBetween(seenEntry.lastSeenDate, todayIso) > SEEN_SIGNALS_WINDOW_DAYS) {
+    return "resurfaced";
+  }
+
+  return "skip";
+}
+
 async function main() {
   loadLocalEnv();
   const args = process.argv.slice(2);
@@ -168,6 +204,10 @@ module.exports = {
   findLatestSignalsFile,
   loadSignals,
   matchSignalsToContacts,
+  buildSeenKey,
+  loadSeenSignals,
+  classifySignal,
+  daysBetween,
 };
 
 if (require.main === module) {

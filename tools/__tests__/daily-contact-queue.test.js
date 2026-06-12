@@ -133,3 +133,54 @@ test("matchSignalsToContacts splits signals into matched and unmatched", () => {
   assert.equal(unmatched.length, 1);
   assert.equal(unmatched[0].company, "Some Other Company");
 });
+
+test("buildSeenKey combines normalized company and signal kind", () => {
+  const { buildSeenKey } = require("../daily-contact-queue");
+  assert.equal(buildSeenKey("Trox BR srl", "company_job_demand"), "troxbrsrl::company_job_demand");
+});
+
+test("loadSeenSignals returns an empty object when the file does not exist", () => {
+  const { loadSeenSignals } = require("../daily-contact-queue");
+  assert.deepEqual(loadSeenSignals("/tmp/does-not-exist-dcq-seen-signals.json"), {});
+});
+
+test("classifySignal returns 'new' when there is no seen entry", () => {
+  const { classifySignal } = require("../daily-contact-queue");
+  const signal = { priority: "P2", score: 60 };
+  assert.equal(classifySignal(signal, undefined, "2026-06-12"), "new");
+});
+
+test("classifySignal returns 'escalated' when priority increases", () => {
+  const { classifySignal } = require("../daily-contact-queue");
+  const signal = { priority: "P1", score: 60 };
+  const seenEntry = { lastSeenDate: "2026-06-11", lastSeenScore: 60, lastSeenPriority: "P2" };
+  assert.equal(classifySignal(signal, seenEntry, "2026-06-12"), "escalated");
+});
+
+test("classifySignal returns 'escalated' when score increases at the same priority", () => {
+  const { classifySignal } = require("../daily-contact-queue");
+  const signal = { priority: "P2", score: 75 };
+  const seenEntry = { lastSeenDate: "2026-06-11", lastSeenScore: 60, lastSeenPriority: "P2" };
+  assert.equal(classifySignal(signal, seenEntry, "2026-06-12"), "escalated");
+});
+
+test("classifySignal returns 'resurfaced' when more than the window has passed", () => {
+  const { classifySignal } = require("../daily-contact-queue");
+  const signal = { priority: "P2", score: 60 };
+  const seenEntry = { lastSeenDate: "2026-06-04", lastSeenScore: 60, lastSeenPriority: "P2" };
+  assert.equal(classifySignal(signal, seenEntry, "2026-06-12"), "resurfaced");
+});
+
+test("classifySignal returns 'skip' when seen recently with no change", () => {
+  const { classifySignal } = require("../daily-contact-queue");
+  const signal = { priority: "P2", score: 60 };
+  const seenEntry = { lastSeenDate: "2026-06-11", lastSeenScore: 60, lastSeenPriority: "P2" };
+  assert.equal(classifySignal(signal, seenEntry, "2026-06-12"), "skip");
+});
+
+test("daysBetween counts whole UTC days between two ISO date strings", () => {
+  const { daysBetween } = require("../daily-contact-queue");
+  assert.equal(daysBetween("2026-06-04", "2026-06-12"), 8);
+  assert.equal(daysBetween("2026-06-11", "2026-06-12"), 1);
+  assert.equal(daysBetween("2026-06-12", "2026-06-12"), 0);
+});
