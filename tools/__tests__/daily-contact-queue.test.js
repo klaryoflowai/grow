@@ -184,3 +184,15 @@ test("daysBetween counts whole UTC days between two ISO date strings", () => {
   assert.equal(daysBetween("2026-06-11", "2026-06-12"), 1);
   assert.equal(daysBetween("2026-06-12", "2026-06-12"), 0);
 });
+
+test("sortMatchedSignals orders by priority rank then score, descending", () => {
+  const { sortMatchedSignals } = require("../daily-contact-queue");
+  const entries = [
+    { contact: { company: "A" }, signal: { priority: "P3", score: 90 } },
+    { contact: { company: "B" }, signal: { priority: "P1", score: 50 } },
+    { contact: { company: "C" }, signal: { priority: "P1", score: 80 } },
+  ];
+
+  const sorted = sortMatchedSignals(entries);
+  assert.deepEqual(sorted.map((e) => e.contact.company), ["C", "B", "A"]);
+});

@@ -178,6 +178,14 @@ function classifySignal(signal, seenEntry, todayIso) {
   return "skip";
 }
 
+function sortMatchedSignals(entries = []) {
+  return [...entries].sort((a, b) => {
+    const rankDiff = (PRIORITY_RANK[b.signal.priority] || 0) - (PRIORITY_RANK[a.signal.priority] || 0);
+    if (rankDiff !== 0) return rankDiff;
+    return (b.signal.score || 0) - (a.signal.score || 0);
+  });
+}
+
 async function main() {
   loadLocalEnv();
   const args = process.argv.slice(2);
@@ -208,6 +216,7 @@ module.exports = {
   loadSeenSignals,
   classifySignal,
   daysBetween,
+  sortMatchedSignals,
 };
 
 if (require.main === module) {
