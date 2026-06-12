@@ -89,3 +89,31 @@ test("resolveContactPriorityCompanyName returns empty string when no company is 
   const fields = { Name: 3 };
   assert.equal(resolveContactPriorityCompanyName(fields, config), "");
 });
+
+test("findLatestSignalsFile picks the most recent file by filename", () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const { findLatestSignalsFile, loadSignals } = require("../daily-contact-queue");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dcq-signals-"));
+  fs.writeFileSync(path.join(dir, "2026-06-08-x.json"), JSON.stringify({ signals: [] }), "utf8");
+  fs.writeFileSync(path.join(dir, "2026-06-10-x.json"), JSON.stringify({ signals: [{ company: "Acme" }] }), "utf8");
+  fs.writeFileSync(path.join(dir, "2026-06-09-x.json"), JSON.stringify({ signals: [] }), "utf8");
+
+  const latest = findLatestSignalsFile(dir);
+  assert.equal(path.basename(latest), "2026-06-10-x.json");
+  assert.deepEqual(loadSignals(latest), [{ company: "Acme" }]);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("findLatestSignalsFile returns an empty string when the directory does not exist", () => {
+  const { findLatestSignalsFile } = require("../daily-contact-queue");
+  assert.equal(findLatestSignalsFile("/tmp/does-not-exist-dcq-market-radar"), "");
+});
+
+test("loadSignals returns an empty array for an empty path", () => {
+  const { loadSignals } = require("../daily-contact-queue");
+  assert.deepEqual(loadSignals(""), []);
+});

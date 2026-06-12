@@ -114,6 +114,20 @@ async function fetchContactPriorityCompanies(config) {
     .filter((row) => row.company);
 }
 
+function findLatestSignalsFile(dir) {
+  if (!fs.existsSync(dir)) return "";
+  const files = fs.readdirSync(dir).filter((name) => name.endsWith(".json"));
+  if (!files.length) return "";
+  files.sort();
+  return path.join(dir, files[files.length - 1]);
+}
+
+function loadSignals(filePath) {
+  if (!filePath) return [];
+  const payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  return Array.isArray(payload.signals) ? payload.signals : [];
+}
+
 async function main() {
   loadLocalEnv();
   const args = process.argv.slice(2);
@@ -137,6 +151,8 @@ module.exports = {
   normalizeCompanyKey,
   findBestMatch,
   resolveContactPriorityCompanyName,
+  findLatestSignalsFile,
+  loadSignals,
 };
 
 if (require.main === module) {
