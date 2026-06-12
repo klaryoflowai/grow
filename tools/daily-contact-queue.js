@@ -87,6 +87,33 @@ function findBestMatch(items = [], companyName = "") {
   return items.find((item) => wanted.includes(normalizeCompanyKey(item.company))) || null;
 }
 
+function resolveContactPriorityCompanyName(fields = {}, config) {
+  const lookupField = config.fields.contactPriority.companyLookup || "Company (from Company)";
+  const lookupValue = normalizeString(fields[lookupField]);
+  if (lookupValue) return lookupValue;
+
+  const directField = config.fields.contactPriority.company;
+  return normalizeString(fields[directField]);
+}
+
+async function fetchContactPriorityCompanies(config) {
+  const records = [];
+  let offset = "";
+  do {
+    const params = new URLSearchParams();
+    params.set("pageSize", "100");
+    if (config.views.contactPriority) params.set("view", config.views.contactPriority);
+    if (offset) params.set("offset", offset);
+    const payload = await airtableRequest(config, config.tables.contactPriority, params);
+    records.push(...(payload.records || []));
+    offset = payload.offset || "";
+  } while (offset);
+
+  return records
+    .map((record) => ({ id: record.id, company: resolveContactPriorityCompanyName(record.fields || {}, config) }))
+    .filter((row) => row.company);
+}
+
 async function main() {
   loadLocalEnv();
   const args = process.argv.slice(2);
@@ -109,6 +136,7 @@ module.exports = {
   loadEnvFile,
   normalizeCompanyKey,
   findBestMatch,
+  resolveContactPriorityCompanyName,
 };
 
 if (require.main === module) {

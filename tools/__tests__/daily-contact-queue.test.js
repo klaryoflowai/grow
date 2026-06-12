@@ -59,3 +59,33 @@ test("findBestMatch returns null when nothing matches or company name is empty",
   assert.equal(findBestMatch(items, "Unrelated Company"), null);
   assert.equal(findBestMatch(items, ""), null);
 });
+
+test("resolveContactPriorityCompanyName reads the 'Company (from Company)' lookup field", () => {
+  const { getAirtableConfig } = require("../../api/_lib/config");
+  const { resolveContactPriorityCompanyName } = require("../daily-contact-queue");
+  const config = getAirtableConfig();
+  const fields = {
+    Name: 1,
+    "Sector (from Company)": ["Textile"],
+    "Stadiu Pipeline (from Company)": ["Necontactat"],
+    Company: ["rec6KC48iE1IwCIBX"],
+    "Company (from Company)": ["Trox BR srl"],
+  };
+  assert.equal(resolveContactPriorityCompanyName(fields, config), "Trox BR srl");
+});
+
+test("resolveContactPriorityCompanyName trims trailing whitespace from the lookup value", () => {
+  const { getAirtableConfig } = require("../../api/_lib/config");
+  const { resolveContactPriorityCompanyName } = require("../daily-contact-queue");
+  const config = getAirtableConfig();
+  const fields = { "Company (from Company)": ["KABLEM-MLD-IT\n"] };
+  assert.equal(resolveContactPriorityCompanyName(fields, config), "KABLEM-MLD-IT");
+});
+
+test("resolveContactPriorityCompanyName returns empty string when no company is linked", () => {
+  const { getAirtableConfig } = require("../../api/_lib/config");
+  const { resolveContactPriorityCompanyName } = require("../daily-contact-queue");
+  const config = getAirtableConfig();
+  const fields = { Name: 3 };
+  assert.equal(resolveContactPriorityCompanyName(fields, config), "");
+});
