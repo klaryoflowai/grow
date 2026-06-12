@@ -128,6 +128,20 @@ function loadSignals(filePath) {
   return Array.isArray(payload.signals) ? payload.signals : [];
 }
 
+function matchSignalsToContacts(signals = [], contacts = []) {
+  const matched = [];
+  const unmatched = [];
+  signals.forEach((signal) => {
+    const contact = findBestMatch(contacts, signal.company);
+    if (contact) {
+      matched.push({ signal, contact });
+    } else {
+      unmatched.push(signal);
+    }
+  });
+  return { matched, unmatched };
+}
+
 async function main() {
   loadLocalEnv();
   const args = process.argv.slice(2);
@@ -153,6 +167,7 @@ module.exports = {
   resolveContactPriorityCompanyName,
   findLatestSignalsFile,
   loadSignals,
+  matchSignalsToContacts,
 };
 
 if (require.main === module) {

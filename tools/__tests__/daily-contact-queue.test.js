@@ -117,3 +117,19 @@ test("loadSignals returns an empty array for an empty path", () => {
   const { loadSignals } = require("../daily-contact-queue");
   assert.deepEqual(loadSignals(""), []);
 });
+
+test("matchSignalsToContacts splits signals into matched and unmatched", () => {
+  const { matchSignalsToContacts } = require("../daily-contact-queue");
+  const contacts = [{ id: "rec1", company: "Trox BR srl" }];
+  const signals = [
+    { company: "Trox BR SRL", signalKind: "company_job_demand" },
+    { company: "Some Other Company", signalKind: "company_job_demand" },
+  ];
+
+  const { matched, unmatched } = matchSignalsToContacts(signals, contacts);
+  assert.equal(matched.length, 1);
+  assert.equal(matched[0].contact.company, "Trox BR srl");
+  assert.equal(matched[0].signal.company, "Trox BR SRL");
+  assert.equal(unmatched.length, 1);
+  assert.equal(unmatched[0].company, "Some Other Company");
+});
