@@ -66,6 +66,27 @@ async function airtableRequest(config, table, params = new URLSearchParams()) {
   return response.json();
 }
 
+function normalizeCompanyKey(value = "") {
+  return normalizeString(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function findBestMatch(items = [], companyName = "") {
+  const wanted = normalizeCompanyKey(companyName);
+  if (!wanted) return null;
+
+  const exact = items.find((item) => normalizeCompanyKey(item.company) === wanted);
+  if (exact) return exact;
+
+  const includes = items.find((item) => normalizeCompanyKey(item.company).includes(wanted));
+  if (includes) return includes;
+
+  return items.find((item) => wanted.includes(normalizeCompanyKey(item.company))) || null;
+}
+
 async function main() {
   loadLocalEnv();
   const args = process.argv.slice(2);
@@ -86,6 +107,8 @@ async function main() {
 
 module.exports = {
   loadEnvFile,
+  normalizeCompanyKey,
+  findBestMatch,
 };
 
 if (require.main === module) {

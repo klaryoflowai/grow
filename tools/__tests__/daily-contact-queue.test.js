@@ -23,3 +23,39 @@ test("loadEnvFile sets process.env from a file without overwriting existing vars
   delete process.env.DCQ_TEST_EXISTING;
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("normalizeCompanyKey strips diacritics, case and punctuation", () => {
+  const { normalizeCompanyKey } = require("../daily-contact-queue");
+  assert.equal(normalizeCompanyKey("Trox BR srl"), "troxbrsrl");
+  assert.equal(normalizeCompanyKey("KABLEM-MLD-IT\n"), "kablemmldit");
+  assert.equal(normalizeCompanyKey("Întreprinderea Mixtă S.R.L."), "intreprindereamixtasrl");
+  assert.equal(normalizeCompanyKey(""), "");
+});
+
+test("findBestMatch finds an exact match first", () => {
+  const { findBestMatch } = require("../daily-contact-queue");
+  const items = [{ company: "Trox BR srl" }, { company: "KABLEM-MLD-IT" }];
+  const match = findBestMatch(items, "Trox BR SRL");
+  assert.equal(match.company, "Trox BR srl");
+});
+
+test("findBestMatch falls back to a contains match", () => {
+  const { findBestMatch } = require("../daily-contact-queue");
+  const items = [{ company: "Magnetec Components SRL" }];
+  const match = findBestMatch(items, "Magnetec Components");
+  assert.equal(match.company, "Magnetec Components SRL");
+});
+
+test("findBestMatch falls back to a reverse-contains match", () => {
+  const { findBestMatch } = require("../daily-contact-queue");
+  const items = [{ company: "Magnetec" }];
+  const match = findBestMatch(items, "Magnetec Components SRL");
+  assert.equal(match.company, "Magnetec");
+});
+
+test("findBestMatch returns null when nothing matches or company name is empty", () => {
+  const { findBestMatch } = require("../daily-contact-queue");
+  const items = [{ company: "Trox BR srl" }];
+  assert.equal(findBestMatch(items, "Unrelated Company"), null);
+  assert.equal(findBestMatch(items, ""), null);
+});
