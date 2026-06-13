@@ -186,6 +186,82 @@ function sortMatchedSignals(entries = []) {
   });
 }
 
+function buildReport({ dateIso, contacts = [], matchedEntries = [], unmatchedSignals = [], signalsFileFound = true }) {
+  const lines = [];
+  lines.push(`# Coada de contactare zilnica — ${dateIso}`);
+  lines.push("");
+
+  if (!signalsFileFound) {
+    lines.push("_Nu exista fisier de semnale pentru azi — verifica scraper-ul._");
+    lines.push("");
+  }
+  if (!contacts.length) {
+    lines.push("_Contact Priority este goala — nimic de potrivit cu semnalele._");
+    lines.push("");
+  }
+
+  lines.push("## Contactează azi — semnal nou");
+  lines.push("");
+  if (!matchedEntries.length) {
+    lines.push("_Niciun semnal nou pentru companiile din Contact Priority._");
+    lines.push("");
+  } else {
+    const byCompany = new Map();
+    matchedEntries.forEach((entry) => {
+      const key = entry.contact.company;
+      if (!byCompany.has(key)) byCompany.set(key, []);
+      byCompany.get(key).push(entry);
+    });
+
+    byCompany.forEach((entries, company) => {
+      lines.push(`### ${company}`);
+      entries.forEach(({ signal, status }) => {
+        const escalated = status === "escalated" ? " (↑ escalat)" : "";
+        const reasons = (signal.reasons || []).join("; ");
+        lines.push(
+          `- **${signal.priority}** (scor ${signal.score}, ${signal.signalKind})${escalated}: ${reasons} — ${signal.outreachAngle} ([sursa](${signal.url}))`
+        );
+      });
+      lines.push("");
+    });
+  }
+
+  lines.push("## Contact Priority — fără semnal nou");
+  lines.push("");
+  if (!contacts.length) {
+    lines.push("_Nicio companie in Contact Priority._");
+    lines.push("");
+  } else {
+    const coveredKeys = new Set(matchedEntries.map((entry) => normalizeCompanyKey(entry.contact.company)));
+    const remaining = contacts.filter((contact) => !coveredKeys.has(normalizeCompanyKey(contact.company)));
+    if (!remaining.length) {
+      lines.push("_Toate companiile din Contact Priority au semnal nou astazi._");
+      lines.push("");
+    } else {
+      remaining.forEach((contact) => lines.push(`- ${contact.company}`));
+      lines.push("");
+    }
+  }
+
+  lines.push("## Semnale noi — companii în afara Contact Priority");
+  lines.push("");
+  const newLeads = unmatchedSignals.filter((signal) => signal.priority === "P1" || signal.priority === "P2");
+  if (!newLeads.length) {
+    lines.push("_Niciun semnal nou (P1/P2) pentru companii din afara Contact Priority._");
+    lines.push("");
+  } else {
+    newLeads.forEach((signal) => {
+      const reasons = (signal.reasons || []).join("; ");
+      lines.push(
+        `- **${signal.company}** — **${signal.priority}** (scor ${signal.score}, ${signal.signalKind}): ${reasons} — ${signal.outreachAngle} ([sursa](${signal.url}))`
+      );
+    });
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
 async function main() {
   loadLocalEnv();
   const args = process.argv.slice(2);
@@ -217,6 +293,7 @@ module.exports = {
   classifySignal,
   daysBetween,
   sortMatchedSignals,
+  buildReport,
 };
 
 if (require.main === module) {

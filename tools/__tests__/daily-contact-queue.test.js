@@ -196,3 +196,114 @@ test("sortMatchedSignals orders by priority rank then score, descending", () => 
   const sorted = sortMatchedSignals(entries);
   assert.deepEqual(sorted.map((e) => e.contact.company), ["C", "B", "A"]);
 });
+
+test("buildReport groups new signals by company under 'semnal nou'", () => {
+  const { buildReport } = require("../daily-contact-queue");
+  const report = buildReport({
+    dateIso: "2026-06-12",
+    contacts: [
+      { id: "rec1", company: "Trox BR srl" },
+      { id: "rec2", company: "KABLEM-MLD-IT" },
+    ],
+    matchedEntries: [
+      {
+        contact: { id: "rec1", company: "Trox BR srl" },
+        signal: {
+          company: "Trox BR SRL",
+          signalKind: "company_job_demand",
+          priority: "P1",
+          score: 85,
+          reasons: ["3 joburi noi postate"],
+          outreachAngle: "Ofera suport pentru recrutare rapida",
+          url: "https://example.com/trox",
+        },
+        status: "new",
+      },
+    ],
+    unmatchedSignals: [],
+    signalsFileFound: true,
+  });
+
+  assert.match(report, /## Contactează azi — semnal nou/);
+  assert.match(report, /### Trox BR srl/);
+  assert.match(report, /\*\*P1\*\* \(scor 85, company_job_demand\): 3 joburi noi postate/);
+  assert.match(report, /## Contact Priority — fără semnal nou/);
+  assert.match(report, /- KABLEM-MLD-IT/);
+});
+
+test("buildReport marks escalated signals with an escalation note", () => {
+  const { buildReport } = require("../daily-contact-queue");
+  const report = buildReport({
+    dateIso: "2026-06-12",
+    contacts: [{ id: "rec1", company: "Trox BR srl" }],
+    matchedEntries: [
+      {
+        contact: { id: "rec1", company: "Trox BR srl" },
+        signal: {
+          company: "Trox BR SRL",
+          signalKind: "company_job_demand",
+          priority: "P1",
+          score: 90,
+          reasons: ["Scor crescut fata de ieri"],
+          outreachAngle: "Contacteaza acum, urgenta in crestere",
+          url: "https://example.com/trox",
+        },
+        status: "escalated",
+      },
+    ],
+    unmatchedSignals: [],
+    signalsFileFound: true,
+  });
+
+  assert.match(report, /\(↑ escalat\)/);
+});
+
+test("buildReport lists only P1/P2 unmatched leads and notes an empty Contact Priority", () => {
+  const { buildReport } = require("../daily-contact-queue");
+  const report = buildReport({
+    dateIso: "2026-06-12",
+    contacts: [],
+    matchedEntries: [],
+    unmatchedSignals: [
+      {
+        company: "Acme SRL",
+        signalKind: "company_expansion",
+        priority: "P1",
+        score: 80,
+        reasons: ["Deschide birou nou"],
+        outreachAngle: "Propune servicii de recrutare pentru noul birou",
+        url: "https://example.com/acme",
+      },
+      {
+        company: "Beta SRL",
+        signalKind: "company_job_demand",
+        priority: "P3",
+        score: 40,
+        reasons: ["1 job nou"],
+        outreachAngle: "Monitorizeaza",
+        url: "https://example.com/beta",
+      },
+    ],
+    signalsFileFound: true,
+  });
+
+  assert.match(report, /_Contact Priority este goala — nimic de potrivit cu semnalele\._/);
+  assert.match(report, /_Nicio companie in Contact Priority\._/);
+  assert.match(report, /\*\*Acme SRL\*\* — \*\*P1\*\*/);
+  assert.doesNotMatch(report, /Beta SRL/);
+});
+
+test("buildReport notes when no market-radar signals file was found", () => {
+  const { buildReport } = require("../daily-contact-queue");
+  const report = buildReport({
+    dateIso: "2026-06-12",
+    contacts: [{ id: "rec1", company: "Trox BR srl" }],
+    matchedEntries: [],
+    unmatchedSignals: [],
+    signalsFileFound: false,
+  });
+
+  assert.match(report, /_Nu exista fisier de semnale pentru azi — verifica scraper-ul\._/);
+  assert.match(report, /_Niciun semnal nou pentru companiile din Contact Priority\._/);
+  assert.match(report, /- Trox BR srl/);
+});
