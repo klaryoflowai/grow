@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { getCompaniesData } = require("./_lib/airtable");
 const { sendError, setNoStore } = require("./_lib/http");
 
 const LOCAL_RADAR_DIR = path.join(__dirname, "..", "scraper", "output", "market-radar");
@@ -848,9 +849,10 @@ function readSeededSignals() {
   };
 }
 
-function buildPayload(data) {
+function buildPayload(data, pipelineStageByCompany = new Map()) {
   const signals = dedupeSignals([...(data?.signals || [])].map(enrichPredatorSignal))
     .filter(shouldExposeInDashboard)
+    .filter((signal) => !isAlreadyInPipeline(signal, pipelineStageByCompany))
     .sort((left, right) => (
       rankPriority(left.priority) - rankPriority(right.priority)
       || (right.score || 0) - (left.score || 0)
@@ -917,6 +919,23 @@ function companyDedupeKey(value = "") {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+const UNCONTACTED_PIPELINE_STAGES = new Set(["", "Necontactat"]);
+
+function buildPipelineStageIndex(companies = []) {
+  const index = new Map();
+  for (const company of companies) {
+    const key = companyDedupeKey(company.company);
+    if (key) index.set(key, company.pipeline_stage || "");
+  }
+  return index;
+}
+
+function isAlreadyInPipeline(signal = {}, pipelineStageByCompany = new Map()) {
+  const key = companyDedupeKey(signal.target_company || signal.company);
+  if (!key || !pipelineStageByCompany.has(key)) return false;
+  return !UNCONTACTED_PIPELINE_STAGES.has(pipelineStageByCompany.get(key));
+}
+
 module.exports = async function handler(request, response) {
   setNoStore(response);
   if (request.method !== "GET") {
@@ -967,6 +986,13 @@ module.exports = async function handler(request, response) {
       warnings.push(`Snapshotul Predator local nu a putut fi citit: ${error.message}`);
     }
 
+    let pipelineStageByCompany = new Map();
+    try {
+      pipelineStageByCompany = buildPipelineStageIndex(await getCompaniesData());
+    } catch (error) {
+      warnings.push(`Nu am putut citi Companii din Airtable pentru filtrarea Predator: ${error.message}`);
+    }
+
     const hasFallbackSignals = mtenderSignals.length
       || (seededData?.signals || []).length
       || (pressData?.signals || []).length;
@@ -986,7 +1012,7 @@ module.exports = async function handler(request, response) {
         .join("+") || "none",
       signals: [...mtenderSignals, ...(seededData?.signals || []), ...(pressData?.signals || []), ...(base.signals || [])],
       warnings: [...warnings, ...(pressData?.warnings || []), ...(base.warnings || [])],
-    }));
+    }, pipelineStageByCompany));
   } catch (error) {
     sendError(response, error);
   }
