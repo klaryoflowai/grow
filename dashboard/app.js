@@ -815,7 +815,7 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        const result = await apiJson("/api/lead-measures-daily", {
+        const result = await apiJson("/api/scorecard-data?type=lead-measures", {
           method: "PUT",
           body: serializeLeadMeasuresPayload(record),
         });
@@ -858,7 +858,7 @@ function bindEvents() {
 
     if (state.apiEnabled) {
       try {
-        const result = await apiJson("/api/scorecard-trend", {
+        const result = await apiJson("/api/scorecard-data?type=trend", {
           method: "PUT",
           body: serializeDailyScorePayload(record),
         });
