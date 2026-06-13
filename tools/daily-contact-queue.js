@@ -277,7 +277,61 @@ async function main() {
     );
   }
 
-  console.log("Config OK. Restul fluxului va fi adaugat in task-urile urmatoare.");
+  const repoRoot = path.resolve(__dirname, "..");
+  const outDir = path.join(repoRoot, "output", "daily-contact-queue");
+  const seenSignalsPath = path.join(outDir, "seen-signals.json");
+  const signalsDir = path.join(repoRoot, "scraper", "output", "market-radar");
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const contacts = await fetchContactPriorityCompanies(config);
+
+  const signalsFile = findLatestSignalsFile(signalsDir);
+  const signalsFileFound = Boolean(signalsFile);
+  const signals = loadSignals(signalsFile);
+
+  const { matched, unmatched } = matchSignalsToContacts(signals, contacts);
+
+  const seenSignals = loadSeenSignals(seenSignalsPath);
+  const matchedWithStatus = matched.map((entry) => {
+    const key = buildSeenKey(entry.contact.company, entry.signal.signalKind);
+    const status = classifySignal(entry.signal, seenSignals[key], todayIso);
+    return { ...entry, status, seenKey: key };
+  });
+
+  const includedEntries = matchedWithStatus.filter((entry) => entry.status !== "skip");
+  const sortedIncluded = sortMatchedSignals(includedEntries);
+
+  const report = buildReport({
+    dateIso: todayIso,
+    contacts,
+    matchedEntries: sortedIncluded,
+    unmatchedSignals: unmatched,
+    signalsFileFound,
+  });
+
+  includedEntries.forEach((entry) => {
+    seenSignals[entry.seenKey] = {
+      lastSeenDate: todayIso,
+      lastSeenScore: entry.signal.score,
+      lastSeenPriority: entry.signal.priority,
+    };
+  });
+
+  ensureDir(outDir);
+  const reportPath = path.join(outDir, `${todayIso}.md`);
+  fs.writeFileSync(reportPath, report, "utf8");
+  writeJson(seenSignalsPath, seenSignals);
+
+  console.log(JSON.stringify({
+    reportPath,
+    seenSignalsPath,
+    contacts: contacts.length,
+    signals: signals.length,
+    matched: matched.length,
+    unmatched: unmatched.length,
+    included: sortedIncluded.length,
+    newLeads: unmatched.filter((signal) => signal.priority === "P1" || signal.priority === "P2").length,
+  }, null, 2));
 }
 
 module.exports = {
