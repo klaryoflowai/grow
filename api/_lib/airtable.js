@@ -628,15 +628,16 @@ function resolveContactPriorityCompany(fields, config, companyNameById) {
   const direct = fields[config.fields.contactPriority.company];
   if (typeof direct === "string") return normalizeString(direct);
 
-  const lookupField = config.fields.contactPriority.companyLookup;
-  if (lookupField) {
-    const lookupValue = fields[lookupField];
+  const lookupValue = (config.fields.contactPriority.companyLookup && fields[config.fields.contactPriority.companyLookup])
+    || fields["Company (from Company)"];
+  if (lookupValue) {
     const lookupString = normalizeString(Array.isArray(lookupValue) ? lookupValue[0] : lookupValue);
     if (lookupString) return lookupString;
   }
 
-  if (Array.isArray(direct)) {
-    const resolved = direct.map((id) => companyNameById.get(id)).find(Boolean);
+  const linkedIds = Array.isArray(direct) ? direct : fields["Company"];
+  if (Array.isArray(linkedIds)) {
+    const resolved = linkedIds.map((id) => companyNameById.get(id)).find(Boolean);
     if (resolved) return resolved;
   }
 
@@ -669,11 +670,13 @@ function normalizeContactPriorityRecord(record, config, companyNameById, positio
         "Factor de decizie",
         "Factor De Decizie",
         "Factor de Decizie (Nume/Funcție)",
-        "Factor de Decizie (Nume/Functie)"
+        "Factor de Decizie (Nume/Functie)",
+        "Factor de Decizie (Nume/Funcție) (from Company)",
+        "Factor de Decizie (Nume/Functie) (from Company)"
       )
     ),
     mobile: normalizeString(
-      readField(config.fields.contactPriority.mobile, "Mobil", "Mobile", "Telefon", "Tel")
+      readField(config.fields.contactPriority.mobile, "Mobil", "Mobile", "Telefon", "Tel", "Mobil (from Company)")
     ),
     contact_person: normalizeString(
       readField(config.fields.contactPriority.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")
