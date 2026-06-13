@@ -30,7 +30,7 @@ const keyLeadTargets = {
 const scorecardTargets = {
   powerThree: {
     newContractWorkersMtd: 100,
-    dream100P1Prospects: 50,
+    weeklyNewCompaniesContacted: 50,
     salesVelocityDays: 21,
   },
   leadMeasures: {
@@ -60,17 +60,17 @@ const wigPlan = {
     start: "2026-04-20",
     end: "2026-06-30",
     contractsTarget: 5,
-    minWorkersPerContract: 15,
     prospectsPerWeek: 50,
     meetingsPerWeek: 5,
     followUpTarget: 100,
   },
 };
 
-const appBuild = "20260602a";
+const appBuild = "20260610c";
 const autoRefreshIntervalMs = 60 * 1000;
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 const firstContactTransitionPrefix = "Tranzitie prima contactare";
+const accountMentorEndpointEnabled = false;
 
 const activityTheme = {
   new: { label: "Nou", color: "#94a3b8", bg: "rgba(148,163,184,0.14)" },
@@ -175,7 +175,7 @@ const storageKeys = {
 };
 
 const defaultDashboardPage = "action-focus";
-const dashboardPages = new Set(["action-focus", "overview", "scorecard", "checklist", "pipeline", "execution", "settings"]);
+const dashboardPages = new Set(["action-focus", "predator", "overview", "scorecard", "checklist", "pipeline", "execution", "settings"]);
 const actionFocusNamedOrder = [
   "VASTAVIT",
   "Rutador",
@@ -202,6 +202,7 @@ const state = {
     scorecards: [],
     dailyScores: [],
     leadMeasuresDaily: [],
+    predator: createEmptyPredatorState(),
   },
   manualData: loadManualData(),
   manualScorecards: loadScorecards(),
@@ -210,6 +211,7 @@ const state = {
   activities: [],
   dailyScores: [],
   leadMeasuresDaily: [],
+  predator: createEmptyPredatorState(),
   scorecards: [],
   scorecard: createEmptyScorecard(),
   search: "",
@@ -249,6 +251,18 @@ const elements = {
   actionFocusProtocol: document.getElementById("action-focus-protocol"),
   actionFocusSector: document.getElementById("action-focus-sector"),
   actionFocusHq: document.getElementById("action-focus-hq"),
+  predatorSourceChip: document.getElementById("predator-source-chip"),
+  predatorSyncChip: document.getElementById("predator-sync-chip"),
+  predatorStats: document.getElementById("predator-stats"),
+  predatorTopChip: document.getElementById("predator-top-chip"),
+  predatorTopList: document.getElementById("predator-top-list"),
+  predatorCommand: document.getElementById("predator-command"),
+  predatorWinnersChip: document.getElementById("predator-winners-chip"),
+  predatorTenderWinners: document.getElementById("predator-tender-winners"),
+  predatorCompaniesChip: document.getElementById("predator-companies-chip"),
+  predatorCompanyList: document.getElementById("predator-company-list"),
+  predatorPressChip: document.getElementById("predator-press-chip"),
+  predatorPressList: document.getElementById("predator-press-list"),
   scorecardWeekChip: document.getElementById("scorecard-week-chip"),
   scorecardSourceChip: document.getElementById("scorecard-source-chip"),
   checklistSnapshot: document.getElementById("checklist-snapshot"),
@@ -1048,6 +1062,7 @@ async function refreshData(options = {}) {
     state.sourceData.leadMeasuresDaily = Array.isArray(payload.leadMeasuresDaily)
       ? payload.leadMeasuresDaily.map((row) => normalizeRow("leadMeasuresDaily", row))
       : [];
+    await refreshPredatorData({ fresh });
 
     if (payload.targets) {
       state.targets = normalizeTargets(payload.targets);
@@ -1078,8 +1093,20 @@ async function refreshData(options = {}) {
     state.sourceMode = "fallback";
     state.connection = null;
     state.warnings = [];
-    state.sourceData = { accounts: [], contactPriority: [], activities: [], scorecards: [], dailyScores: [], leadMeasuresDaily: [] };
+    state.sourceData = {
+      accounts: [],
+      contactPriority: [],
+      activities: [],
+      scorecards: [],
+      dailyScores: [],
+      leadMeasuresDaily: [],
+      predator: createEmptyPredatorState(),
+    };
+    state.predator = createEmptyPredatorState({
+      warning: "API-ul Vercel nu raspunde; Predator nu poate citi semnalele live.",
+    });
     state.targets = loadTargets();
+    await refreshPredatorData({ fresh });
     refreshCombinedData();
     hydrateScorecardForm();
     hydrateDailyTrendForm();
@@ -1095,6 +1122,22 @@ async function refreshData(options = {}) {
   } finally {
     state.refreshInFlight = false;
     renderSyncPill();
+  }
+}
+
+async function refreshPredatorData(options = {}) {
+  const { fresh = false } = options;
+  try {
+    const payload = await apiJson(fresh ? "/api/predator?fresh=1" : "/api/predator");
+    const normalized = normalizePredatorPayload(payload);
+    state.sourceData.predator = normalized;
+    state.predator = normalized;
+  } catch (error) {
+    const fallback = createEmptyPredatorState({
+      warning: `Predator nu poate citi semnalele: ${error.message}`,
+    });
+    state.sourceData.predator = fallback;
+    state.predator = fallback;
   }
 }
 
@@ -1509,6 +1552,102 @@ function createEmptyLeadMeasureDaily(date = getTodayIsoDate()) {
     followups: 0,
     notes: "",
   };
+}
+
+function createEmptyPredatorState(options = {}) {
+  return {
+    configured: false,
+    source: "none",
+    table: "",
+    file: "",
+    meta: {},
+    summary: {
+      total: 0,
+      contactable: 0,
+      companies: 0,
+      p1: 0,
+      p2: 0,
+      tender_winners: 0,
+      press_signals: 0,
+      market_signals: 0,
+      watchlist: 0,
+      top_score: 0,
+    },
+    signals: [],
+    warnings: options.warning ? [options.warning] : [],
+  };
+}
+
+function normalizePredatorPayload(payload = {}) {
+  const signals = Array.isArray(payload.signals)
+    ? payload.signals.map(normalizePredatorSignal).filter((signal) => signal.title || signal.target_company)
+    : [];
+
+  return {
+    ...createEmptyPredatorState(),
+    configured: Boolean(payload.configured),
+    source: payload.source || "none",
+    table: payload.table || "",
+    file: payload.file || "",
+    meta: payload.meta || {},
+    summary: payload.summary || createEmptyPredatorState().summary,
+    signals,
+    warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
+  };
+}
+
+function normalizePredatorSignal(row = {}) {
+  return {
+    id: row.id || "",
+    signal_key: row.signal_key || row.signalKey || "",
+    type: row.type || "",
+    signal_kind: row.signal_kind || row.signalKind || row.type || "",
+    signal_channel: row.signal_channel || row.signalChannel || "",
+    signal_label: row.signal_label || row.signalLabel || "",
+    predator_bucket: row.predator_bucket || row.predatorBucket || "",
+    source: row.source || "",
+    source_tier: row.source_tier || row.sourceTier || "",
+    company: row.company || "",
+    target_company: row.target_company || row.targetCompany || row.winner || row.company || row.buyer || "",
+    job_count: toNumber(row.job_count ?? row.jobCount ?? 0),
+    job_titles: Array.isArray(row.job_titles) ? row.job_titles : splitTextList(row.job_titles || row.jobTitles || ""),
+    evidence_urls: Array.isArray(row.evidence_urls) ? row.evidence_urls : splitTextList(row.evidence_urls || row.evidenceUrls || row.url || ""),
+    buyer: row.buyer || "",
+    winner: row.winner || "",
+    title: row.title || "",
+    sector: row.sector || "",
+    location: row.location || "",
+    score: toNumber(row.score || 0),
+    priority: row.priority || priorityFromPredatorScore(toNumber(row.score || 0)),
+    url: row.url || "",
+    posted_at: row.posted_at || row.postedAt || "",
+    deadline: row.deadline || "",
+    estimated_value_mdl: toNumber(row.estimated_value_mdl ?? row.estimatedValueMdl ?? 0),
+    awarded_value_mdl: toNumber(row.awarded_value_mdl ?? row.awardedValueMdl ?? 0),
+    award_status: row.award_status || row.awardStatus || "",
+    cpv: row.cpv || "",
+    procedure_type: row.procedure_type || row.procedureType || "",
+    award_criteria: row.award_criteria || row.awardCriteria || "",
+    participants: toNumber(row.participants || 0),
+    lots_detail: row.lots_detail || row.lotsDetail || "",
+    reasons: Array.isArray(row.reasons) ? row.reasons : splitTextList(row.reasons || ""),
+    outreach_angle: row.outreach_angle || row.outreachAngle || "",
+    scraped_at: row.scraped_at || row.scrapedAt || "",
+  };
+}
+
+function splitTextList(value = "") {
+  return normalizeString(value)
+    .split(/\n|;|\|/)
+    .map(normalizeString)
+    .filter(Boolean);
+}
+
+function priorityFromPredatorScore(score = 0) {
+  if (score >= 75) return "P1";
+  if (score >= 55) return "P2";
+  if (score >= 35) return "P3";
+  return "Watch";
 }
 
 function loadScorecards() {
@@ -2854,6 +2993,7 @@ function render() {
   renderHeroNextContact();
   renderPacingCard();
   renderActionFocus();
+  renderPredator();
   renderChecklist();
   renderScorecardDashboard();
   renderTrend();
@@ -3182,7 +3322,7 @@ function getMentorCellMarkup(account = {}) {
 }
 
 async function hydrateActionFocusMentors(focusAccounts = []) {
-  if (!state.apiEnabled) return;
+  if (!state.apiEnabled || !accountMentorEndpointEnabled) return;
 
   focusAccounts.slice(0, 12).forEach((account) => {
     const key = getMentorCacheKey(account);
@@ -3435,6 +3575,382 @@ function renderActionFocus() {
   renderActionFocusHq(metrics);
 }
 
+function isPredatorTenderWatch(signal = {}) {
+  return signal.type === "tender" && !signal.winner;
+}
+
+function getPredatorBucket(signal = {}) {
+  const explicit = normalizeString(signal.predator_bucket || signal.signal_channel || signal.signal_label).toLowerCase();
+  if (explicit.includes("mtender")) return "mtender_won";
+  if (explicit.includes("press")) return "press_signal";
+  if (signal.signal_kind === "awarded_tender" || (signal.type === "tender" && signal.winner)) return "mtender_won";
+  if (["press", "news", "project", "private_project"].includes(normalizeString(signal.type).toLowerCase())) return "press_signal";
+  if (normalizeString(signal.signal_kind).toLowerCase().includes("project")) return "press_signal";
+  if (normalizeString(signal.source).toLowerCase().includes("press")) return "press_signal";
+  return "market_signal";
+}
+
+function getPredatorSignalLabel(signal = {}) {
+  const explicit = normalizeString(signal.signal_label);
+  if (explicit) return explicit;
+  const bucket = getPredatorBucket(signal);
+  if (bucket === "mtender_won") return "MTender Won";
+  if (bucket === "press_signal") return "Press Signal";
+  return "Market Signal";
+}
+
+function isPredatorTenderWinner(signal = {}) {
+  return getPredatorBucket(signal) === "mtender_won" || Boolean(signal.winner) || signal.signal_kind === "awarded_tender";
+}
+
+function isPredatorPressSignal(signal = {}) {
+  return getPredatorBucket(signal) === "press_signal";
+}
+
+function isPredatorContactable(signal = {}) {
+  if (isPredatorTenderWatch(signal)) return false;
+  return Boolean(signal.target_company || signal.company);
+}
+
+function getPredatorTopSignals(limit = 8) {
+  return [...(state.predator.signals || [])]
+    .filter(isPredatorContactable)
+    .sort(comparePredatorSignals)
+    .slice(0, limit);
+}
+
+function getPredatorTenderWinners(limit = Number.POSITIVE_INFINITY) {
+  return [...(state.predator.signals || [])]
+    .filter(isPredatorTenderWinner)
+    .sort(comparePredatorSignals)
+    .slice(0, limit);
+}
+
+function getPredatorPressSignals(limit = 6) {
+  return [...(state.predator.signals || [])]
+    .filter(isPredatorPressSignal)
+    .filter(isPredatorContactable)
+    .sort(comparePredatorSignals)
+    .slice(0, limit);
+}
+
+function comparePredatorSignals(left = {}, right = {}) {
+  const priorityRank = { P1: 0, P2: 1, P3: 2, Watch: 3 };
+  const priorityDiff = (priorityRank[left.priority] ?? 4) - (priorityRank[right.priority] ?? 4);
+  if (priorityDiff !== 0) return priorityDiff;
+  const scoreDiff = toNumber(right.score) - toNumber(left.score);
+  if (scoreDiff !== 0) return scoreDiff;
+  const valueDiff = getPredatorSignalValue(right) - getPredatorSignalValue(left);
+  if (valueDiff !== 0) return valueDiff;
+  return normalizeString(left.target_company).localeCompare(normalizeString(right.target_company), "ro");
+}
+
+function getPredatorSignalValue(signal = {}) {
+  return toNumber(signal.awarded_value_mdl || signal.estimated_value_mdl || 0);
+}
+
+function getPredatorCompanyKey(name = "") {
+  return normalizeString(name)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\b(s\.?r\.?l\.?|sa|s\.?a\.?|i\.?m\.?|s\.?c\.?)\b/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function getPredatorCompanyRows() {
+  const rowsByKey = new Map();
+  const signals = [...(state.predator.signals || [])]
+    .filter(isPredatorContactable)
+    .sort(comparePredatorSignals);
+
+  signals.forEach((signal) => {
+    const company = signal.target_company || signal.company || signal.winner || signal.buyer || "Companie necunoscuta";
+    const key = getPredatorCompanyKey(company) || company;
+    const existing = rowsByKey.get(key) || {
+      company,
+      signals: [],
+      totalValue: 0,
+      topSignal: signal,
+      sources: new Set(),
+      urls: [],
+    };
+    existing.signals.push(signal);
+    existing.totalValue += getPredatorSignalValue(signal);
+    existing.topSignal = comparePredatorSignals(signal, existing.topSignal) < 0 ? signal : existing.topSignal;
+    existing.sources.add(getPredatorSignalLabel(signal));
+    const url = signal.url || signal.evidence_urls?.[0] || "";
+    if (url && !existing.urls.includes(url)) existing.urls.push(url);
+    rowsByKey.set(key, existing);
+  });
+
+  return [...rowsByKey.values()].sort((left, right) => (
+    comparePredatorSignals(left.topSignal, right.topSignal)
+    || right.totalValue - left.totalValue
+    || right.signals.length - left.signals.length
+    || left.company.localeCompare(right.company, "ro")
+  ));
+}
+
+function formatMdl(value = 0) {
+  const amount = toNumber(value);
+  if (!amount) return "";
+  return `${Math.round(amount).toLocaleString("ro-MD")} MDL`;
+}
+
+function formatPredatorSource() {
+  const predator = state.predator || createEmptyPredatorState();
+  const source = normalizeString(predator.source);
+  const parts = [];
+  const hasNamedFeed = source.includes("mtender-seed")
+    || source.includes("market-radar-seed")
+    || source.includes("local-press-radar")
+    || source.includes("mtender-live");
+  if (source.includes("airtable")) parts.push(`Airtable · ${predator.table || "Market Signals"}`);
+  else if (source.includes("local-market-radar")) parts.push(`Local · ${predator.file || "market-radar"}`);
+  else if (source && source !== "none" && !hasNamedFeed) parts.push("Feed");
+  if (source.includes("mtender-seed")) parts.push("MTender May");
+  if (source.includes("market-radar-seed")) parts.push("Market Radar");
+  if (source.includes("local-press-radar")) parts.push("Press Radar");
+  if (source.includes("mtender-live")) parts.push("MTender live");
+  if (parts.length) return parts.join(" + ");
+  return "Predator neconfigurat";
+}
+
+function formatPredatorSync() {
+  const signals = state.predator?.signals || [];
+  const latest = signals
+    .map((signal) => parseDate(signal.scraped_at || signal.posted_at))
+    .filter(Boolean)
+    .sort((left, right) => right.getTime() - left.getTime())[0];
+
+  return latest ? `Sync: ${formatDateWithYear(latest)}` : "Sync: fara rulare";
+}
+
+function renderPredatorStats() {
+  if (!elements.predatorStats) return;
+  const summary = state.predator?.summary || createEmptyPredatorState().summary;
+  const cards = [
+    {
+      label: "Semnale totale",
+      value: summary.total,
+      meta: "in feed",
+      accent: "var(--forest-600)",
+    },
+    {
+      label: "Contactabile",
+      value: summary.contactable,
+      meta: "gata de abordare",
+      accent: "var(--blue)",
+    },
+    {
+      label: "Companii",
+      value: summary.companies || getPredatorCompanyRows().length,
+      meta: "identificate",
+      accent: "var(--forest-600)",
+    },
+    {
+      label: "P1/P2",
+      value: `${summary.p1}/${summary.p2}`,
+      meta: "prioritati active",
+      accent: "var(--amber)",
+    },
+    {
+      label: "MTender Won",
+      value: summary.tender_winners,
+      meta: "supplier desemnat",
+      accent: "var(--red)",
+    },
+    {
+      label: "Press Signal",
+      value: summary.press_signals || 0,
+      meta: "proiecte/anunturi",
+      accent: "var(--forest-600)",
+    },
+  ];
+
+  elements.predatorStats.innerHTML = cards.map((card) => `
+    <article class="pipeline-stat-card predator-stat">
+      <div class="pipeline-stat-label">${escapeHtml(card.label)}</div>
+      <div class="pipeline-stat-value" style="color:${card.accent};">${escapeHtml(card.value)}</div>
+      <div class="pipeline-stat-meta">${escapeHtml(card.meta)}</div>
+    </article>
+  `).join("");
+}
+
+function renderPredatorTopList() {
+  if (!elements.predatorTopList) return;
+  const topSignals = getPredatorTopSignals();
+  if (elements.predatorTopChip) elements.predatorTopChip.textContent = `${topSignals.length} semnale`;
+
+  if (!topSignals.length) {
+    elements.predatorTopList.innerHTML = `<article class="empty-card">Nu exista inca semnale contactabile. Ruleaza Market Radar sau configureaza tabela Market Signals.</article>`;
+    return;
+  }
+
+  elements.predatorTopList.innerHTML = topSignals.map((signal, index) => renderPredatorSignalCard(signal, index)).join("");
+}
+
+function renderPredatorSignalCard(signal = {}, index = 0) {
+  const value = formatMdl(getPredatorSignalValue(signal));
+  const company = signal.target_company || signal.company || "Companie necunoscuta";
+  const reasons = signal.reasons?.length ? signal.reasons.slice(0, 3).join("; ") : signal.sector || signal.source || "";
+  const url = signal.url || signal.evidence_urls?.[0] || "";
+  const bucket = getPredatorBucket(signal);
+  const label = getPredatorSignalLabel(signal);
+
+  return `
+    <article class="predator-card">
+      <div class="predator-card-rank">${index + 1}</div>
+      <div class="predator-card-body">
+        <div class="predator-card-topline">
+          <span class="predator-source-tag predator-source-tag--${escapeHtml(bucket)}">${escapeHtml(label)}</span>
+          <span class="predator-priority predator-priority--${escapeHtml(signal.priority || "watch").toLowerCase()}">${escapeHtml(signal.priority || "Watch")}/${toNumber(signal.score)}</span>
+          <span>${escapeHtml(signal.source || "Sursa publica")}</span>
+          ${value ? `<span>${escapeHtml(value)}</span>` : ""}
+        </div>
+        <h3>${escapeHtml(company)}</h3>
+        <p>${escapeHtml(signal.title || "Semnal operational")}</p>
+        ${reasons ? `<div class="predator-reasons">${escapeHtml(reasons)}</div>` : ""}
+        ${signal.outreach_angle ? `<div class="predator-angle">${escapeHtml(signal.outreach_angle)}</div>` : ""}
+      </div>
+      ${url ? `<a class="predator-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Sursa</a>` : ""}
+    </article>
+  `;
+}
+
+function renderPredatorCommand() {
+  if (!elements.predatorCommand) return;
+  const topSignals = getPredatorTopSignals(3);
+  const warnings = state.predator?.warnings || [];
+  const first = topSignals[0];
+
+  elements.predatorCommand.innerHTML = [
+    buildActionFocusCard({
+      eyebrow: "1. Primul apel",
+      title: first?.target_company || "Asteapta semnal P1",
+      metric: first ? `${first.priority}/${first.score}` : "Watch",
+      copy: first?.outreach_angle || "Cand apare primul P1/P2, suna compania in aceeasi zi si valideaza volumul, termenul si decidentul.",
+      pageJump: first ? "execution" : "",
+      tone: first?.priority === "P1" ? "urgent" : "compact",
+    }),
+    buildActionFocusCard({
+      eyebrow: "2. Follow-through",
+      title: "Top 3 devin activitati in pipeline",
+      metric: `${topSignals.length} azi`,
+      copy: "Pentru fiecare semnal bun: apel initial, nota in Activities, Next Step clar si data de revenire.",
+      pageJump: "execution",
+      tone: "compact",
+    }),
+    warnings.length
+      ? buildActionFocusCard({
+          eyebrow: "Sistem",
+          title: "Predator ruleaza in fallback",
+          metric: "verifica",
+          copy: warnings[0],
+          tone: "compact",
+        })
+      : buildActionFocusCard({
+          eyebrow: "Sistem",
+          title: "Feed operational",
+          metric: state.predator?.configured ? "live" : "local",
+          copy: "HQ vede acelasi feed care poate alimenta Telegram si Market Signals.",
+          tone: "compact",
+        }),
+  ].join("");
+}
+
+function renderPredatorCompactList(container, signals = [], emptyText = "") {
+  if (!container) return;
+  if (!signals.length) {
+    container.innerHTML = `<article class="empty-card">${escapeHtml(emptyText)}</article>`;
+    return;
+  }
+
+  container.innerHTML = signals.map((signal) => {
+    const company = signal.target_company || signal.company || signal.buyer || "Nespecificat";
+    const value = formatMdl(getPredatorSignalValue(signal));
+    const url = signal.url || signal.evidence_urls?.[0] || "";
+    const bucket = getPredatorBucket(signal);
+    const label = getPredatorSignalLabel(signal);
+    return `
+      <article class="predator-row">
+        <div>
+          <div class="predator-row-title">${escapeHtml(company)}</div>
+          <div class="predator-row-copy">${escapeHtml(signal.title || signal.sector || "Semnal public")}</div>
+          ${value ? `<div class="predator-row-meta">${escapeHtml(value)}</div>` : ""}
+        </div>
+        <div class="predator-row-side">
+          <span class="predator-source-tag predator-source-tag--${escapeHtml(bucket)}">${escapeHtml(label)}</span>
+          <span class="predator-priority predator-priority--${escapeHtml(signal.priority || "watch").toLowerCase()}">${escapeHtml(signal.priority || "Watch")}</span>
+          ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Sursa</a>` : ""}
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderPredatorCompanyList(rows = []) {
+  if (!elements.predatorCompanyList) return;
+  if (!rows.length) {
+    elements.predatorCompanyList.innerHTML = `<article class="empty-card">Nu exista inca firme identificate in Predator.</article>`;
+    return;
+  }
+
+  elements.predatorCompanyList.innerHTML = rows.map((row, index) => {
+    const top = row.topSignal || {};
+    const value = formatMdl(row.totalValue);
+    const labels = [...row.sources].slice(0, 2).join(" + ") || getPredatorSignalLabel(top);
+    const firstUrl = row.urls[0] || "";
+    return `
+      <article class="predator-company-row">
+        <div class="predator-company-rank">${index + 1}</div>
+        <div class="predator-company-main">
+          <div class="predator-card-topline">
+            <span class="predator-source-tag predator-source-tag--${escapeHtml(getPredatorBucket(top))}">${escapeHtml(labels)}</span>
+            <span class="predator-priority predator-priority--${escapeHtml(top.priority || "watch").toLowerCase()}">${escapeHtml(top.priority || "Watch")}/${toNumber(top.score)}</span>
+            <span>${row.signals.length} ${row.signals.length === 1 ? "semnal" : "semnale"}</span>
+            ${value ? `<span>${escapeHtml(value)}</span>` : ""}
+          </div>
+          <h3>${escapeHtml(row.company)}</h3>
+          <p>${escapeHtml(top.title || top.sector || "Companie identificata de Predator")}</p>
+        </div>
+        <div class="predator-company-actions">
+          ${firstUrl ? `<a href="${escapeHtml(firstUrl)}" target="_blank" rel="noreferrer">Sursa</a>` : ""}
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderPredator() {
+  if (!elements.predatorStats) return;
+  const winners = getPredatorTenderWinners();
+  const pressSignals = getPredatorPressSignals();
+  const companyRows = getPredatorCompanyRows();
+
+  if (elements.predatorSourceChip) elements.predatorSourceChip.textContent = formatPredatorSource();
+  if (elements.predatorSyncChip) elements.predatorSyncChip.textContent = formatPredatorSync();
+  if (elements.predatorWinnersChip) elements.predatorWinnersChip.textContent = `${winners.length} semnale`;
+  if (elements.predatorCompaniesChip) elements.predatorCompaniesChip.textContent = `${companyRows.length} companii`;
+  if (elements.predatorPressChip) elements.predatorPressChip.textContent = `${pressSignals.length} semnale`;
+
+  renderPredatorStats();
+  renderPredatorTopList();
+  renderPredatorCommand();
+  renderPredatorCompactList(
+    elements.predatorTenderWinners,
+    winners,
+    "Nu exista inca tendere mari castigate in feed. Pentru MTender, in dashboard intra doar castigatorul contractului, nu autoritatea publica."
+  );
+  renderPredatorCompanyList(companyRows);
+  renderPredatorCompactList(
+    elements.predatorPressList,
+    pressSignals,
+    "Nu exista inca Press Signal in feed. Cand Predator Press Radar gaseste proiecte private sau anunturi timpurii cu tinta de contact, apar aici separat de MTender."
+  );
+}
+
 function getWorkingDaysInfo() {
   const now = new Date();
   const year = now.getFullYear();
@@ -3542,6 +4058,162 @@ function buildCompanyMovementMetrics(activities = [], rangeStart = null, rangeEn
     newCompanies,
     followUp: followUpTouches,
     totalTouches: activities.length,
+  };
+}
+
+function getNewCompanyTouchesForRange(rangeStartValue, rangeEndValue, activities = state.activities) {
+  const rangeStart = parseDate(rangeStartValue);
+  const rangeEnd = parseDate(rangeEndValue);
+  if (!rangeStart || !rangeEnd) return [];
+
+  const firstTouchIndex = buildFirstLiveTouchIndexFromActivities(activities);
+  const liveActivities = activities.filter((activity) => activity.company && isLiveActivityEntry(activity));
+
+  return [...firstTouchIndex.entries()]
+    .filter(([, firstTouchDate]) => isDateWithinInclusiveRange(firstTouchDate, rangeStart, rangeEnd))
+    .map(([companyKey, firstTouchDate]) => {
+      const firstActivity = liveActivities.find((activity) => (
+        normalizeCompanyKey(activity.company) === companyKey
+        && toIsoDateValue(activity.date) === toIsoDateValue(firstTouchDate)
+      ));
+
+      return {
+        company: firstActivity?.company || companyKey,
+        date: firstTouchDate,
+      };
+    });
+}
+
+function getNewCompanyTouchesForScorecard(scorecard = {}) {
+  const weekStartValue = scorecard?.week_start || getWeekStart(getTodayIsoDate());
+  const weekEndValue = scorecard?.week_end || getWeekEnd(weekStartValue);
+  return getNewCompanyTouchesForRange(weekStartValue, weekEndValue);
+}
+
+function isOfferSentOutcome(value = "") {
+  const normalized = normalizeOutcomeKey(value);
+  if (!normalized) return false;
+
+  return [
+    "oferta trimisa",
+    "oferta transmisa",
+    "oferta expediata",
+    "offer sent",
+    "proposal sent",
+  ].some((candidate) => normalized === candidate || normalized.includes(candidate));
+}
+
+function getActivityFunnelRank(activity = {}) {
+  const type = normalizeActivity(activity.activity_type);
+
+  if (type === "contract_signed") return 4;
+  if (type === "offer" || isOfferSentOutcome(activity.outcome)) return 3;
+  if (type === "meeting") return 2;
+  return 1;
+}
+
+function getAccountFunnelRank(account = {}) {
+  const rank = pipelineStageValueRank(account.pipeline_stage);
+
+  if (rank >= pipelineStageRank["Contract semnat"]) return 4;
+  if (rank >= pipelineStageRank.Oferta) return 3;
+  if (rank >= pipelineStageRank.Meeting) return 2;
+  if (rank >= pipelineStageRank.Contactat) return 1;
+  return 0;
+}
+
+function buildWeeklyCumulativeFunnelForScorecard(scorecard = {}) {
+  const weekStartValue = scorecard?.week_start || getWeekStart(getTodayIsoDate());
+  const weekEndValue = scorecard?.week_end || getWeekEnd(weekStartValue);
+  const weekStart = parseDate(weekStartValue);
+  const weekEnd = parseDate(weekEndValue);
+  if (!weekStart || !weekEnd) {
+    return { contacted: 0, meeting: 0, offer: 0, contract_signed: 0, companies: [] };
+  }
+
+  const firstTouchIndex = buildFirstLiveTouchIndexFromActivities(state.activities);
+  const accountIndex = new Map(
+    state.accounts
+      .map((account) => [normalizeCompanyKey(account.company), account])
+      .filter(([companyKey]) => Boolean(companyKey))
+  );
+  const entries = new Map();
+
+  firstTouchIndex.forEach((firstTouchDate, companyKey) => {
+    if (!isDateWithinInclusiveRange(firstTouchDate, weekStart, weekEnd)) return;
+    const account = accountIndex.get(companyKey);
+    entries.set(companyKey, {
+      company: account?.company || companyKey,
+      rank: Math.max(1, getAccountFunnelRank(account)),
+    });
+  });
+
+  getWeeklyActivitiesForScorecard(scorecard).forEach((activity) => {
+    const companyKey = normalizeCompanyKey(activity.company);
+    const entry = entries.get(companyKey);
+    if (!entry) return;
+
+    entry.company = activity.company || entry.company;
+    entry.rank = Math.max(entry.rank, getActivityFunnelRank(activity), getAccountFunnelRank(accountIndex.get(companyKey)));
+  });
+
+  const companies = [...entries.values()];
+  return {
+    contacted: companies.length,
+    meeting: companies.filter((entry) => entry.rank >= 2).length,
+    offer: companies.filter((entry) => entry.rank >= 3).length,
+    contract_signed: companies.filter((entry) => entry.rank >= 4).length,
+    companies,
+  };
+}
+
+function buildCumulativeFunnelSnapshot() {
+  const entries = new Map();
+
+  const ensureEntry = (companyKey, company = "") => {
+    if (!companyKey) return null;
+    const existing = entries.get(companyKey);
+    if (existing) {
+      existing.company = company || existing.company;
+      return existing;
+    }
+
+    const entry = {
+      company: company || companyKey,
+      rank: 0,
+    };
+    entries.set(companyKey, entry);
+    return entry;
+  };
+
+  state.activities
+    .filter((activity) => activity.company && isLiveActivityEntry(activity))
+    .forEach((activity) => {
+      const companyKey = normalizeCompanyKey(activity.company);
+      const entry = ensureEntry(companyKey, activity.company);
+      if (!entry) return;
+
+      entry.rank = Math.max(entry.rank, getActivityFunnelRank(activity));
+    });
+
+  state.accounts.forEach((account) => {
+    const companyKey = normalizeCompanyKey(account.company);
+    const accountRank = getAccountFunnelRank(account);
+    if (!companyKey || accountRank <= 0) return;
+
+    const entry = ensureEntry(companyKey, account.company);
+    if (!entry) return;
+
+    entry.rank = Math.max(entry.rank, accountRank);
+  });
+
+  const companies = [...entries.values()].filter((entry) => entry.rank >= 1);
+  return {
+    contacted: companies.length,
+    meeting: companies.filter((entry) => entry.rank >= 2).length,
+    offer: companies.filter((entry) => entry.rank >= 3).length,
+    contract_signed: companies.filter((entry) => entry.rank >= 4).length,
+    companies,
   };
 }
 
@@ -3675,9 +4347,10 @@ function renderPacingCard() {
 
   const movement = getHeroMovementMetrics();
   const { total, elapsed } = getCurrentWeekWorkingDaysInfo();
-  const target = state.targets.movedCompaniesWeekly ?? defaultTargets.movedCompaniesWeekly ?? 1;
+  const target = scorecardTargets.powerThree.weeklyNewCompaniesContacted;
   const expectedByNow = Math.round((target / total) * elapsed);
-  const ratio = expectedByNow > 0 ? movement.weekly.moved / expectedByNow : 1;
+  const weeklyNewCompanies = movement.weekly.newCompanies;
+  const ratio = expectedByNow > 0 ? weeklyNewCompanies / expectedByNow : 1;
 
   let statusLabel, statusColor, pacingBg;
   if (ratio >= 0.8) {
@@ -3697,20 +4370,20 @@ function renderPacingCard() {
   elements.pacingCard.style.setProperty("--pacing-bg", pacingBg);
   elements.pacingCard.style.setProperty("--pacing-color", statusColor);
   elements.pacingCard.innerHTML = `
-    <div class="hero-pacing-label">Companii miscate / saptamana</div>
-    <div class="hero-pacing-number" style="color:${statusColor};">${movement.weekly.moved}<span class="hero-pacing-target"> / ${target}</span></div>
+    <div class="hero-pacing-label">Companii noi contactate / saptamana</div>
+    <div class="hero-pacing-number" style="color:${statusColor};">${weeklyNewCompanies}<span class="hero-pacing-target"> / ${target}</span></div>
     <div class="hero-pacing-status">
-      Saptamana asta: <strong>${movement.weekly.newCompanies}</strong> noi · <strong>${movement.weekly.followUp}</strong> follow-up
+      Saptamana asta: <strong>${weeklyNewCompanies}</strong> companii noi · <strong>${movement.weekly.followUp}</strong> follow-up separat
       <span class="hero-pacing-badge" style="color:${statusColor}; border-color:${statusColor}33; background:${pacingBg};">${statusLabel}</span>
     </div>
     <div class="hero-pacing-meta">
       <div class="hero-pacing-meta-row">
-        <span>Azi: ${movement.today.moved} miscari</span>
-        <span>${movement.today.uniqueCompanies} companii</span>
+        <span>Azi: ${movement.today.newCompanies} companii noi</span>
+        <span>${movement.today.followUp} follow-up</span>
         <span>${movement.today.totalTouches} touch-uri</span>
       </div>
       <div class="hero-pacing-meta-row">
-        <span>Luna: ${movement.monthly.moved} miscari</span>
+        <span>Luna: ${movement.monthly.newCompanies} companii noi</span>
         <span>Asteptat: ${expectedByNow}</span>
         <span>Zi ${elapsed}/${total}</span>
       </div>
@@ -3959,7 +4632,7 @@ function renderChecklist() {
       copy: "Pui ritmul saptamanii fara sa reinventezi procesul.",
       steps: [
         "Verifica targetul lunar ramas si transforma-l in ritm zilnic realist pentru contacte si meetings.",
-        "Alege 10 companii Dream 100 P1 pe care vrei sa le misti saptamana aceasta.",
+        "Alege 10 companii noi sau P1 pe care vrei sa le misti saptamana aceasta.",
         "Curata conturile reci sau parcarele care merita reactivate.",
         "Noteaza primele sedinte, vizite si blocaje care pot aparea in saptamana curenta.",
       ],
@@ -4094,13 +4767,18 @@ function renderScorecardDashboard() {
   const scorecardWeekEnd = rawScorecard.week_end || getWeekEnd(rawScorecard.week_start);
   const weeklyLeadMeasures = getLeadMeasuresRangeTotals(scorecardWeekStart, scorecardWeekEnd);
   const signedWorkersFromData = getSignedWorkersTotalFromData();
+  const signedContractsFromData = getSignedContractsTotalFromData();
+  const weeklyNewCompanyTouches = getNewCompanyTouchesForRange(scorecardWeekStart, scorecardWeekEnd).length;
   const scorecard = {
     ...rawScorecard,
     cold_calls: weeklyLeadMeasures.cold_calls,
     field_visits: weeklyLeadMeasures.field_visits || rawScorecard.field_visits,
+    new_companies_contacted: weeklyNewCompanyTouches,
+    contracts_signed_total: signedContractsFromData,
     workers_signed: Math.max(toNumber(rawScorecard.workers_signed), signedWorkersFromData),
   };
   const metrics = getScorecardMetrics(scorecard);
+  const wigMetrics = getWigMetrics(scorecard);
   const weeklyFollowups = weeklyLeadMeasures.followups;
   const historyCount = state.scorecards.length;
   renderWigDashboard();
@@ -4122,25 +4800,25 @@ function renderScorecardDashboard() {
   elements.powerThreeGrid.innerHTML = [
     buildPowerThreeCard({
       eyebrow: "Critical Number",
-      label: "Contracte Noi (Volume)",
-      value: scorecard.new_contract_workers_mtd,
-      suffix: "muncitori",
-      target: scorecardTargets.powerThree.newContractWorkersMtd,
+      label: "Contracte semnate Q2",
+      value: wigMetrics.q2Contracts,
+      suffix: "contracte",
+      target: wigPlan.q2.contractsTarget,
       tone: "#2d8f57",
       soft: "#e5f3eb",
       icon: "volume",
-      note: "numarul total de muncitori semnati in contracte noi, luna curenta",
+      note: "contracte deduplicate dupa companie, din Companies + Activities",
     }),
     buildPowerThreeCard({
       eyebrow: "Lead Measure",
-      label: "Prospectare Dream 100",
-      value: scorecard.dream100_p1_prospects,
-      suffix: "companii P1",
-      target: scorecardTargets.powerThree.dream100P1Prospects,
+      label: "Companii noi contactate",
+      value: metrics.weeklyNewCompaniesContacted,
+      suffix: "companii",
+      target: scorecardTargets.powerThree.weeklyNewCompaniesContacted,
       tone: "#2f6ea2",
       soft: "#e4eef7",
       icon: "target",
-      note: "companii P1 noi abordate saptamana aceasta",
+      note: "companii atinse prima data in saptamana curenta",
     }),
     buildPowerThreeCard({
       eyebrow: "Sales Velocity",
@@ -4160,7 +4838,7 @@ function renderScorecardDashboard() {
   elements.funnelGrid.innerHTML = [
     buildConversionCard4dx("Contact -> Meeting", metrics.contactToMeeting, scorecardTargets.funnel.contactToMeeting, {
       numerator: "meetings",
-      denominator: metrics.funnelSource === "activities" ? "contacte live" : "companii P1",
+      denominator: metrics.funnelSource === "activities" ? "companii noi contactate" : "companii",
     }),
     buildConversionCard4dx("Meeting -> Oferta", metrics.meetingToOffer, scorecardTargets.funnel.meetingToOffer, {
       numerator: "oferte",
@@ -4302,70 +4980,53 @@ function getCumulativePipelineRows() {
   const liveActivities = state.activities.filter((activity) => (
     activity.company && isLiveActivityEntry(activity)
   ));
-  const contactedCompanyKeys = new Set();
   const lostCompanyKeys = new Set();
 
   liveActivities.forEach((activity) => {
     const companyKey = normalizeCompanyKey(activity.company);
     if (!companyKey) return;
-    contactedCompanyKeys.add(companyKey);
 
     const outcome = normalizeString(activity.outcome).toLowerCase();
     if (outcome.includes("pierdut") && outcome.includes("compet")) {
       lostCompanyKeys.add(companyKey);
     }
   });
-
-  state.accounts.forEach((account) => {
-    const companyKey = normalizeCompanyKey(account.company);
-    if (!companyKey) return;
-
-    const stage = normalizePipelineStage(account.pipeline_stage);
-    if (stage && stage !== "Necontactat") {
-      contactedCompanyKeys.add(companyKey);
-    }
-  });
-
-  const meetingCount = liveActivities.filter((activity) => normalizeActivity(activity.activity_type) === "meeting").length;
-  const offerCount = liveActivities.filter((activity) => normalizeActivity(activity.activity_type) === "offer").length;
-  const meetingCompanyCount = state.accounts.filter((account) => pipelineStageValueRank(account.pipeline_stage) >= pipelineStageRank.Meeting).length;
-  const offerCompanyCount = state.accounts.filter((account) => pipelineStageValueRank(account.pipeline_stage) >= pipelineStageRank.Oferta).length;
-  const contractActivityCount = liveActivities.filter((activity) => normalizeActivity(activity.activity_type) === "contract_signed").length;
-  const signedCompanyCount = state.accounts.filter((account) => normalizePipelineStage(account.pipeline_stage) === "Contract semnat").length;
-  const signedWorkersTotal = getSignedWorkersTotalFromData(liveActivities);
+  const cumulativeFunnel = buildCumulativeFunnelSnapshot();
+  const signedDeals = buildSignedDealRecords(liveActivities);
+  const signedWorkersTotal = getSignedWorkersTotalFromDeals(signedDeals);
 
   return [
     {
       label: "Companii contactate",
-      value: contactedCompanyKeys.size,
+      value: cumulativeFunnel.contacted,
       target: 500,
       note: "target 500",
       tone: "#2f6ea2",
     },
     {
-      label: "Meeting-uri",
-      value: Math.max(meetingCount, meetingCompanyCount),
-      note: "activitati / companii ajunse la meeting",
+      label: "Calificare / meeting",
+      value: cumulativeFunnel.meeting,
+      note: "companii care au ajuns la meeting sau au trecut direct mai departe",
       tone: "#f59e0b",
     },
     {
       label: "Oferte trimise",
-      value: Math.max(offerCount, offerCompanyCount),
-      note: "activitati / companii ajunse la oferta",
+      value: cumulativeFunnel.offer,
+      note: "include stadiu Oferta, Oferta trimisa, Negociere",
       tone: "#8b5cf6",
     },
     {
       label: "Contracte semnate",
-      value: Math.max(contractActivityCount, signedCompanyCount),
-      target: 50,
-      note: "target 50",
+      value: cumulativeFunnel.contract_signed,
+      target: wigPlan.annual.contractsTarget,
+      note: `target ${wigPlan.annual.contractsTarget}`,
       tone: "#2d8f57",
     },
     {
       label: "Muncitori semnati",
       value: signedWorkersTotal,
-      target: 500,
-      note: "target 500",
+      target: 1500,
+      note: "target 1500",
       tone: "#1d7a50",
     },
     {
@@ -4385,18 +5046,83 @@ function getCumulativePipelineRows() {
   ];
 }
 
-function getSignedWorkersTotalFromData(liveActivitiesInput = null) {
+function buildSignedDealRecords(liveActivitiesInput = null, accountsInput = null) {
   const liveActivities = liveActivitiesInput || state.activities.filter((activity) => (
     activity.company && isLiveActivityEntry(activity)
   ));
-  const signedWorkersFromActivities = liveActivities
-    .filter((activity) => normalizeActivity(activity.activity_type) === "contract_signed")
-    .reduce((sum, activity) => sum + toNumber(activity.workers_delta), 0);
-  const signedWorkersFromAccounts = state.accounts
-    .filter((account) => normalizePipelineStage(account.pipeline_stage) === "Contract semnat")
-    .reduce((sum, account) => sum + toNumber(account.workers), 0);
+  const accounts = accountsInput || state.accounts;
+  const accountIndex = new Map();
+  const dealsByCompany = new Map();
 
-  return Math.max(signedWorkersFromActivities, signedWorkersFromAccounts);
+  const mergeDeal = (companyKey, deal) => {
+    if (!companyKey) return;
+
+    const existing = dealsByCompany.get(companyKey);
+    if (!existing) {
+      dealsByCompany.set(companyKey, {
+        ...deal,
+        workers: toNumber(deal.workers),
+      });
+      return;
+    }
+
+    const existingDate = parseDate(existing.date);
+    const nextDate = parseDate(deal.date);
+    const earliestDate = existingDate && nextDate
+      ? (existingDate <= nextDate ? existingDate : nextDate)
+      : (existingDate || nextDate || null);
+
+    dealsByCompany.set(companyKey, {
+      company: existing.company || deal.company,
+      date: earliestDate,
+      workers: Math.max(toNumber(existing.workers), toNumber(deal.workers)),
+      source: existing.source === "company" ? existing.source : deal.source,
+    });
+  };
+
+  accounts.forEach((account) => {
+    if (normalizePipelineStage(account.pipeline_stage) !== "Contract semnat") return;
+
+    const companyKey = normalizeCompanyKey(account.company);
+    if (!companyKey) return;
+
+    accountIndex.set(companyKey, account);
+    mergeDeal(companyKey, {
+      company: account.company,
+      date: account.stage_changed_date || account.last_contact || account.lead_date || null,
+      workers: account.workers,
+      source: "company",
+    });
+  });
+
+  liveActivities.forEach((activity) => {
+    if (normalizeActivity(activity.activity_type) !== "contract_signed") return;
+
+    const companyKey = normalizeCompanyKey(activity.company);
+    if (!companyKey) return;
+
+    const matchingAccount = accountIndex.get(companyKey);
+    mergeDeal(companyKey, {
+      company: activity.company,
+      date: activity.date,
+      workers: Math.max(toNumber(activity.workers_delta), toNumber(matchingAccount?.workers)),
+      source: "activity",
+    });
+  });
+
+  return [...dealsByCompany.values()];
+}
+
+function getSignedWorkersTotalFromDeals(deals = []) {
+  return deals.reduce((sum, deal) => sum + toNumber(deal.workers), 0);
+}
+
+function getSignedContractsTotalFromData(liveActivitiesInput = null) {
+  return buildSignedDealRecords(liveActivitiesInput).length;
+}
+
+function getSignedWorkersTotalFromData(liveActivitiesInput = null) {
+  return getSignedWorkersTotalFromDeals(buildSignedDealRecords(liveActivitiesInput));
 }
 
 function buildCumulativePipelineRow(row, maxValue) {
@@ -4431,22 +5157,19 @@ function getCurrentWeekScorecardRecord() {
 }
 
 function getWigMetrics(scorecard) {
-  const signedActivities = state.activities.filter(
-    (activity) => activity.activity_type === "contract_signed" && activity.date
-  );
-  const annualActivities = signedActivities.filter(
-    (activity) => activity.date.getFullYear() === wigPlan.annual.year
+  const signedDeals = buildSignedDealRecords();
+  const datedSignedDeals = signedDeals.filter((deal) => parseDate(deal.date));
+  const annualDeals = datedSignedDeals.filter(
+    (deal) => parseDate(deal.date).getFullYear() === wigPlan.annual.year
   );
   const q2Start = parseDate(wigPlan.q2.start);
   const q2End = parseDate(wigPlan.q2.end);
-  const q2Activities = signedActivities.filter((activity) =>
-    isDateWithinInclusiveRange(activity.date, q2Start, q2End)
-  );
-  const q2QualifiedActivities = q2Activities.filter(
-    (activity) => activity.workers_delta >= wigPlan.q2.minWorkersPerContract
+  const q2Deals = datedSignedDeals.filter((deal) =>
+    isDateWithinInclusiveRange(parseDate(deal.date), q2Start, q2End)
   );
   const currentWeekStart = parseDate(scorecard.week_start || getWeekStart(getTodayIsoDate()));
-  const currentWeekEnd = parseDate(scorecard.week_end || getWeekEnd(scorecard.week_start));
+  const currentWeekEnd = parseDate(scorecard.week_end || getWeekEnd(scorecard.week_start || getTodayIsoDate()));
+  const weeklyNewCompaniesContacted = getNewCompanyTouchesForScorecard(scorecard).length;
   const weeklyMeetings = state.activities.filter(
     (activity) =>
       activity.activity_type === "meeting"
@@ -4457,16 +5180,16 @@ function getWigMetrics(scorecard) {
   const daysRemainingInQ2 = q2End ? Math.max(dayDiff(new Date(), q2End), 0) : 0;
 
   return {
-    annualContracts: annualActivities.length,
-    annualWorkers: annualActivities.reduce((sum, activity) => sum + activity.workers_delta, 0),
-    annualProgress: progressAgainstTarget(annualActivities.length, wigPlan.annual.contractsTarget),
-    q2Contracts: q2Activities.length,
-    q2QualifiedContracts: q2QualifiedActivities.length,
-    q2Workers: q2Activities.reduce((sum, activity) => sum + activity.workers_delta, 0),
-    q2Progress: progressAgainstTarget(q2QualifiedActivities.length, wigPlan.q2.contractsTarget),
-    q2AverageWorkers: q2Activities.length
-      ? q2Activities.reduce((sum, activity) => sum + activity.workers_delta, 0) / q2Activities.length
+    annualContracts: annualDeals.length,
+    annualWorkers: getSignedWorkersTotalFromDeals(annualDeals),
+    annualProgress: progressAgainstTarget(annualDeals.length, wigPlan.annual.contractsTarget),
+    q2Contracts: q2Deals.length,
+    q2Workers: getSignedWorkersTotalFromDeals(q2Deals),
+    q2Progress: progressAgainstTarget(q2Deals.length, wigPlan.q2.contractsTarget),
+    q2AverageWorkers: q2Deals.length
+      ? getSignedWorkersTotalFromDeals(q2Deals) / q2Deals.length
       : 0,
+    weeklyNewCompaniesContacted,
     weeklyMeetingsLogged: weeklyMeetings.length,
     followUpMetric,
     daysRemainingInQ2,
@@ -4476,18 +5199,18 @@ function getWigMetrics(scorecard) {
 
 function getScorecardMetrics(scorecard) {
   const velocity = getVelocityMetricForScorecard(scorecard);
-  const weeklyActivities = getWeeklyActivitiesForScorecard(scorecard);
-  const weeklyCounts = countActivities(weeklyActivities);
-  const hasLiveFunnelData = Object.values(weeklyCounts).some((value) => value > 0);
+  const weeklyFunnel = buildWeeklyCumulativeFunnelForScorecard(scorecard);
+  const weeklyNewCompaniesContacted = weeklyFunnel.contacted;
+  const hasLiveFunnelData = weeklyFunnel.contacted > 0;
   const funnelCounts = hasLiveFunnelData
     ? {
-        contacted: weeklyCounts.contacted,
-        meeting: weeklyCounts.meeting,
-        offer: weeklyCounts.offer,
-        contract_signed: weeklyCounts.contract_signed,
+        contacted: weeklyFunnel.contacted,
+        meeting: weeklyFunnel.meeting,
+        offer: weeklyFunnel.offer,
+        contract_signed: weeklyFunnel.contract_signed,
       }
     : {
-        contacted: scorecard.dream100_p1_prospects,
+        contacted: scorecard.new_companies_contacted || scorecard.dream100_p1_prospects,
         meeting: scorecard.meetings_set,
         offer: scorecard.offers_sent,
         contract_signed: scorecard.contracts_signed,
@@ -4510,6 +5233,8 @@ function getScorecardMetrics(scorecard) {
     outreachTarget,
     funnelCounts,
     funnelSource: hasLiveFunnelData ? "activities" : "scorecard",
+    weeklyNewCompaniesContacted,
+    weeklyFunnelCompanies: weeklyFunnel.companies,
     contactToMeeting,
     meetingToOffer,
     offerToSigned,
@@ -4769,7 +5494,7 @@ function buildAnnualWigCard(metrics) {
         <div class="wig-number-divider">/</div>
         <div class="wig-target-number">${wigPlan.annual.contractsTarget}</div>
       </div>
-      <div class="metric-note">Progres live din activitatile de tip contract semnat. Ritmul anual se deschide din Q2 si accelereaza in Q3-Q4.</div>
+      <div class="metric-note">Progres live din contracte semnate, deduplicate dupa companie. Ritmul anual se deschide din Q2 si accelereaza in Q3-Q4.</div>
       <div class="metric-progress">
         <div class="metric-progress-track">
           <div class="metric-progress-fill" style="width:${metrics.annualProgress}%;"></div>
@@ -4795,13 +5520,13 @@ function buildQ2RockCard(metrics) {
         <div class="metric-icon">${scorecardIcon("volume")}</div>
         <div class="metric-kicker">${wigPlan.q2.label}</div>
       </div>
-      <div class="metric-title">5 contracte cu minim ${wigPlan.q2.minWorkersPerContract} workers pana la 30 iunie</div>
+      <div class="metric-title">5 contracte semnate pana la 30 iunie</div>
       <div class="wig-number-row">
-        <div class="metric-value">${metrics.q2QualifiedContracts}</div>
+        <div class="metric-value">${metrics.q2Contracts}</div>
         <div class="wig-number-divider">/</div>
         <div class="wig-target-number">${wigPlan.q2.contractsTarget}</div>
       </div>
-      <div class="metric-note">${metrics.q2DateLabel} · foloseste activitatile contract_signed pentru a valida contractele care respecta pragul de calitate.</div>
+      <div class="metric-note">${metrics.q2DateLabel} · contractele sunt validate din stadiul Contract semnat si activitatile contract_signed, fara dublari pe aceeasi companie.</div>
       <div class="metric-progress">
         <div class="metric-progress-track">
           <div class="metric-progress-fill" style="width:${metrics.q2Progress}%; background:#c38b2a;"></div>
@@ -4830,7 +5555,7 @@ function buildQ2RockCard(metrics) {
 }
 
 function buildQ2DisciplineCard(scorecard, metrics) {
-  const p1Progress = progressAgainstTarget(scorecard.dream100_p1_prospects, wigPlan.q2.prospectsPerWeek);
+  const newCompaniesProgress = progressAgainstTarget(metrics.weeklyNewCompaniesContacted, wigPlan.q2.prospectsPerWeek);
   const meetingProgress = progressAgainstTarget(metrics.weeklyMeetingsLogged, wigPlan.q2.meetingsPerWeek);
   const followUpText = metrics.followUpMetric.hasBase
     ? `${metrics.followUpMetric.numerator} / ${metrics.followUpMetric.denominator} meetings`
@@ -4846,11 +5571,11 @@ function buildQ2DisciplineCard(scorecard, metrics) {
       <div class="wig-rule-list">
         <div class="wig-rule-row">
           <div class="wig-rule-head">
-            <span>Dream 100 P1 / saptamana</span>
-            <strong>${scorecard.dream100_p1_prospects} / ${wigPlan.q2.prospectsPerWeek}</strong>
+            <span>Companii noi contactate / saptamana</span>
+            <strong>${metrics.weeklyNewCompaniesContacted} / ${wigPlan.q2.prospectsPerWeek}</strong>
           </div>
           <div class="metric-progress-track">
-            <div class="metric-progress-fill" style="width:${p1Progress}%; background:#2f6ea2;"></div>
+            <div class="metric-progress-fill" style="width:${newCompaniesProgress}%; background:#2f6ea2;"></div>
           </div>
         </div>
         <div class="wig-rule-row">
@@ -4870,7 +5595,7 @@ function buildQ2DisciplineCard(scorecard, metrics) {
           <div class="metric-chip">${followUpText}</div>
         </div>
       </div>
-      <div class="metric-note">Dream 100 P1 creste automat la primul touch real salvat pe o companie noua. Follow-up-ul de 24h este calculat live din activitatile de meeting care au next step imediat sau actiune ulterioara in 24h.</div>
+      <div class="metric-note">Companiile noi contactate cresc automat la primul touch real salvat pe o companie noua. Follow-up-ul de 24h este calculat live din activitatile de meeting care au next step imediat sau actiune ulterioara in 24h.</div>
     </article>
   `;
 }
@@ -5047,18 +5772,18 @@ function buildActivityRatioCard(scorecard, metrics) {
 function buildLagFunnel(scorecard, metrics) {
   const funnelStages = [
     {
-      label: metrics.funnelSource === "activities" ? "Contacte live" : "Dream100 P1 noi",
+      label: metrics.funnelSource === "activities" ? "Companii noi contactate" : "Companii contactate",
       value: metrics.funnelCounts.contacted,
       width: 100,
-      note: metrics.funnelSource === "activities" ? "baza live din activitatile saptamanii" : "punctul de intrare in palnie",
+      note: metrics.funnelSource === "activities" ? "prima atingere reala in saptamana" : "punctul de intrare in palnie",
       tone: "#2f6ea2",
       bottleneck: false,
     },
     {
-      label: "Meetings stabilite",
+      label: "Calificare / meeting",
       value: metrics.funnelCounts.meeting,
       width: 82,
-      note: `${metrics.contactToMeeting.hasBase ? `${metrics.contactToMeeting.value}% din ${metrics.funnelSource === "activities" ? "contactele live" : "prospectarea P1"}` : "asteapta date"}`,
+      note: `${metrics.contactToMeeting.hasBase ? `${metrics.contactToMeeting.value}% au ajuns la calificare sau mai departe` : "asteapta date"}`,
       tone: metrics.bottleneck === metrics.contactToMeeting ? "#cb5846" : "#55779e",
       bottleneck: metrics.bottleneck === metrics.contactToMeeting,
     },
@@ -5066,7 +5791,7 @@ function buildLagFunnel(scorecard, metrics) {
       label: "Oferte trimise",
       value: metrics.funnelCounts.offer,
       width: 66,
-      note: `${metrics.meetingToOffer.hasBase ? `${metrics.meetingToOffer.value}% din meetings` : "asteapta date"}`,
+      note: `${metrics.meetingToOffer.hasBase ? `${metrics.meetingToOffer.value}% din calificare` : "asteapta date"}`,
       tone: metrics.bottleneck === metrics.meetingToOffer ? "#cb5846" : "#c38b2a",
       bottleneck: metrics.bottleneck === metrics.meetingToOffer,
     },
@@ -5144,7 +5869,7 @@ function buildScorecardTrendList(scorecards) {
           <div class="weekly-trend-fill" style="width:${width}%;"></div>
         </div>
         <div class="weekly-trend-copy">
-          <span>${row.dream100_p1_prospects} P1</span>
+          <span>${row.dream100_p1_prospects} prospectari</span>
           <span>${row.contracts_signed} contracte</span>
           <span>${row.workers_signed} muncitori semnati</span>
         </div>

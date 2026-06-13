@@ -1,0 +1,1592 @@
+{
+  "meta": {
+    "source": "Market Radar dry-run snapshot",
+    "checked_at": "2026-06-03T14-52-18-231Z",
+    "source_file": "scraper/output/market-radar/2026-06-03-2026-06-03T14-52-18-231Z.json",
+    "generated_for": "Predator dashboard seed",
+    "jobs": true,
+    "tenders": true,
+    "sources": [
+      "Rabota.md",
+      "Rabota.md, Lucru.md"
+    ],
+    "disabled_sources": [
+      {
+        "name": "Joblist.md",
+        "reason": "Platforma afiseaza ca nu este disponibila si trimite utilizatorii spre 999.md."
+      }
+    ],
+    "signals_count": 45
+  },
+  "signals": [
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:magnetec-components:1",
+      "duplicate_group_key": "market-radar:magnetec-components:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Magnetec Components SRL",
+      "target_company": "Magnetec Components SRL",
+      "title": "3 joburi active: Operator Producție (Bălți); Maistru Producție; Operator Producție (Bălți) - 1 schimb",
+      "sector": "Productie",
+      "location": "Bălți",
+      "score": 74,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/operator-productie-balti/67850",
+      "posted_at": "2026-06-03 12:10:04",
+      "deadline": "",
+      "job_count": 3,
+      "job_titles": [
+        "Operator Producție (Bălți)",
+        "Maistru Producție",
+        "Operator Producție (Bălți) - 1 schimb"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/operator-productie-balti/67850",
+        "https://www.rabota.md/ro/locuri-de-munca/maistru-productie/128501",
+        "https://www.rabota.md/ro/locuri-de-munca/operator-productie-balti-1-schimb/139525"
+      ],
+      "reasons": [
+        "Sector Productie",
+        "3 joburi active vazute pentru companie",
+        "limbaj de urgenta / lucru in ture"
+      ],
+      "outreach_angle": "Abordare: am vazut 3 joburi active la Magnetec Components SRL in zona productie; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.197Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:sigma-venmer:2",
+      "duplicate_group_key": "market-radar:sigma-venmer:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Sigma Venmer",
+      "target_company": "Sigma Venmer",
+      "title": "5 joburi active: Responsabil Tehnic în Construcții; Muncitori necalificați în construcții; Specialist construcții drumuri",
+      "sector": "Constructii",
+      "location": "str. Maria Cebotari 28",
+      "score": 70,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/responsabil-tehnic-in-constructii/114637",
+      "posted_at": "2026-05-30 20:05:02",
+      "deadline": "",
+      "job_count": 5,
+      "job_titles": [
+        "Responsabil Tehnic în Construcții",
+        "Muncitori necalificați în construcții",
+        "Specialist construcții drumuri"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/responsabil-tehnic-in-constructii/114637",
+        "https://www.rabota.md/ro/locuri-de-munca/muncitori-necalificati-in-constructii/116699",
+        "https://www.rabota.md/ro/locuri-de-munca/specialist-constructii-drumuri/135307",
+        "https://www.lucru.md/ro/lucru/responsabil-tehnic-in-constructii/114637",
+        "https://www.lucru.md/ro/lucru/muncitori-necalificati-in-constructii/116699"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "5 joburi active vazute pentru companie",
+        "semnal de volum operational"
+      ],
+      "outreach_angle": "Abordare: am vazut 5 joburi active la Sigma Venmer in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.193Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:combinatul-de-articole-de-carton:3",
+      "duplicate_group_key": "market-radar:combinatul-de-articole-de-carton:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Combinatul de articole de carton",
+      "target_company": "Combinatul de articole de carton",
+      "title": "2 joburi active: Maestru pentru producție / Мастер на производство; Рабочие на производстве / Lucrători la producție",
+      "sector": "Productie",
+      "location": "str. Transnistria 16",
+      "score": 65,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/maestru-pentru-productie-master-na-proizvodstvo/63731",
+      "posted_at": "2026-05-15 18:00:04",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Maestru pentru producție / Мастер на производство",
+        "Рабочие на производстве / Lucrători la producție"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/maestru-pentru-productie-master-na-proizvodstvo/63731",
+        "https://www.rabota.md/ro/locuri-de-munca/rabochie-na-proizvodstve-lucratori-la-productie/56708"
+      ],
+      "reasons": [
+        "Sector Productie",
+        "2 joburi active vazute pentru companie",
+        "semnal de volum operational"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Combinatul de articole de carton in zona productie; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.197Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:bricolaj:4",
+      "duplicate_group_key": "market-radar:bricolaj:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Bricolaj",
+      "target_company": "Bricolaj",
+      "title": "2 joburi active: Muncitori auxiliari la depozitul de materiale de construcții",
+      "sector": "Constructii",
+      "location": "str. Tudor Vladimirescu 65",
+      "score": 65,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/muncitori-auxiliari-la-depozitul-de-materiale-de-constructii/95145",
+      "posted_at": "2026-06-03 17:20:02",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Muncitori auxiliari la depozitul de materiale de construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/muncitori-auxiliari-la-depozitul-de-materiale-de-constructii/95145",
+        "https://www.lucru.md/ro/lucru/muncitori-auxiliari-la-depozitul-de-materiale-de-constructii/95145"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie",
+        "semnal de volum operational"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Bricolaj in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.184Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:golban-trade:5",
+      "duplicate_group_key": "market-radar:golban-trade:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Golban Trade",
+      "target_company": "Golban Trade",
+      "title": "2 joburi active: Muncitori în Construcții",
+      "sector": "Constructii",
+      "location": "",
+      "score": 65,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/muncitori-in-constructii/127416",
+      "posted_at": "2026-06-03 15:12:03",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Muncitori în Construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/muncitori-in-constructii/127416",
+        "https://www.lucru.md/ro/lucru/muncitori-in-constructii/127416"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie",
+        "semnal de volum operational"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Golban Trade in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.191Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:perfectum-module:6",
+      "duplicate_group_key": "market-radar:perfectum-module:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Perfectum Module",
+      "target_company": "Perfectum Module",
+      "title": "2 joburi active: Muncitori la producerea construcțiilor metalice",
+      "sector": "Constructii",
+      "location": "str. Pietrăriei 19",
+      "score": 65,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/muncitori-la-producerea-constructiilor-metalice/108128",
+      "posted_at": "2026-06-03 16:10:03",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Muncitori la producerea construcțiilor metalice"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/muncitori-la-producerea-constructiilor-metalice/108128",
+        "https://www.lucru.md/ro/lucru/muncitori-la-producerea-constructiilor-metalice/108128"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie",
+        "semnal de volum operational"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Perfectum Module in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.190Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:azamet:7",
+      "duplicate_group_key": "market-radar:azamet:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Azamet",
+      "target_company": "Azamet",
+      "title": "1 job activ: Старший смены склада | Șef tură depozit",
+      "sector": "Depozitare / Logistica",
+      "location": "bd. Dacia 58/12",
+      "score": 64,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/starshiy-smeny-sklada-sef-tura-depozit/135328",
+      "posted_at": "2026-06-03 16:30:03",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Старший смены склада | Șef tură depozit"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/starshiy-smeny-sklada-sef-tura-depozit/135328"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica",
+        "limbaj de urgenta / lucru in ture"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.204Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:sebn-md:8",
+      "duplicate_group_key": "market-radar:sebn-md:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Sebn.md",
+      "target_company": "Sebn.md",
+      "title": "3 joburi active: Tehnician Producție – Automotive; Specialist Calitate – Producție Automotive; Tehnician Producție - Automotive (Strășeni)",
+      "sector": "Productie",
+      "location": "",
+      "score": 62,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/tehnician-productie-automotive/126450",
+      "posted_at": "2026-06-02 11:50:26",
+      "deadline": "",
+      "job_count": 3,
+      "job_titles": [
+        "Tehnician Producție – Automotive",
+        "Specialist Calitate – Producție Automotive",
+        "Tehnician Producție - Automotive (Strășeni)"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/tehnician-productie-automotive/126450",
+        "https://www.rabota.md/ro/locuri-de-munca/specialist-calitate-productie-automotive/126451",
+        "https://www.rabota.md/ro/locuri-de-munca/tehnician-productie-automotive-straseni/136579"
+      ],
+      "reasons": [
+        "Sector Productie",
+        "3 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 3 joburi active la Sebn.md in zona productie; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.198Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:nanu-market:9",
+      "duplicate_group_key": "market-radar:nanu-market:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "NANU MARKET SRL",
+      "target_company": "NANU MARKET SRL",
+      "title": "3 joburi active: Vânzător-consultant | Scule electrice pentru constructii; Conducător stivuitor | Водитель автопогрузчика, Bălți",
+      "sector": "Constructii",
+      "location": "str. Petricani 21",
+      "score": 62,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/vanzator-consultant-scule-electrice-pentru-constructii/64651",
+      "posted_at": "2026-06-03 15:30:02",
+      "deadline": "",
+      "job_count": 3,
+      "job_titles": [
+        "Vânzător-consultant | Scule electrice pentru constructii",
+        "Conducător stivuitor | Водитель автопогрузчика, Bălți"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/vanzator-consultant-scule-electrice-pentru-constructii/64651",
+        "https://www.rabota.md/ro/locuri-de-munca/conducator-stivuitor-voditel-avtopogruzchika-balti/100417",
+        "https://www.lucru.md/ro/lucru/vanzator-consultant-scule-electrice-pentru-constructii/64651"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "3 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 3 joburi active la NANU MARKET SRL in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.190Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:cartnord:10",
+      "duplicate_group_key": "market-radar:cartnord:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Cartnord",
+      "target_company": "Cartnord",
+      "title": "3 joburi active: Электрик КИПиА / Electrician în linii automate și producție; Помощник машиниста (оператора) производственной линии | Ajutor operator linie de producție; Оператор машинист производственной линии | Operator mașinist la o linie de producere",
+      "sector": "Productie",
+      "location": "str. Columna 170",
+      "score": 62,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/elektrik-kipia-electrician-in-linii-automate-si-productie/73453",
+      "posted_at": "2026-06-03 17:29:17",
+      "deadline": "",
+      "job_count": 3,
+      "job_titles": [
+        "Электрик КИПиА / Electrician în linii automate și producție",
+        "Помощник машиниста (оператора) производственной линии | Ajutor operator linie de producție",
+        "Оператор машинист производственной линии | Operator mașinist la o linie de producere"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/elektrik-kipia-electrician-in-linii-automate-si-productie/73453",
+        "https://www.rabota.md/ro/locuri-de-munca/pomoschnik-mashinista-operatora-proizvodstvennoy-linii-ajutor-operator-linie-de-productie/83132",
+        "https://www.rabota.md/ro/locuri-de-munca/operator-mashinist-proizvodstvennoy-linii-operator-masinist-la-o-linie-de-producere/26393"
+      ],
+      "reasons": [
+        "Sector Productie",
+        "3 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 3 joburi active la Cartnord in zona productie; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.196Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:daw-benta:11",
+      "duplicate_group_key": "market-radar:daw-benta:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Daw Benta",
+      "target_company": "Daw Benta",
+      "title": "4 joburi active: Hamal Producție; Operator Producție; Muncitor calificat în producție; Operator producție",
+      "sector": "Productie",
+      "location": "str. Carbunari 2A",
+      "score": 62,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/hamal-productie/67645",
+      "posted_at": "2026-06-03 10:30:03",
+      "deadline": "",
+      "job_count": 4,
+      "job_titles": [
+        "Hamal Producție",
+        "Operator Producție",
+        "Muncitor calificat în producție",
+        "Operator producție"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/hamal-productie/67645",
+        "https://www.rabota.md/ro/locuri-de-munca/operator-productie/113849",
+        "https://www.rabota.md/ro/locuri-de-munca/muncitor-calificat-in-productie/114619",
+        "https://www.rabota.md/ro/locuri-de-munca/operator-productie/114620"
+      ],
+      "reasons": [
+        "Sector Productie",
+        "4 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 4 joburi active la Daw Benta in zona productie; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.197Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:vitra:12",
+      "duplicate_group_key": "market-radar:vitra:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Vitra SRL",
+      "target_company": "Vitra SRL",
+      "title": "4 joburi active: Maistru în construcții; Operator în Secția de Producție (salariul 15.000 – 17.000 lei); Lacătuș în Secția de Producție (Salariul 16.000 - 18.000)",
+      "sector": "Constructii",
+      "location": "str. Uzinelor 4",
+      "score": 62,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/96065",
+      "posted_at": "2026-06-03 17:20:02",
+      "deadline": "",
+      "job_count": 4,
+      "job_titles": [
+        "Maistru în construcții",
+        "Operator în Secția de Producție (salariul 15.000 – 17.000 lei)",
+        "Lacătuș în Secția de Producție (Salariul 16.000 - 18.000)"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/96065",
+        "https://www.rabota.md/ro/locuri-de-munca/operator-in-sectia-de-productie-salariul-15000-17000-lei/50193",
+        "https://www.rabota.md/ro/locuri-de-munca/lacatus-in-sectia-de-productie-salariul-16000-18000/104525",
+        "https://www.lucru.md/ro/lucru/maistru-in-constructii/96065"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "4 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 4 joburi active la Vitra SRL in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.189Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:dlr-metal-construct:13",
+      "duplicate_group_key": "market-radar:dlr-metal-construct:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "DLR Metal-Construct",
+      "target_company": "DLR Metal-Construct",
+      "title": "4 joburi active: Montatori construcții metalice de la 20000 - 40000; Șef producere (în construcții metalice)",
+      "sector": "Constructii",
+      "location": "str. Constructorilor 1",
+      "score": 62,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/montatori-constructii-metalice-de-la-20000-40000/55909",
+      "posted_at": "2026-06-03 16:00:05",
+      "deadline": "",
+      "job_count": 4,
+      "job_titles": [
+        "Montatori construcții metalice de la 20000 - 40000",
+        "Șef producere (în construcții metalice)"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/montatori-constructii-metalice-de-la-20000-40000/55909",
+        "https://www.rabota.md/ro/locuri-de-munca/sef-producere-in-constructii-metalice/110037",
+        "https://www.lucru.md/ro/lucru/montatori-constructii-metalice-de-la-20000-40000/55909",
+        "https://www.lucru.md/ro/lucru/sef-producere-in-constructii-metalice/110037"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "4 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 4 joburi active la DLR Metal-Construct in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.190Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:skladovka-md:14",
+      "duplicate_group_key": "market-radar:skladovka-md:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Skladovka.md",
+      "target_company": "Skladovka.md",
+      "title": "5 joburi active: Экскаваторщик | Operator de excavator (1000 леев/день); Строитель | Constructor (1000 USD); Водитель СЕ | Șofer CE (1100 USD / месяц); Водитель Бобката | Șofer Bobcat (900 леев/день)",
+      "sector": "Depozitare / Logistica",
+      "location": "",
+      "score": 62,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/ekskavatorschik-operator-de-excavator-1000-leev-den/127910",
+      "posted_at": "2026-06-03 16:40:02",
+      "deadline": "",
+      "job_count": 5,
+      "job_titles": [
+        "Экскаваторщик | Operator de excavator (1000 леев/день)",
+        "Строитель | Constructor (1000 USD)",
+        "Водитель СЕ | Șofer CE (1100 USD / месяц)",
+        "Водитель Бобката | Șofer Bobcat (900 леев/день)",
+        "Водитель Самосвала | Șofer de basculantă (900 леев/день)"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/ekskavatorschik-operator-de-excavator-1000-leev-den/127910",
+        "https://www.rabota.md/ro/locuri-de-munca/stroitel-constructor-1000-usd/129176",
+        "https://www.rabota.md/ro/locuri-de-munca/voditel-se-sofer-ce-1100-usd-mesyac/139075",
+        "https://www.rabota.md/ro/locuri-de-munca/voditel-bobkata-sofer-bobcat-900-leev-den/139076",
+        "https://www.rabota.md/ro/locuri-de-munca/voditel-samosvala-sofer-de-basculanta-900-leev-den/139077"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica",
+        "5 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 5 joburi active la Skladovka.md in zona depozitare / logistica; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.204Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:nefis:15",
+      "duplicate_group_key": "market-radar:nefis:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Nefis",
+      "target_company": "Nefis",
+      "title": "1 job activ: Magaziner - depozit materie primă",
+      "sector": "Depozitare / Logistica",
+      "location": "",
+      "score": 60,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/magaziner-depozit-materie-prima/7035",
+      "posted_at": "azi",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Magaziner - depozit materie primă"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/magaziner-depozit-materie-prima/7035"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.206Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:steinel-electronic:16",
+      "duplicate_group_key": "market-radar:steinel-electronic:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Steinel Electronic SRL",
+      "target_company": "Steinel Electronic SRL",
+      "title": "1 job activ: Personal la liniile de producție",
+      "sector": "Productie",
+      "location": "",
+      "score": 60,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/personal-la-liniile-de-productie/136403",
+      "posted_at": "2026-06-03 15:55:49",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Personal la liniile de producție"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/personal-la-liniile-de-productie/136403"
+      ],
+      "reasons": [
+        "Sector Productie",
+        "semnal de volum operational"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.196Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:farmina:17",
+      "duplicate_group_key": "market-radar:farmina:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Farmina",
+      "target_company": "Farmina",
+      "title": "2 joburi active: Hamal (Ciocana) | Грузчик; Șef/ă depozit farmaceutic",
+      "sector": "Depozitare / Logistica",
+      "location": "",
+      "score": 57,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/hamal-ciocana-gruzchik/81610",
+      "posted_at": "2026-06-03 13:10:04",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Hamal (Ciocana) | Грузчик",
+        "Șef/ă depozit farmaceutic"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/hamal-ciocana-gruzchik/81610",
+        "https://www.rabota.md/ro/locuri-de-munca/sef-a-depozit-farmaceutic/96088"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica",
+        "2 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Farmina in zona depozitare / logistica; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.210Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:amela-impex:18",
+      "duplicate_group_key": "market-radar:amela-impex:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Amela Impex",
+      "target_company": "Amela Impex",
+      "title": "2 joburi active: Maestru în Construcții / Мастер участка / Мастер в строительстве",
+      "sector": "Constructii",
+      "location": "str. Columna 170",
+      "score": 57,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/maestru-in-constructii-master-uchastka-master-v-stroitelstve/138875",
+      "posted_at": "2026-06-03 13:10:04",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Maestru în Construcții / Мастер участка / Мастер в строительстве"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/maestru-in-constructii-master-uchastka-master-v-stroitelstve/138875",
+        "https://www.lucru.md/ro/lucru/maestru-in-constructii-master-uchastka-master-v-stroitelstve/138875"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Amela Impex in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.192Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:term-md:19",
+      "duplicate_group_key": "market-radar:term-md:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Term.md",
+      "target_company": "Term.md",
+      "title": "2 joburi active: Maistru în construcții",
+      "sector": "Constructii",
+      "location": "",
+      "score": 57,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/87616",
+      "posted_at": "2026-06-03 13:15:21",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Maistru în construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/87616",
+        "https://www.lucru.md/ro/lucru/maistru-in-constructii/87616"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Term.md in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.191Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:i-s-moldelectrica:20",
+      "duplicate_group_key": "market-radar:i-s-moldelectrica:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Î.S. MOLDELECTRICA",
+      "target_company": "Î.S. MOLDELECTRICA",
+      "title": "2 joburi active: Maistru/ă în construcții",
+      "sector": "Constructii",
+      "location": "str. Ştefan cel Mare și Sfînt 30",
+      "score": 57,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/maistru-a-in-constructii/136462",
+      "posted_at": "2026-06-03 16:10:02",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Maistru/ă în construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/maistru-a-in-constructii/136462",
+        "https://www.lucru.md/ro/lucru/maistru-a-in-constructii/136462"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Î.S. MOLDELECTRICA in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.190Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:mallcons-building:21",
+      "duplicate_group_key": "market-radar:mallcons-building:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "MallCons Building",
+      "target_company": "MallCons Building",
+      "title": "2 joburi active: Specialiști în lucru cu Metalul: Sudori, Montatori constructii metalice, panouri Sandwich; Montatori constructii metalice",
+      "sector": "Constructii",
+      "location": "",
+      "score": 57,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/specialisti-in-lucru-cu-metalul-sudori-montatori-constructii-metalice-panouri-sandwich/72527",
+      "posted_at": "2026-05-21 09:00:05",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Specialiști în lucru cu Metalul: Sudori, Montatori constructii metalice, panouri Sandwich",
+        "Montatori constructii metalice"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/specialisti-in-lucru-cu-metalul-sudori-montatori-constructii-metalice-panouri-sandwich/72527",
+        "https://www.rabota.md/ro/locuri-de-munca/montatori-constructii-metalice/77875"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la MallCons Building in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.195Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:valdcongrup:22",
+      "duplicate_group_key": "market-radar:valdcongrup:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md, Lucru.md",
+      "source_tier": "primary",
+      "company": "Valdcongrup S.R.L.",
+      "target_company": "Valdcongrup S.R.L.",
+      "title": "2 joburi active: Șofer de autocamion în construcții",
+      "sector": "Constructii",
+      "location": "",
+      "score": 57,
+      "priority": "P2",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/sofer-de-autocamion-in-constructii/126796",
+      "posted_at": "2026-06-03 12:10:04",
+      "deadline": "",
+      "job_count": 2,
+      "job_titles": [
+        "Șofer de autocamion în construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/sofer-de-autocamion-in-constructii/126796",
+        "https://www.lucru.md/ro/lucru/sofer-de-autocamion-in-constructii/126796"
+      ],
+      "reasons": [
+        "Sector Constructii",
+        "2 joburi active vazute pentru companie"
+      ],
+      "outreach_angle": "Abordare: am vazut 2 joburi active la Valdcongrup S.R.L. in zona constructii; intrebarea buna este daca lipsa de personal poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.193Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:terra-impex:23",
+      "duplicate_group_key": "market-radar:terra-impex:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Terra Impex SRL",
+      "target_company": "Terra Impex SRL",
+      "title": "1 job activ: Ambalator / Ambalatoare",
+      "sector": "Depozitare / Logistica",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/ambalator-ambalatoare/139274",
+      "posted_at": "2026-06-03 16:30:03",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Ambalator / Ambalatoare"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/ambalator-ambalatoare/139274"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.204Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:oiltech:24",
+      "duplicate_group_key": "market-radar:oiltech:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Oiltech",
+      "target_company": "Oiltech",
+      "title": "1 job activ: Depozitar",
+      "sector": "Depozitare / Logistica",
+      "location": "str. Salcâmilor 5",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/depozitar/130686",
+      "posted_at": "2026-06-03 16:00:03",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Depozitar"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/depozitar/130686"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.209Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:zakaz-md:25",
+      "duplicate_group_key": "market-radar:zakaz-md:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Zakaz.md",
+      "target_company": "Zakaz.md",
+      "title": "1 job activ: Depozitar Botanica",
+      "sector": "Depozitare / Logistica",
+      "location": "bd. Dacia 61",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/depozitar-botanica/123454",
+      "posted_at": "2026-06-03 15:05:44",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Depozitar Botanica"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/depozitar-botanica/123454"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.210Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:inoveco:26",
+      "duplicate_group_key": "market-radar:inoveco:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Inoveco",
+      "target_company": "Inoveco",
+      "title": "1 job activ: Gestionar materiale de constructii",
+      "sector": "Constructii",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/gestionar-materiale-de-constructii/138969",
+      "posted_at": "2026-05-29 11:30:46",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Gestionar materiale de constructii"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/gestionar-materiale-de-constructii/138969"
+      ],
+      "reasons": [
+        "Sector Constructii"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru constructii; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.194Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:instalco:27",
+      "duplicate_group_key": "market-radar:instalco:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Instalco S.R.L.",
+      "target_company": "Instalco S.R.L.",
+      "title": "1 job activ: Hamal",
+      "sector": "Depozitare / Logistica",
+      "location": "str. Mesterul Manole 5",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/hamal/82319",
+      "posted_at": "2026-06-03 17:05:02",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Hamal"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/hamal/82319"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.201Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:orhei-vit:28",
+      "duplicate_group_key": "market-radar:orhei-vit:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Orhei-Vit",
+      "target_company": "Orhei-Vit",
+      "title": "1 job activ: Hamal – Depozit Produse Finite",
+      "sector": "Depozitare / Logistica",
+      "location": "str. Stejarilor 20",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/hamal-depozit-produse-finite/137712",
+      "posted_at": "2026-06-03 16:14:02",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Hamal – Depozit Produse Finite"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/hamal-depozit-produse-finite/137712"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.207Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:dita-estfarm:29",
+      "duplicate_group_key": "market-radar:dita-estfarm:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Dita Estfarm",
+      "target_company": "Dita Estfarm",
+      "title": "1 job activ: Hamal (la depozit farmaceutic)",
+      "sector": "Depozitare / Logistica",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/hamal-la-depozit-farmaceutic/83013",
+      "posted_at": "2026-06-03 17:30:04",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Hamal (la depozit farmaceutic)"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/hamal-la-depozit-farmaceutic/83013"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.200Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:pro-rep:30",
+      "duplicate_group_key": "market-radar:pro-rep:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "PRO REP",
+      "target_company": "PRO REP",
+      "title": "1 job activ: Hamali",
+      "sector": "Depozitare / Logistica",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/hamali/138496",
+      "posted_at": "2026-06-03 17:05:03",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Hamali"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/hamali/138496"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.200Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:daxin-bit:31",
+      "duplicate_group_key": "market-radar:daxin-bit:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "DAXIN-BIT",
+      "target_company": "DAXIN-BIT",
+      "title": "1 job activ: Lucrător în producție (cu instruire) — prelucrare piatră (8 000 → 15 000–18 000 lei)",
+      "sector": "Productie",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/lucrator-in-productie-cu-instruire-prelucrare-piatra-8-000-15-00018-000-lei/138069",
+      "posted_at": "2026-06-03 17:30:02",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Lucrător în producție (cu instruire) — prelucrare piatră (8 000 → 15 000–18 000 lei)"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/lucrator-in-productie-cu-instruire-prelucrare-piatra-8-000-15-00018-000-lei/138069"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.195Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:bonvie-pro:32",
+      "duplicate_group_key": "market-radar:bonvie-pro:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Bonvie Pro SRL",
+      "target_company": "Bonvie Pro SRL",
+      "title": "1 job activ: Lucrător linia de producere (fasonare) / depozit",
+      "sector": "Productie",
+      "location": "str. Uzinelor 11",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/lucrator-linia-de-producere-fasonare-depozit/130039",
+      "posted_at": "2026-06-03 17:37:02",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Lucrător linia de producere (fasonare) / depozit"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/lucrator-linia-de-producere-fasonare-depozit/130039"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.200Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:eco-save:33",
+      "duplicate_group_key": "market-radar:eco-save:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "ECO SAVE",
+      "target_company": "ECO SAVE",
+      "title": "1 job activ: Maistru în construcții",
+      "sector": "Constructii",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/139137",
+      "posted_at": "2026-05-27 17:00:06",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Maistru în construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/139137"
+      ],
+      "reasons": [
+        "Sector Constructii"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru constructii; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.194Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:standard-byte:34",
+      "duplicate_group_key": "market-radar:standard-byte:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "STANDARD BYTE",
+      "target_company": "STANDARD BYTE",
+      "title": "1 job activ: Maistru în construcții",
+      "sector": "Constructii",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/124188",
+      "posted_at": "2026-05-22 16:08:29",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Maistru în construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/maistru-in-constructii/124188"
+      ],
+      "reasons": [
+        "Sector Constructii"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru constructii; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.194Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:ics-dra-draexlmaier-automotive:35",
+      "duplicate_group_key": "market-radar:ics-dra-draexlmaier-automotive:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "ICS DRA DRAEXLMAIER AUTOMOTIVE SRL",
+      "target_company": "ICS DRA DRAEXLMAIER AUTOMOTIVE SRL",
+      "title": "1 job activ: Montator/oare în industria construcțiilor de automobile, Departament Producție",
+      "sector": "Productie",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/montator-oare-in-industria-constructiilor-de-automobile-departament-productie/98538",
+      "posted_at": "2026-01-29 11:53:55",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Montator/oare în industria construcțiilor de automobile, Departament Producție"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/montator-oare-in-industria-constructiilor-de-automobile-departament-productie/98538"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.200Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:studio-color:36",
+      "duplicate_group_key": "market-radar:studio-color:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Studio Color",
+      "target_company": "Studio Color",
+      "title": "1 job activ: Muncitor necalificat în secția de producție a publicității exterioare",
+      "sector": "Productie",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/muncitor-necalificat-in-sectia-de-productie-a-publicitatii-exterioare/138981",
+      "posted_at": "2026-05-28 21:35:02",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Muncitor necalificat în secția de producție a publicității exterioare"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/muncitor-necalificat-in-sectia-de-productie-a-publicitatii-exterioare/138981"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.198Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:sapico:37",
+      "duplicate_group_key": "market-radar:sapico:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Sapico",
+      "target_company": "Sapico",
+      "title": "1 job activ: Operator producție",
+      "sector": "Productie",
+      "location": "str. Maria Dragan 17",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/operator-productie/73744",
+      "posted_at": "2026-06-03 13:00:05",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Operator producție"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/operator-productie/73744"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.196Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:quality-hub:38",
+      "duplicate_group_key": "market-radar:quality-hub:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Quality Hub",
+      "target_company": "Quality Hub",
+      "title": "1 job activ: Operator producție - automotive",
+      "sector": "Productie",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/operator-productie-automotive/33658",
+      "posted_at": "2026-05-24 19:00:04",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Operator producție - automotive"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/operator-productie-automotive/33658"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.199Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:simplex:39",
+      "duplicate_group_key": "market-radar:simplex:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Simplex",
+      "target_company": "Simplex",
+      "title": "1 job activ: Pregătitor comenzi depozit 15 000 - 20 000 MDL (NET)",
+      "sector": "Depozitare / Logistica",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/pregatitor-comenzi-depozit-15-000-20-000-mdl-net/128578",
+      "posted_at": "2026-06-03 16:10:03",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Pregătitor comenzi depozit 15 000 - 20 000 MDL (NET)"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/pregatitor-comenzi-depozit-15-000-20-000-mdl-net/128578"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.208Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:tarol-dd:40",
+      "duplicate_group_key": "market-radar:tarol-dd:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "TAROL DD SRL",
+      "target_company": "TAROL DD SRL",
+      "title": "1 job activ: Sef depozit",
+      "sector": "Depozitare / Logistica",
+      "location": "str. Jubiliara 41a",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/sef-depozit/120736",
+      "posted_at": "2026-06-03 16:01:02",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Sef depozit"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/sef-depozit/120736"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.209Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:linella:41",
+      "duplicate_group_key": "market-radar:linella:company-job-demand:depozitare-logistica",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Linella",
+      "target_company": "Linella",
+      "title": "1 job activ: Specialist Formare în Depozite",
+      "sector": "Depozitare / Logistica",
+      "location": "șos. Muncești 121",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/specialist-formare-in-depozite/139142",
+      "posted_at": "2026-06-03 16:10:03",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Specialist Formare în Depozite"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/specialist-formare-in-depozite/139142"
+      ],
+      "reasons": [
+        "Sector Depozitare / Logistica"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru depozitare / logistica; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.209Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:miro-cakes-amp-more:42",
+      "duplicate_group_key": "market-radar:miro-cakes-amp-more:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "MIRO Cakes &amp; More",
+      "target_company": "MIRO Cakes &amp; More",
+      "title": "1 job activ: Tehnolog producție de cofetărie",
+      "sector": "Productie",
+      "location": "bd. Cuza Vodă 49/1",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/tehnolog-productie-de-cofetarie/104922",
+      "posted_at": "2026-06-03 08:00:04",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Tehnolog producție de cofetărie"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/tehnolog-productie-de-cofetarie/104922"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.198Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:wiza:43",
+      "duplicate_group_key": "market-radar:wiza:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Wiza",
+      "target_company": "Wiza",
+      "title": "1 job activ: Tehnolog producție mobilier",
+      "sector": "Productie",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/tehnolog-productie-mobilier/66736",
+      "posted_at": "2026-06-03 15:00:04",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Tehnolog producție mobilier"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/tehnolog-productie-mobilier/66736"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.196Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:zernoff-vodka:44",
+      "duplicate_group_key": "market-radar:zernoff-vodka:company-job-demand:productie",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "Zernoff Vodka",
+      "target_company": "Zernoff Vodka",
+      "title": "1 job activ: Tehnolog producției alimentare / Технолог пищевого производства",
+      "sector": "Productie",
+      "location": "șos. Muncesti 793/2",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/tehnolog-productiei-alimentare-tehnolog-pischevogo-proizvodstva/43482",
+      "posted_at": "2026-04-15 10:34:00",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Tehnolog producției alimentare / Технолог пищевого производства"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/tehnolog-productiei-alimentare-tehnolog-pischevogo-proizvodstva/43482"
+      ],
+      "reasons": [
+        "Sector Productie"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru productie; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.199Z"
+    },
+    {
+      "signal_key": "market-radar:2026-06-03T14-52-18-231Z:neostil:45",
+      "duplicate_group_key": "market-radar:neostil:company-job-demand:constructii",
+      "type": "job",
+      "signal_kind": "company_job_demand",
+      "signal_channel": "market_signal",
+      "signal_label": "Market Signal",
+      "predator_bucket": "market_signal",
+      "source": "Rabota.md",
+      "source_tier": "primary",
+      "company": "NeoStil",
+      "target_company": "NeoStil",
+      "title": "1 job activ: Прораб / Maistru în construcții",
+      "sector": "Constructii",
+      "location": "",
+      "score": 52,
+      "priority": "P3",
+      "url": "https://www.rabota.md/ro/locuri-de-munca/prorab-maistru-in-constructii/139153",
+      "posted_at": "2026-05-21 15:10:01",
+      "deadline": "",
+      "job_count": 1,
+      "job_titles": [
+        "Прораб / Maistru în construcții"
+      ],
+      "evidence_urls": [
+        "https://www.rabota.md/ro/locuri-de-munca/prorab-maistru-in-constructii/139153"
+      ],
+      "reasons": [
+        "Sector Constructii"
+      ],
+      "outreach_angle": "Abordare: vad ca recrutati pentru constructii; intrebarea buna este daca lipsa de personal va poate bloca productia/proiectele in urmatoarele 60 de zile.",
+      "scraped_at": "2026-06-03T14:52:18.194Z"
+    }
+  ]
+}

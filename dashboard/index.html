@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Grow Daily Sales Scorecard</title>
+    <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,7 +12,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260602a" />
+    <link rel="stylesheet" href="./styles.css?v=20260610c" />
   </head>
   <body>
     <div class="shell">
@@ -28,10 +29,10 @@
             <div id="hero-next-contact" class="hero-next-contact-card">
               <div class="hero-next-empty">Se incarca urmatoarea companie de contactat...</div>
             </div>
-          </div>
-          <div class="hero-side">
-            <article class="hero-pacing-card" id="pacing-card">
-              <div class="hero-pacing-label">Companii miscate / saptamana</div>
+            </div>
+            <div class="hero-side">
+              <article class="hero-pacing-card" id="pacing-card">
+              <div class="hero-pacing-label">Companii noi contactate / saptamana</div>
               <div class="hero-pacing-number">—</div>
               <div class="hero-pacing-status">Se incarca...</div>
             </article>
@@ -49,11 +50,11 @@
                 <strong class="hero-status-value" id="overdue-chip">0</strong>
               </article>
               <article class="hero-status-card">
-                <span class="hero-status-label">Muncitori potentiali</span>
+                <span class="hero-status-label">Muncitori in pipeline activ</span>
                 <strong class="hero-status-value" id="pipeline-workers-chip">0</strong>
               </article>
               <article class="hero-status-card">
-                <span class="hero-status-label">Total companii active</span>
+                <span class="hero-status-label">Companii in pipeline activ</span>
                 <strong class="hero-status-value" id="active-companies-chip">0</strong>
               </article>
               <article class="hero-status-card">
@@ -73,6 +74,7 @@
         </div>
         <nav class="page-nav" aria-label="Navigatie dashboard">
           <button class="page-tab is-active" type="button" data-page-target="action-focus">Action Focus</button>
+          <button class="page-tab" type="button" data-page-target="predator">Predator</button>
           <button class="page-tab" type="button" data-page-target="scorecard">Scorecard</button>
           <button class="page-tab" type="button" data-page-target="checklist">Checklist</button>
           <button class="page-tab" type="button" data-page-target="overview">Panou</button>
@@ -188,6 +190,75 @@
           <div id="action-focus-hq" class="action-focus-card-stack"></div>
         </section>
 
+        <section class="panel span-12 predator-hero-panel" data-page="predator">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Operatiunea Predator</p>
+              <h2>Alfa zilnica pentru clienti angajatori</h2>
+              <p class="panel-copy">Semnale din piata transformate in coada de actiune: MTender Won pentru contracte publice deja castigate si Press Signal pentru proiecte private sau anunturi timpurii.</p>
+            </div>
+            <div class="scorecard-hero-meta">
+              <div class="mini-chip" id="predator-source-chip">Asteapta semnale</div>
+              <div class="mini-chip" id="predator-sync-chip">Sync: --:--</div>
+            </div>
+          </div>
+          <div id="predator-stats" class="summary-row predator-stats"></div>
+        </section>
+
+        <section class="panel span-8" data-page="predator">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Top attack</p>
+              <h2>Oportunitati de abordat</h2>
+            </div>
+            <div class="mini-chip" id="predator-top-chip">0 semnale</div>
+          </div>
+          <div id="predator-top-list" class="predator-list"></div>
+        </section>
+
+        <section class="panel span-4" data-page="predator">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">HQ</p>
+              <h2>Comanda de azi</h2>
+            </div>
+          </div>
+          <div id="predator-command" class="predator-command-stack"></div>
+        </section>
+
+        <section class="panel span-6" data-page="predator">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">MTender</p>
+              <h2>Contracte mari castigate</h2>
+            </div>
+            <div class="mini-chip" id="predator-winners-chip">0 castigatori</div>
+          </div>
+          <div id="predator-tender-winners" class="predator-compact-list"></div>
+        </section>
+
+        <section class="panel span-12" data-page="predator">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Toate companiile</p>
+              <h2>Companii identificate de Predator</h2>
+            </div>
+            <div class="mini-chip" id="predator-companies-chip">0 companii</div>
+          </div>
+          <div id="predator-company-list" class="predator-company-list"></div>
+        </section>
+
+        <section class="panel span-6" data-page="predator">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Press Radar</p>
+              <h2>Proiecte private si anunturi timpurii</h2>
+            </div>
+            <div class="mini-chip" id="predator-press-chip">0 semnale</div>
+          </div>
+          <div id="predator-press-list" class="predator-compact-list"></div>
+        </section>
+
         <section class="panel span-12" data-page="scorecard">
           <div class="panel-header">
             <div>
@@ -227,7 +298,7 @@
             <div>
               <p class="section-label">Total pipeline</p>
               <h2>Funnel cumulativ</h2>
-              <p class="panel-copy">Date totale de la inceputul dashboardului: companii contactate, parcate, pierdute si conversiile comerciale acumulate.</p>
+              <p class="panel-copy">Date totale de la inceputul dashboardului: companii unice si trepte parcurse automat pana la calificare, oferta si contract.</p>
             </div>
           </div>
           <div id="cumulative-pipeline-card" class="cumulative-pipeline-card"></div>
@@ -289,8 +360,8 @@
           <div class="panel-header">
             <div>
               <p class="section-label">Lag Measures</p>
-              <h2>Pâlnia de output si bottleneck</h2>
-              <p class="panel-copy">O vedere de tip pâlnie ca sa observi rapid unde se ingusteaza vanzarile si unde conversia devine fragila.</p>
+              <h2>Pâlnia saptamanii si output semnat</h2>
+              <p class="panel-copy">O vedere simpla: companii noi contactate in saptamana curenta, conversii si rezultatul semnat fara dublari.</p>
             </div>
           </div>
           <div id="lag-funnel" class="lag-funnel"></div>
@@ -794,9 +865,9 @@
                 </label>
               </div>
               <div class="config-divider"></div>
-              <h3>Target card ritm</h3>
+              <h3>Target miscari comerciale</h3>
               <p class="helper">
-                Acest target alimenteaza cardul "Companii miscate / saptamana" din partea de sus a dashboard-ului.
+                Folosit pentru rapoarte care masoara miscari totale. Cardul de sus foloseste target fix 50 pentru companii noi contactate.
               </p>
               <div class="mini-grid">
                 <label class="field">
@@ -934,6 +1005,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ro.js"></script>
-    <script src="./app.js?v=20260602a"></script>
+    <script src="./app.js?v=20260610c"></script>
   </body>
 </html>

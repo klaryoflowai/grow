@@ -861,6 +861,267 @@ h3 {
   gap: 12px;
 }
 
+.predator-hero-panel {
+  border-color: rgba(203, 88, 70, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(251, 248, 241, 0.98));
+}
+
+.predator-stats {
+  margin-bottom: 0;
+}
+
+.predator-stat {
+  min-height: 118px;
+}
+
+.predator-list,
+.predator-command-stack,
+.predator-compact-list,
+.predator-company-list {
+  display: grid;
+  gap: 12px;
+}
+
+.predator-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: stretch;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-low);
+}
+
+.predator-card-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--forest-900);
+  color: #fff8ec;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+}
+
+.predator-card-body {
+  min-width: 0;
+}
+
+.predator-card-topline,
+.predator-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+}
+
+.predator-card h3 {
+  margin-top: 7px;
+  color: var(--forest-900);
+  font-size: 1rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.predator-card p,
+.predator-reasons,
+.predator-angle,
+.predator-row-copy {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.predator-reasons {
+  color: var(--muted-strong);
+}
+
+.predator-angle {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(43, 109, 66, 0.08);
+  color: var(--forest-700);
+}
+
+.predator-link,
+.predator-row-side a {
+  align-self: start;
+  color: var(--forest-700);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.predator-link:hover,
+.predator-row-side a:hover {
+  color: var(--gold-500);
+}
+
+.predator-priority {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--muted-strong);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.predator-priority--p1 {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.predator-priority--p2 {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.predator-priority--p3 {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.predator-priority--watch {
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--muted-strong);
+}
+
+.predator-source-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(18, 32, 23, 0.08);
+  color: var(--forest-700);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.predator-source-tag--mtender_won {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.predator-source-tag--press_signal {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.predator-source-tag--market_signal {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.predator-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.predator-row-title {
+  color: var(--forest-900);
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.predator-row-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.predator-company-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(18, 32, 23, 0.08);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.predator-company-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  border-radius: var(--radius-md);
+  background: rgba(18, 32, 23, 0.08);
+  color: var(--forest-700);
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+}
+
+.predator-company-main {
+  min-width: 0;
+}
+
+.predator-company-main h3 {
+  margin-top: 7px;
+  color: var(--forest-900);
+  font-size: 1rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.predator-company-main p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.predator-company-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.predator-company-actions a {
+  color: var(--forest-700);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.predator-company-actions a:hover {
+  color: var(--gold-500);
+}
+
 .scorecard-hero-meta {
   display: flex;
   flex-wrap: wrap;
@@ -3167,6 +3428,25 @@ td {
   .scorecard-form-grid,
   .lag-outcome-grid {
     grid-template-columns: 1fr;
+  }
+
+  .predator-card,
+  .predator-row,
+  .predator-company-row {
+    grid-template-columns: 1fr;
+  }
+
+  .predator-card-rank,
+  .predator-company-rank {
+    width: 38px;
+    min-height: 38px;
+  }
+
+  .predator-link,
+  .predator-row-side,
+  .predator-company-actions {
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .lead-measures-form-grid,

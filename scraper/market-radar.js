@@ -126,6 +126,11 @@ const DETAIL_FETCH_TIMEOUT_MS = 12000;
 const JOB_DETAIL_LIMIT = 80;
 const DETAIL_FETCH_CONCURRENCY = 8;
 const TENDER_WATCHLIST_LIMIT = 20;
+const TENDER_MIN_VALUE_MDL = Number(
+  process.env.MARKET_RADAR_TENDER_MIN_VALUE_MDL
+  || process.env.PREDATOR_TENDER_MIN_VALUE_MDL
+  || 1_500_000
+);
 
 const TENDER_SOURCES = [
   {
@@ -271,6 +276,15 @@ const TENDER_EXCLUDE = [
   "hrănire",
   "servicii de proiectare",
   "proiectare",
+  "supraveghere tehnica",
+  "supraveghere tehnică",
+  "diriginte de santier",
+  "diriginte de șantier",
+  "expertiza tehnica",
+  "expertiză tehnică",
+  "documentatie tehnica",
+  "documentație tehnică",
+  "studiu de fezabilitate",
 ];
 
 const TENDER_INCLUDE = [
@@ -287,11 +301,38 @@ const TENDER_INCLUDE = [
   "pavare",
   "amenajare",
   "infrastruct",
+  "strada",
+  "străzi",
+  "asfalt",
+  "reabilitare",
+  "modernizare",
+  "consolidare",
+  "extindere",
   "renovare",
   "acoperis",
   "acoperiș",
+  "inginerie",
+  "ingineresc",
+  "ingineresti",
+  "inginerești",
   "retele ingineresti",
   "rețele inginerești",
+  "retea",
+  "rețea",
+  "retele",
+  "rețele",
+  "instalatii",
+  "instalații",
+  "canalizare",
+  "apeduct",
+  "apa",
+  "apă",
+  "gaz",
+  "electric",
+  "termic",
+  "termice",
+  "pod",
+  "poduri",
   "incalzire",
   "încălzire",
   "finisare",
@@ -610,6 +651,9 @@ function isUsefulCompanyName(value = "") {
 
 function isRelevantTender(signal) {
   if (!signal.title || signal.title.length < 4) return false;
+  if (!signal.winner) return false;
+  const value = signal.awardedValueMdl || signal.estimatedValueMdl || 0;
+  if (value < TENDER_MIN_VALUE_MDL) return false;
   const text = fold(`${signal.title} ${signal.company} ${signal.buyer} ${signal.cpv} ${signal.lotsDetail} ${signal.snippet}`);
   if (TENDER_EXCLUDE.some((keyword) => text.includes(fold(keyword)))) return false;
   if (/\b45\d{6}-\d\b/.test(text)) return true;

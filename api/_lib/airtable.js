@@ -23,6 +23,12 @@ class AirtableError extends Error {
   }
 }
 
+function optionalTableWarning(tableLabel, error) {
+  const details = error?.message ? ` Detalii: ${error.message}` : "";
+  const status = error?.status ? ` (${error.status})` : "";
+  return `Tabela ${tableLabel} nu a putut fi citita${status}. Dashboard-ul continua fara acest bloc optional.${details}`;
+}
+
 const schemaReferenceCache = new Map();
 const airtableDataCache = new Map();
 const DEFAULT_AIRTABLE_CACHE_TTL_MS = 15000;
@@ -536,7 +542,7 @@ function normalizeCompanyRecord(record, config) {
       "Factor de Decizie (Nume/Functie)"
     )),
     mobile: normalizeString(readField(config.fields.companies.mobile, "Mobil", "Mobile", "Telefon", "Tel")),
-    contact_person: normalizeString(readField(config.fields.companies.contactPerson, "Persoana Contact", "Persoana contact", "Persoana de contact")),
+    contact_person: normalizeString(readField(config.fields.companies.contactPerson, "PErsoana contact", "Persoana Contact", "Persoana contact", "Persoana de contact")),
     secondary_phone: normalizeString(readField(config.fields.companies.secondaryPhone, "Tel contact rang 2", "Telefon contact rang 2", "Tel Contact rang 2")),
     standby_reason: normalizeString(
       config.fields.companies.standbyReason ? fields[config.fields.companies.standbyReason] : ""
@@ -552,7 +558,7 @@ function normalizeCompanyRecord(record, config) {
       config.fields.companies.decisionMaker ? fields[config.fields.companies.decisionMaker] : ""
     ),
     contact_person: normalizeString(
-      config.fields.companies.contactPerson ? fields[config.fields.companies.contactPerson] : ""
+      readField(config.fields.companies.contactPerson, "PErsoana contact", "Persoana Contact", "Persoana contact", "Persoana de contact")
     ),
     mobile: normalizeString(
       config.fields.companies.mobile ? fields[config.fields.companies.mobile] : ""
@@ -2346,10 +2352,7 @@ async function getContactPriorityData(options = {}) {
         .map((record, index) => normalizeContactPriorityRecord(record, config, companyNameById, index))
         .filter((record) => record.company);
     } catch (error) {
-      if (error.status === 404) {
-        return [];
-      }
-      throw error;
+      return [];
     }
   }, options);
 }
@@ -2473,8 +2476,7 @@ async function getDashboardData(options = {}) {
     try {
       contactPriorityRecords = await listRecords("contactPriority");
     } catch (error) {
-      if (error.status !== 404) throw error;
-      warnings.push("Tabela Contact Priority nu a fost gasita. Blocul A-List din Telegram ramane gol.");
+      warnings.push(optionalTableWarning("Contact Priority", error));
     }
 
     try {
@@ -2500,7 +2502,7 @@ async function getDashboardData(options = {}) {
       if (error.status === 404) {
         warnings.push("Tabela Scorecard Trend nu a fost gasita. Trendul zilnic foloseste fallback din Activities.");
       } else {
-        throw error;
+        warnings.push(optionalTableWarning("Scorecard Trend", error));
       }
     }
 
@@ -2510,7 +2512,7 @@ async function getDashboardData(options = {}) {
       if (error.status === 404) {
         warnings.push("Tabela Lead Measures Daily nu a fost gasita. Cardul Key Lead Measures asteapta tabela noua.");
       } else {
-        throw error;
+        warnings.push(optionalTableWarning("Lead Measures Daily", error));
       }
     }
 
@@ -2640,8 +2642,7 @@ async function getTelegramProfileData(selection = {}, options = {}) {
 
     if (selection.contactPriority) {
       jobs.push(["contactPriorityRecords", listRecords("contactPriority").catch((error) => {
-        if (error.status !== 404) throw error;
-        warnings.push("Tabela Contact Priority nu a fost gasita. Blocul A-List din Telegram ramane gol.");
+        warnings.push(optionalTableWarning("Contact Priority", error));
         return [];
       })]);
     }
