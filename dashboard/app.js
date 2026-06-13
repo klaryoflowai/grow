@@ -67,7 +67,7 @@ const wigPlan = {
   },
 };
 
-const appBuild = "20260530g";
+const appBuild = "20260602a";
 const autoRefreshIntervalMs = 60 * 1000;
 const whatsappMessageOutcome = "Mesaj WhatsApp trimis";
 const firstContactTransitionPrefix = "Tranzitie prima contactare";
@@ -1750,11 +1750,14 @@ function applySavedActivityToApiState({ activity, company, scorecard, dailyScore
 
 function mergeAccounts(sourceAccounts, manualAccounts, activities) {
   const merged = new Map();
+  const seededAccountKeys = new Set();
   const orderedActivities = [...activities].sort(compareActivitiesChronologically);
 
   [...sourceAccounts, ...manualAccounts].forEach((account) => {
     if (!account.company) return;
-    merged.set(account.company.toLowerCase(), { ...account });
+    const key = account.company.toLowerCase();
+    seededAccountKeys.add(key);
+    merged.set(key, { ...account });
   });
 
   orderedActivities.forEach((activity) => {
@@ -1791,11 +1794,11 @@ function mergeAccounts(sourceAccounts, manualAccounts, activities) {
       existing.workers = activity.workers_delta;
     }
 
-    if (activity.next_step) {
+    if (!seededAccountKeys.has(key) && activity.next_step) {
       existing.next_step = activity.next_step;
     }
 
-    if (activity.next_step_date) {
+    if (!seededAccountKeys.has(key) && activity.next_step_date) {
       existing.next_step_date = activity.next_step_date;
     }
 
