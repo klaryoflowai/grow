@@ -2990,19 +2990,27 @@ function render() {
   elements.pipelineWorkersChip.textContent = `${movingPipelineWorkers}`;
   elements.activeCompaniesChip.textContent = `${activeCompaniesCount} companii`;
 
-  renderHeroNextContact();
-  renderPacingCard();
-  renderActionFocus();
-  renderPredator();
-  renderChecklist();
-  renderScorecardDashboard();
-  renderTrend();
-  renderPipeline();
-  renderExecutionSummary();
-  renderAlerts();
-  renderActivities();
-  renderConnection();
-  renderPage();
+  [
+    renderHeroNextContact,
+    renderPacingCard,
+    renderActionFocus,
+    renderPredator,
+    renderChecklist,
+    renderScorecardDashboard,
+    renderTrend,
+    renderPipeline,
+    renderExecutionSummary,
+    renderAlerts,
+    renderActivities,
+    renderConnection,
+    renderPage,
+  ].forEach((fn) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`[render] ${fn.name} a esuat:`, err);
+    }
+  });
 }
 
 function normalizeBooleanFlag(value) {
