@@ -11,12 +11,12 @@
   ],
   "crons": [
     {
-      "path": "/api/telegram-evening?weeklyReview=1",
-      "schedule": "0 15 * * 5"
+      "path": "/api/telegram-morning",
+      "schedule": "0 4 * * 1-5"
     },
     {
-      "path": "/api/telegram-evening?weeklyReview=1",
-      "schedule": "0 16 * * 5"
+      "path": "/api/telegram-evening",
+      "schedule": "0 15 * * 1-5"
     }
   ]
 }
